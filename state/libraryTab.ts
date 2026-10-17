@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type LibraryTab = "wishlist" | "collection" | "downloads" | "artists" | "bookmarks";
+export type LibraryTab = "wishlist" | "downloads" | "artists" | "bookmarks";
 
 // Library remembers its open tab between visits, and other screens can choose the tab it opens on
 let currentLibraryTab: LibraryTab = "wishlist";

@@ -1,5 +1,5 @@
 /**
- * MIRLOBLUE Social Sharing, Preview Player & Image Proxy Worker
+ * NIMUEBLUE Social Sharing, Preview Player & Image Proxy Worker
  *
  * Direct, consolidated edge server:
  * 1. Resolves ultra-short routes:
@@ -142,7 +142,7 @@ async function resolveChorusTrackGroup(idOrSlug) {
     try {
       const res = await fetch(`https://mirlo.space/v1/trackGroups/${numericId}`, {
         headers: {
-          "User-Agent": "MirloBlueSocialBot/1.0",
+          "User-Agent": "NimueBlueSocialBot/1.0",
           Accept: "application/json",
         },
       });
@@ -158,7 +158,7 @@ async function resolveChorusTrackGroup(idOrSlug) {
   try {
     const canimusRes = await fetch("https://mirlo.space/v1/sm/canimus.json", {
       headers: {
-        "User-Agent": "MirloBlueSocialBot/1.0",
+        "User-Agent": "NimueBlueSocialBot/1.0",
         Accept: "application/json",
       },
     });
@@ -236,7 +236,7 @@ async function resolveMirloArtist(slug) {
 
   const res = await fetch(`https://mirlo.space/v1/artists/${encodeURIComponent(slug)}`, {
     headers: {
-      "User-Agent": "MirloBlueSocialBot/1.0",
+      "User-Agent": "NimueBlueSocialBot/1.0",
       Accept: "application/json",
     },
   });
@@ -305,7 +305,7 @@ const PODCAST_DISCOVERY_TERMS = [
 
 async function fetchCastopodCatalog() {
   const cache = globalThis.caches?.default;
-  const cacheKey = new Request("https://mirlo-blue-share.workers.dev/internal/castopod-index");
+  const cacheKey = new Request("https://nimueblue-share.workers.dev/internal/castopod-index");
   const cached = cache ? await cache.match(cacheKey) : null;
   if (cached) return cached.json();
 
@@ -395,7 +395,7 @@ function extractPodcastAudioUrl(xml) {
 async function fetchLatestPodcastAudio(feedUrl) {
   const response = await fetch(feedUrl, {
     headers: {
-      "User-Agent": "MirloBlueSocialBot/1.0",
+      "User-Agent": "NimueBlueSocialBot/1.0",
       Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
     },
   });
@@ -415,7 +415,7 @@ async function resolveRadioStation(slug) {
     );
     const response = await fetch(
       `https://de1.api.radio-browser.info/json/stations/byuuid/${uuid}`,
-      { headers: { "User-Agent": "MirloBlueSocialBot/1.0", Accept: "application/json" } },
+      { headers: { "User-Agent": "NimueBlueSocialBot/1.0", Accept: "application/json" } },
     );
     if (!response.ok) {
       throw new Error(`Radio-Browser station lookup failed: ${response.status}`);
@@ -583,7 +583,7 @@ async function getVerifiedCatalogUrl(expectedDomain) {
   }
 
   const cache = globalThis.caches?.default;
-  const cacheKey = new Request("https://mirlo-blue-share.workers.dev/internal/fairplayer-catalogs-map");
+  const cacheKey = new Request("https://nimueblue-share.workers.dev/internal/fairplayer-catalogs-map");
   if (cache) {
     try {
       const match = await cache.match(cacheKey);
@@ -860,7 +860,7 @@ function renderHtml(meta) {
   const isLiveLocation = Boolean(artist && artist.toLowerCase().startsWith("live from"));
   // Artist cards carry the artist's name as the title and their location in the artist line
   const label = artist && !isLiveLocation && !isArtistCard ? `${artist} - ${title}` : title;
-  const desc = `Listen to ${label} on MIRLOBLUE. Direct artist support with zero ads.`;
+  const desc = `Listen to ${label} on NIMUEBLUE. Direct artist support with zero ads.`;
   const safeLabel = escapeHtml(label);
   const safeDesc = escapeHtml(desc);
   const safeImage = escapeHtml(proxiedArtwork);
@@ -891,11 +891,11 @@ function renderHtml(meta) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${safeLabel} | MIRLOBLUE</title>
+    <title>${safeLabel} | NIMUEBLUE</title>
     <meta name="description" content="${safeDesc}" />
 
     <!-- OpenGraph / Social Cards -->
-    <meta property="og:title" content="${safeLabel} | MIRLOBLUE" />
+    <meta property="og:title" content="${safeLabel} | NIMUEBLUE" />
     <meta property="og:description" content="${safeDesc}" />
     <meta property="og:type" content="${ogType}" />
     <meta property="og:image" content="${safeImage}" />
@@ -904,15 +904,15 @@ function renderHtml(meta) {
     <meta property="og:image:type" content="${safeMime}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${safeImage}" />
-    <meta name="twitter:title" content="${safeLabel} | MIRLOBLUE" />
+    <meta name="twitter:title" content="${safeLabel} | NIMUEBLUE" />
     <meta name="twitter:description" content="${safeDesc}" />
 
-    <link rel="icon" type="image/png" href="https://grendel116.github.io/mirlo-blue/logo.png" />
+    <link rel="icon" type="image/png" href="https://grendel116.github.io/nimueblue/logo.png" />
 
     <style>
       @font-face {
-        font-family: "Cubano";
-        src: url("https://grendel116.github.io/mirlo-blue/cubano-sharp.woff2") format("woff2");
+        font-family: "NueGothicRound";
+        src: url("https://grendel116.github.io/nimueblue/Nue-Gothic-Round.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -970,9 +970,8 @@ function renderHtml(meta) {
       .brand img {
         width: 26px;
         height: 26px;
-        filter: brightness(0) saturate(100%) invert(83%) sepia(47%) saturate(1098%) hue-rotate(357%) brightness(102%) contrast(97%);
       }
-      .brand-text { font-family: "Cubano", sans-serif; font-size: 20px; font-weight: 400; letter-spacing: 0.5px; }
+      .brand-text { font-family: "NueGothicRound", sans-serif; font-size: 20px; font-weight: 400; letter-spacing: 0.5px; }
       .brand-highlight { color: var(--primary); }
       .nav-cta {
         font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none;
@@ -1003,7 +1002,7 @@ function renderHtml(meta) {
         background: radial-gradient(circle at center, #132235 0%, #060b13 100%);
       }
       .artwork-placeholder svg { width: 64px; height: 64px; fill: var(--primary); opacity: 0.85; }
-      .track-title { font-family: "Cubano", sans-serif; font-size: 24px; line-height: 1.15; color: var(--text); margin-bottom: 6px; word-break: break-word; }
+      .track-title { font-family: "NueGothicRound", sans-serif; font-size: 24px; line-height: 1.15; color: var(--text); margin-bottom: 6px; word-break: break-word; }
       .track-artist { font-size: 15px; font-weight: 600; line-height: 1.25; color: var(--primary); margin-bottom: 20px; }
       .track-meta { font-size: 13px; color: var(--text-muted); margin-top: -12px; margin-bottom: 20px; display: ${album ? "block" : "none"}; }
       .player-box { width: 100%; margin-bottom: 24px; display: ${audioUrl ? "flex" : "none"}; align-items: center; gap: 14px; padding: 0 4px; }
@@ -1031,11 +1030,11 @@ function renderHtml(meta) {
   <body>
     <header>
       <div class="nav-inner">
-        <a href="https://grendel116.github.io/mirlo-blue/" class="brand" title="MIRLOBLUE Home">
-          <img src="https://grendel116.github.io/mirlo-blue/logo.png" alt="MIRLOBLUE Logo" />
-          <span class="brand-text">MIRLO<span class="brand-highlight">BLUE</span></span>
+        <a href="https://grendel116.github.io/nimueblue/" class="brand" title="NIMUEBLUE Home">
+          <img src="https://grendel116.github.io/nimueblue/logo.png" alt="NIMUEBLUE Logo" />
+          <span class="brand-text">NIMUE<span class="brand-highlight">BLUE</span></span>
         </a>
-        <a href="https://grendel116.github.io/mirlo-blue/" class="nav-cta">About App</a>
+        <a href="https://grendel116.github.io/nimueblue/" class="nav-cta">About App</a>
       </div>
     </header>
 
@@ -1079,7 +1078,7 @@ function renderHtml(meta) {
     </main>
 
     <footer>
-      <p><a href="https://grendel116.github.io/mirlo-blue/">MIRLOBLUE</a> — Free &amp; open source music player. <a href="https://github.com/grendel116/mirlo-blue">Source code</a> (AGPL-3.0)</p>
+      <p><a href="https://grendel116.github.io/nimueblue/">NIMUEBLUE</a> — Free &amp; open source music player. <a href="https://github.com/grendel116/nimueblue">Source code</a> (AGPL-3.0)</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
@@ -1102,11 +1101,11 @@ function renderHtml(meta) {
         const btnApp = document.getElementById("btn-open-app");
         if (btnApp) {
           const clean = appRoute.startsWith("/") ? appRoute.slice(1) : appRoute;
-          const webAppUrl = "https://grendel116.github.io/mirlo-blue/app/" + clean;
+          const webAppUrl = "https://grendel116.github.io/nimueblue/app/" + clean;
           // Android opens the installed app, or the web app when it isn't installed;
           // other devices have no app, so they go straight to the web app
           btnApp.href = /android/i.test(navigator.userAgent)
-            ? "intent://" + clean + "#Intent;scheme=mirloblue;package=space.mirlo.blue;S.browser_fallback_url=" + encodeURIComponent(webAppUrl) + ";end"
+            ? "intent://" + clean + "#Intent;scheme=nimueblue;package=space.mirlo.blue;S.browser_fallback_url=" + encodeURIComponent(webAppUrl) + ";end"
             : webAppUrl;
         }
 
@@ -1351,7 +1350,7 @@ async function proxyPodcastFeed(url, corsHeaders) {
   try {
     const feedRes = await fetch(feedUrl, {
       headers: {
-        "User-Agent": "MirloBlue/1.0",
+        "User-Agent": "NimueBlue/1.0",
         Accept: "application/rss+xml, application/xml, text/xml, */*",
       },
       cf: { cacheTtl: 600, cacheEverything: true },
@@ -1505,7 +1504,7 @@ export default {
             fetch(expectedReleaseUrl, {
               headers: {
                 Accept: "text/html,application/xhtml+xml",
-                "User-Agent": "MirloBlueSocialBot/1.0",
+                "User-Agent": "NimueBlueSocialBot/1.0",
               },
               cf: { cacheTtl: 1800, cacheEverything: true },
             }).catch((pageErr) => {
@@ -1534,7 +1533,7 @@ export default {
                 const altPageResponse = await fetch(derivedReleaseUrl, {
                   headers: {
                     Accept: "text/html,application/xhtml+xml",
-                    "User-Agent": "MirloBlueSocialBot/1.0",
+                    "User-Agent": "NimueBlueSocialBot/1.0",
                   },
                   cf: { cacheTtl: 1800, cacheEverything: true },
                 });
@@ -1556,7 +1555,7 @@ export default {
                 const shopResponse = await fetch(shopUrl, {
                   headers: {
                     Accept: "text/html,application/xhtml+xml",
-                    "User-Agent": "MirloBlueSocialBot/1.0",
+                    "User-Agent": "NimueBlueSocialBot/1.0",
                   },
                   cf: { cacheTtl: 1800, cacheEverything: true },
                 });
@@ -1653,7 +1652,7 @@ export default {
             method: request.method,
             headers: {
               Accept: "text/html,application/xhtml+xml",
-              "User-Agent": "MirloBlueSocialBot/1.0",
+              "User-Agent": "NimueBlueSocialBot/1.0",
             },
           });
           const headers = new Headers(corsHeaders);
@@ -1777,7 +1776,7 @@ export default {
       try {
         const imageRes = await fetch(targetUrl, {
           headers: {
-            "User-Agent": "MirloBlueSocialBot/1.0",
+            "User-Agent": "NimueBlueSocialBot/1.0",
             Accept: "image/webp,image/jpeg,image/png,*/*",
           },
         });
@@ -1817,7 +1816,7 @@ export default {
 
       try {
         const fetchHeaders = {
-          "User-Agent": "MirloBlueSocialBot/1.0",
+          "User-Agent": "NimueBlueSocialBot/1.0",
         };
         const range = request.headers.get("range");
         if (range) fetchHeaders["Range"] = range;
@@ -2027,7 +2026,7 @@ export default {
       try {
         const trackRes = await fetch(`https://mirlo.space/v1/tracks/${trackId}`, {
           headers: {
-            "User-Agent": "MirloBlueSocialBot/1.0",
+            "User-Agent": "NimueBlueSocialBot/1.0",
             Accept: "application/json",
           },
         });
@@ -2121,7 +2120,7 @@ export default {
 
     const proxiedArtwork = artwork
       ? `${url.origin}/image?url=${encodeURIComponent(artwork)}`
-      : "https://grendel116.github.io/mirlo-blue/preview-v8.png";
+      : "https://grendel116.github.io/nimueblue/preview-v8.png";
 
     const html = renderHtml({
       title,

@@ -2,7 +2,7 @@ import { Pressable, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
 import { songPageUrl } from "@/scripts/utils";
-import { MIRLO_BLUE_LISTEN_HUB, shareMessage } from "@/scripts/share";
+import { NIMUE_BLUE_LISTEN_HUB, shareMessage } from "@/scripts/share";
 import { findStation } from "@/queries/radio";
 import { findPodcastShow } from "@/queries/podcast";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
@@ -66,7 +66,7 @@ export function buildShareUrl(
   overrideArtist?: string,
   overrideArtwork?: string,
 ): string {
-  const hubUrl = new URL(MIRLO_BLUE_LISTEN_HUB);
+  const hubUrl = new URL(NIMUE_BLUE_LISTEN_HUB);
   const origin = hubUrl.origin;
 
   if (track.liveStation) {

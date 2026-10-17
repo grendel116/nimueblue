@@ -15,7 +15,7 @@ export default function TrackGroupItem({
         source={
           cover?.sizes
             ? { uri: cover?.sizes[120] }
-            : require("@/assets/images/mirlo-logo-logoOnly-light.png")
+            : require("@/assets/images/nimue-blue-logo.png")
         }
         style={styles.image}
       />

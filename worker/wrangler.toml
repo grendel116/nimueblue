@@ -1,4 +1,4 @@
-name = "mirlo-blue-share"
+name = "nimueblue-share"
 main = "src/index.js"
 compatibility_date = "2024-10-01"
 preview_urls = false

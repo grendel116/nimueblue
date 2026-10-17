@@ -1,13 +1,7 @@
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import * as api from "./fetch/fetchWrapper";
-import { AUTH_PROFILE_QUERY_KEY } from "./authQueries";
-import { useAuthContext } from "@/state/AuthContext";
-import { fairplayerReleaseSlug } from "./fairplayer";
-import { queryUserCollection, queryUserPurchases } from "./queries";
 
-// The listener's side of Mirlo: follows, the feed, and checkout.
-// Follows and paid subscriptions both live in /auth/profile as artistUserSubscriptions:
-// the artist's default tier is a free follow, any other tier is a paid subscription
+// Listener queries for artist followers and checkout.
 
 export const MIRLO_WEB = "https://mirlo.space";
 
@@ -58,63 +52,6 @@ export function queryArtistFollowers(artistId: number | undefined) {
         .then((r) => r.result),
     enabled: Boolean(artistId),
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-// Follow or unfollow; the profile reloads so every Follow button and the Artists tab agree
-export function useFollowArtist(artistId: number | undefined) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (follow: boolean) =>
-      api.post(`/v1/artists/${artistId}/${follow ? "follow" : "unfollow"}`, {}),
-    onSuccess: () =>
-      Promise.all([
-        client.invalidateQueries({ queryKey: AUTH_PROFILE_QUERY_KEY }),
-        client.invalidateQueries({ queryKey: ["fetchArtistFollowers", artistId] }),
-      ]),
-  });
-}
-
-// New releases, pre-orders and posts from followed artists
-export const FOLLOWING_NOTIFICATION_TYPES = [
-  "NEW_ARTIST_ALBUM",
-  "NEW_ARTIST_PREORDER",
-  "NEW_ARTIST_POST",
-];
-
-export function queryFollowingFeed(userId: number | undefined) {
-  return queryOptions({
-    queryKey: ["fetchFollowingFeed", { userId }, "auth"],
-    queryFn: ({ signal }) => {
-      const params = new URLSearchParams({ take: "50" });
-      FOLLOWING_NOTIFICATION_TYPES.forEach((type) => params.append("notificationType", type));
-      return api.get<{ results: MirloNotification[]; total: number }>(
-        `/v1/users/${userId}/notifications?${params}`,
-        { signal },
-      );
-    },
-    enabled: Boolean(userId),
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
-export function queryUnreadCount(userId: number | undefined) {
-  return queryOptions({
-    queryKey: ["fetchUnreadCount", { userId }, "auth"],
-    queryFn: ({ signal }) =>
-      api
-        .get<{ result: number }>(`/v1/users/${userId}/notifications/unreadCount`, { signal })
-        .then((r) => r.result),
-    enabled: Boolean(userId),
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
-export function useMarkAllRead(userId: number | undefined) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.put(`/v1/users/${userId}/notifications/markAllRead`, {}),
-    onSuccess: () => client.setQueryData(queryUnreadCount(userId).queryKey, 0),
   });
 }
 
@@ -226,64 +163,4 @@ export async function confirmPurchaseIntent(body: {
   shippingAddress?: unknown;
 }): Promise<{ clientSecret: string; stripeAccountId: string; paymentIntentId: string }> {
   return api.post("/v1/purchase", body);
-}
-
-// The id of the listener's newest Mirlo transaction. Stripe tells Mirlo about a payment a moment
-// after it goes through, and a new id here means Mirlo has recorded it
-export async function latestTransactionId(userId: number): Promise<string | undefined> {
-  const { results } = await api.get<{ results: { id: string }[] }>(
-    `/v1/users/${userId}/purchases`,
-    {},
-  );
-  return results[0]?.id;
-}
-
-// Claims a free Mirlo album for the signed-in listener and adds it to their collection
-export function useClaimFreeAlbum() {
-  const client = useQueryClient();
-  const { user } = useAuthContext();
-  const userId = user?.id;
-
-  return useMutation({
-    mutationFn: async (album: AlbumProps) => {
-      const artistSlug =
-        fairplayerReleaseSlug.artistRouteId(album.urlSlug) ??
-        String(album.artist?.urlSlug || album.artistId);
-      return startCheckout({
-        artistId: album.artistId,
-        items: [{ type: "trackGroup", id: album.id, price: "0" }],
-        email: user?.email,
-        successUrl: checkoutCompleteUrl(artistSlug, "trackGroup"),
-      });
-    },
-    onSuccess: (_data, album) => {
-      if (userId) {
-        client.setQueryData<LoggedInUser | null>(AUTH_PROFILE_QUERY_KEY, (prev) => {
-          if (!prev) return prev;
-          const currentPurchases = prev.userTrackGroupPurchases ?? [];
-          if (currentPurchases.some((p) => p.trackGroupId === album.id)) {
-            return prev;
-          }
-          return {
-            ...prev,
-            userTrackGroupPurchases: [
-              ...currentPurchases,
-              {
-                userId: prev.id,
-                trackGroupId: album.id,
-                pricePaid: 0,
-                currencyPaid: "usd",
-                datePurchased: new Date().toISOString(),
-              },
-            ],
-          };
-        });
-        return Promise.all([
-          client.invalidateQueries({ queryKey: AUTH_PROFILE_QUERY_KEY }),
-          client.invalidateQueries({ queryKey: queryUserCollection(userId).queryKey }),
-          client.invalidateQueries({ queryKey: queryUserPurchases(userId).queryKey }),
-        ]);
-      }
-    },
-  });
 }

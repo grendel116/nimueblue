@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title id="page-title">MIRLOBLUE</title>
+    <title id="page-title">NIMUEBLUE</title>
     <meta
       name="description"
       id="page-desc"
-      content="Listen to independent music, live radio, and movement podcasts on MIRLOBLUE with zero ads and zero tracking."
+      content="Listen to independent music, live radio, and movement podcasts on NIMUEBLUE with zero ads and zero tracking."
     />
 
     <!-- Default OpenGraph / Social tags -->
-    <meta property="og:title" id="og-title" content="MIRLOBLUE" />
+    <meta property="og:title" id="og-title" content="NIMUEBLUE" />
     <meta
       property="og:description"
       id="og-desc"
@@ -21,21 +21,21 @@
     <meta
       property="og:image"
       id="og-image"
-      content="https://grendel116.github.io/mirlo-blue/preview-v8.png"
+      content="https://grendel116.github.io/nimueblue/preview-v8.png"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:image"
       id="twitter-image"
-      content="https://grendel116.github.io/mirlo-blue/preview-v8.png"
+      content="https://grendel116.github.io/nimueblue/preview-v8.png"
     />
 
-    <link rel="icon" type="image/png" href="https://grendel116.github.io/mirlo-blue/logo.png" />
+    <link rel="icon" type="image/png" href="https://grendel116.github.io/nimueblue/logo.png" />
 
     <style>
       @font-face {
-        font-family: "Cubano";
-        src: url("https://grendel116.github.io/mirlo-blue/cubano-sharp.woff2") format("woff2");
+        font-family: "MedievalScroll";
+        src: url("https://grendel116.github.io/nimueblue/Medieval-Scroll-of-Wisdom.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -115,12 +115,10 @@
       .brand img {
         width: 26px;
         height: 26px;
-        filter: brightness(0) saturate(100%) invert(83%) sepia(47%)
-          saturate(1098%) hue-rotate(357%) brightness(102%) contrast(97%);
       }
 
       .brand-text {
-        font-family: "Cubano", sans-serif;
+        font-family: "MedievalScroll", sans-serif;
         font-size: 20px;
         font-weight: 400;
         letter-spacing: 0.5px;
@@ -209,7 +207,7 @@
       }
 
       .track-title {
-        font-family: "Cubano", sans-serif;
+        font-family: "MedievalScroll", sans-serif;
         font-size: 24px;
         line-height: 1.15;
         color: var(--text);
@@ -376,11 +374,11 @@
   <body>
     <header>
       <div class="nav-inner">
-        <a href="https://grendel116.github.io/mirlo-blue/" class="brand" title="MIRLOBLUE Home">
-          <img src="https://grendel116.github.io/mirlo-blue/logo.png" alt="MIRLOBLUE Logo" />
-          <span class="brand-text">MIRLO<span class="brand-highlight">BLUE</span></span>
+        <a href="https://grendel116.github.io/nimueblue/" class="brand" title="NIMUEBLUE Home">
+          <img src="https://grendel116.github.io/nimueblue/logo.png" alt="NIMUEBLUE Logo" />
+          <span class="brand-text">NIMUE<span class="brand-highlight">BLUE</span></span>
         </a>
-        <a href="https://grendel116.github.io/mirlo-blue/" class="nav-cta">About App</a>
+        <a href="https://grendel116.github.io/nimueblue/" class="nav-cta">About App</a>
       </div>
     </header>
 
@@ -456,7 +454,7 @@
 
     <footer>
       <p>
-        <a href="https://grendel116.github.io/mirlo-blue/">MIRLOBLUE</a> — Free &amp; open source music player.
+        <a href="https://grendel116.github.io/nimueblue/">NIMUEBLUE</a> — Free &amp; open source music player.
       </p>
     </footer>
 
@@ -469,7 +467,7 @@
 
         const type = (params.get("type") || "track").toLowerCase();
         const title = params.get("title") || "Featured Music";
-        const artist = params.get("artist") || "MIRLOBLUE";
+        const artist = params.get("artist") || "NIMUEBLUE";
         const album = params.get("album") || "";
         const trackId = params.get("id") || "";
         const artwork = params.get("art") || "";
@@ -562,7 +560,7 @@
               if (data?.track?.title && titleEl.textContent === "Featured Music") {
                 titleEl.textContent = data.track.title;
               }
-              if (data?.track?.trackGroup?.artist?.name && artistEl.textContent === "MIRLOBLUE") {
+              if (data?.track?.trackGroup?.artist?.name && artistEl.textContent === "NIMUEBLUE") {
                 artistEl.textContent = data.track.trackGroup.artist.name;
               }
             })
@@ -571,10 +569,10 @@
 
         // Update Page Titles
         const formattedLabel = artist ? `${artist} - ${title}` : title;
-        pageTitleEl.textContent = `${formattedLabel} | MIRLOBLUE`;
-        pageDescEl.content = `Listen to ${formattedLabel} on MIRLOBLUE.`;
-        ogTitleEl.content = `${formattedLabel} | MIRLOBLUE`;
-        ogDescEl.content = `Listen to ${formattedLabel} on MIRLOBLUE. Direct artist support with zero ads.`;
+        pageTitleEl.textContent = `${formattedLabel} | NIMUEBLUE`;
+        pageDescEl.content = `Listen to ${formattedLabel} on NIMUEBLUE.`;
+        ogTitleEl.content = `${formattedLabel} | NIMUEBLUE`;
+        ogDescEl.content = `Listen to ${formattedLabel} on NIMUEBLUE. Direct artist support with zero ads.`;
 
         // Configure Web Button
         btnOpenWeb.href = webUrl;
@@ -583,9 +581,9 @@
         // other devices have no app, so they go straight to the web app
         btnOpenApp.addEventListener("click", function () {
           const cleanRoute = appRoute.startsWith("/") ? appRoute.slice(1) : appRoute;
-          const webAppUrl = `https://grendel116.github.io/mirlo-blue/app/${cleanRoute}`;
+          const webAppUrl = `https://grendel116.github.io/nimueblue/app/${cleanRoute}`;
           window.location.href = /android/i.test(navigator.userAgent)
-            ? `intent://${cleanRoute}#Intent;scheme=mirloblue;package=space.mirlo.blue;S.browser_fallback_url=${encodeURIComponent(webAppUrl)};end`
+            ? `intent://${cleanRoute}#Intent;scheme=nimueblue;package=space.mirlo.blue;S.browser_fallback_url=${encodeURIComponent(webAppUrl)};end`
             : webAppUrl;
         });
 
@@ -605,7 +603,7 @@
         if (resolvedAudio && resolvedAudio.includes("mirlo.space/v1/tracks/")) {
           const match = resolvedAudio.match(/\/v1\/tracks\/(.+)$/);
           if (match) {
-            resolvedAudio = `https://mirlo-blue-share.mirloblue.workers.dev/stream/${match[1]}`;
+            resolvedAudio = `https://nimueblue-share.nimueblue.workers.dev/stream/${match[1]}`;
           }
         }
 

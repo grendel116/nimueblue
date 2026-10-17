@@ -2,7 +2,6 @@ import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SearchContextProvider } from "@/state/SearchContext";
 import { PlayerContextProvider } from "@/state/PlayerContext";
-import { AuthContextProvider } from "@/state/AuthContext";
 import { QueryClientWrapper } from "@/queries/QueryClientWrapper";
 import { DevToolsBubble } from "react-native-react-query-devtools";
 import * as Clipboard from "expo-clipboard";
@@ -12,6 +11,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { AppReadyContextProvider } from "@/state/AppReadyContext";
 import { useEffect, useState } from "react";
+import { Platform } from "react-native";
+import { MEDIEVAL_FONT_BASE64 } from "@/constants/medievalFontBase64";
 import Footer from "@/components/Footer";
 import NowPlaying from "@/components/NowPlaying";
 import ChoiceSheet from "@/components/ChoiceSheet";
@@ -35,7 +36,7 @@ TrackPlayer.registerPlaybackService(() => require("../scripts/service"));
 export default function RootLayout() {
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [fontsLoaded, fontError] = useFonts({
-    Cubano: require("../assets/fonts/Cubano.otf"),
+    MedievalScroll: require("../assets/fonts/Medieval-Scroll-of-Wisdom.ttf"),
     OpenSans: require("../assets/fonts/OpenSans-VariableFont_wdth,wght.ttf"),
   });
   // Needed for TanStack Query Devtools
@@ -51,6 +52,23 @@ export default function RootLayout() {
   useEffect(() => {
     checkForUpdates();
     openMusicFolder().catch((err) => console.warn("Couldn't reopen the music folder:", err));
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      const styleId = "medieval-scroll-font-face";
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement("style");
+        style.id = styleId;
+        style.textContent = `
+          @font-face {
+            font-family: 'MedievalScroll';
+            src: url('${MEDIEVAL_FONT_BASE64}') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -80,7 +98,6 @@ export default function RootLayout() {
       value={{ isDataLoaded: isDataLoaded, setIsDataLoaded: setIsDataLoaded }}
     >
       <QueryClientWrapper>
-        <AuthContextProvider>
           <PlayerContextProvider>
             <SearchContextProvider>
               <>
@@ -90,7 +107,6 @@ export default function RootLayout() {
                     contentStyle: { backgroundColor: "#070b14" },
                   }}
                 >
-                  <Stack.Screen name="login" options={{ headerShown: false }} />
                   <Stack.Screen
                     name="index"
                     options={{
@@ -105,12 +121,6 @@ export default function RootLayout() {
                   />
                   <Stack.Screen
                     name="library"
-                    options={{
-                      headerShown: false,
-                    }}
-                  />
-                  <Stack.Screen
-                    name="activity"
                     options={{
                       headerShown: false,
                     }}
@@ -189,16 +199,6 @@ export default function RootLayout() {
                       contentStyle: { backgroundColor: "transparent" },
                     }}
                   />
-                  <Stack.Screen
-                    name="emailVerificationModal"
-                    options={{
-                      headerShown: false,
-                      presentation: "transparentModal",
-                      animation: "slide_from_bottom",
-                      animationDuration: 200,
-                      contentStyle: { backgroundColor: "transparent" },
-                    }}
-                  />
                 </Stack>
                 <NowPlaying />
               </>
@@ -207,7 +207,6 @@ export default function RootLayout() {
               <StatusBar style="light" backgroundColor="#070b14" />
             </SearchContextProvider>
           </PlayerContextProvider>
-        </AuthContextProvider>
         {/* <DevToolsBubble onCopy={onCopy} /> */}
       </QueryClientWrapper>
     </AppReadyContextProvider>

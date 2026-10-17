@@ -25,7 +25,7 @@ import {
 export type MusicFolderStatus = "unsupported" | "none" | "needs-permission" | "ready";
 
 const SUPPORTED = typeof window !== "undefined" && "showDirectoryPicker" in window;
-const DB_NAME = "mirlo-blue";
+const DB_NAME = "nimueblue";
 const STORE = "handles";
 const HANDLE_KEY = "musicFolder";
 // Tags sit at the start of a song; reading this much covers them without loading whole albums

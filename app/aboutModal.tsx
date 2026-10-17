@@ -15,69 +15,48 @@ type AboutLink = {
 
 const LINKS: AboutLink[] = [
   {
-    label: "mirlo.space",
-    subtitle: "Official website",
-    url: "https://mirlo.space",
-    icon: "globe",
+    label: "Fairplayer Hub",
+    subtitle: "Verified Faircamp catalogs & federation",
+    url: "https://fairplayer.band/hub/",
+    icon: "compact-disc",
     brand: false,
   },
   {
-    label: "About Mirlo",
-    subtitle: "Mission & documentation",
-    url: "https://docs.mirlo.space",
-    icon: "circle-info",
+    label: "Radio-Browser",
+    subtitle: "Community directory of live internet radio",
+    url: "https://www.radio-browser.info/",
+    icon: "tower-broadcast",
     brand: false,
   },
   {
-    label: "Contact",
-    subtitle: "hi@mirlo.space",
-    url: "mailto:hi@mirlo.space",
-    icon: "envelope",
+    label: "Castopod Index",
+    subtitle: "Open directory of fediverse podcasts",
+    url: "https://index.castopod.org/",
+    icon: "podcast",
     brand: false,
   },
   {
-    label: "Instagram",
-    subtitle: "@mirlo.space",
-    url: "https://instagram.com/mirlo.space",
-    icon: "instagram",
-    brand: true,
-  },
-  {
-    label: "Mastodon",
-    subtitle: "@mirlo@musician.social",
-    url: "https://musician.social/@mirlo",
-    icon: "mastodon",
-    brand: true,
-  },
-  {
-    label: "Bluesky",
-    subtitle: "@mirlo.space",
-    url: "https://bsky.app/profile/mirlo.space",
-    icon: "bluesky",
-    brand: true,
-  },
-  {
-    label: "Terms of Service",
-    url: "https://mirlo.space/pages/terms",
-    icon: "file-lines",
+    label: "Mirlo Open Source",
+    subtitle: "Upstream source & Canimus Chorus catalog",
+    url: "https://github.com/funmusicplace/mirlo-mobile",
+    icon: "code-branch",
     brand: false,
   },
   {
-    label: "Privacy Policy",
-    url: "https://mirlo.space/pages/privacy",
-    icon: "shield-halved",
+    label: "GNU AGPL v3.0 License",
+    subtitle: "Free & open-source software license",
+    url: "https://www.gnu.org/licenses/agpl-3.0.html",
+    icon: "scale-balanced",
     brand: false,
   },
 ];
 
-// Linking.openURL would route mirlo.space links back into the app, so web pages open in the
-// in-app browser
 function open(url: string) {
   if (url.startsWith("mailto:")) Linking.openURL(url);
   else openInBrowser(url);
 }
 
-// Where to find Mirlo online. Opened from the Library header, next to Sign in and Log out
+// Federated catalogs, open directories, and source code repositories behind NimueBlue.
 export default function AboutModal() {
   return (
     <SwipeDownSheet resetKey="about">
@@ -86,7 +65,6 @@ export default function AboutModal() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          {/* Link Cards */}
           <View style={styles.linkList}>
             {LINKS.map((link) => (
               <Pressable
@@ -117,6 +95,12 @@ export default function AboutModal() {
               </Pressable>
             ))}
           </View>
+
+          <Text style={styles.licenseNotice}>
+            NimueBlue is free software released under the GNU Affero General Public License v3.0.
+            Portions Copyright © 2025 Mirlo US LLC; modifications Copyright © 2026 Davy
+            (grendel116).
+          </Text>
         </View>
       </SheetScrollView>
     </SwipeDownSheet>
@@ -180,5 +164,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  licenseNotice: {
+    marginTop: 18,
+    paddingHorizontal: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
+    textAlign: "center",
   },
 });

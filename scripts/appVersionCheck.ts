@@ -3,8 +3,8 @@ import { Alert, Linking, Platform } from "react-native";
 import { askChoice } from "./askChoice";
 
 const GITHUB_LATEST_RELEASE_URL =
-  "https://api.github.com/repos/grendel116/mirlo-blue/releases/latest";
-const MIRLO_BLUE_DOWNLOAD_PAGE = "https://grendel116.github.io/mirlo-blue/";
+  "https://api.github.com/repos/grendel116/nimueblue/releases/latest";
+const NIMUE_BLUE_DOWNLOAD_PAGE = "https://grendel116.github.io/nimueblue/";
 
 export async function checkForUpdates() {
   try {
@@ -127,7 +127,7 @@ export async function checkAndroidVersion() {
     const downloadUrl =
       apkAsset?.browser_download_url ||
       data?.html_url ||
-      MIRLO_BLUE_DOWNLOAD_PAGE;
+      NIMUE_BLUE_DOWNLOAD_PAGE;
 
     return {
       version: cleanVersion,
@@ -146,7 +146,7 @@ function showAndroidUpdatePrompt(
 ) {
   askChoice(
     "Update Available",
-    `MirloBlue ${newVersion} is ready to install (you have ${currentVersion}). Download and install the latest APK update?`,
+    `NimueBlue ${newVersion} is ready to install (you have ${currentVersion}). Download and install the latest APK update?`,
     [
       {
         text: "Install Update",

@@ -217,25 +217,3 @@ export function useFaircampSaves(): FaircampSaves {
   return current;
 }
 
-export function isFaircampAlbum(album: {
-  source?: string;
-  urlSlug?: string;
-}): boolean {
-  return (
-    album.source === "Faircamp" ||
-    album.urlSlug?.startsWith("fairplayer-") === true ||
-    Boolean(album.source && album.source !== "Mirlo Space")
-  );
-}
-
-export function isFaircampTrack(track: {
-  source?: string;
-  trackGroup?: { source?: string; urlSlug?: string };
-}): boolean {
-  const source = track.source || track.trackGroup?.source;
-  return (
-    source === "Faircamp" ||
-    track.trackGroup?.urlSlug?.startsWith("fairplayer-") === true ||
-    Boolean(source && source !== "Mirlo Space")
-  );
-}

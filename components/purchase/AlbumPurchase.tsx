@@ -1,12 +1,9 @@
 import { Text } from "react-native";
-import { useRouter } from "expo-router";
-import { useAuthContext } from "@/state/AuthContext";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { FaircampShop } from "./FaircampShop";
 import {
   defaultAlbumPrice,
   externalPurchaseLinks,
-  isFreeAlbum,
   priceChips,
   sellsOnMirlo,
 } from "./helpers";
@@ -14,7 +11,6 @@ import { PriceForm } from "./PriceForm";
 import type { CheckoutControls } from "./useCheckout";
 import {
   AlbumHeader,
-  ErrorText,
   Notice,
   PaymentsGate,
   PrimaryButton,
@@ -58,16 +54,16 @@ export function AlbumPurchase({
       </>
     );
   }
-  if (isFreeAlbum(album)) return <FreeAlbum album={album} {...checkout} />;
+  const minPrice = album.minPrice ?? 0;
   return (
     <PaymentsGate status={payments} artistName={album.artist?.name}>
       <AlbumHeader album={album} />
       <PriceForm
         label="Price"
         currency={currency}
-        minimum={album.minPrice ?? 0}
-        initial={defaultAlbumPrice(album)}
-        chips={priceChips(album.minPrice ?? 0, album.suggestedPrice)}
+        minimum={minPrice}
+        initial={defaultAlbumPrice(album) || 500}
+        chips={priceChips(minPrice || 500, album.suggestedPrice)}
         noteTo={album.artist?.name || "the artist"}
         action={(price) => (price ? `Buy for ${price}` : "Buy")}
         busy={checkout.busy}
@@ -88,43 +84,6 @@ export function AlbumPurchase({
 // Mirlo serves the artist page at either the artist's slug or id
 function albumArtistSlug(album: AlbumProps): string {
   return album.artist?.urlSlug || String(album.artistId);
-}
-
-// Mirlo gives free albums to signed-in listeners only
-function FreeAlbum({ album, onPay, busy, error }: CheckoutControls & { album: AlbumProps }) {
-  const { user } = useAuthContext();
-  const router = useRouter();
-  return (
-    <>
-      <AlbumHeader album={album} />
-      {user ? (
-        <>
-          <Text style={styles.body}>
-            This release is free. Adding it unlocks full playback and saves it to your Library.
-          </Text>
-          <ErrorText message={error} />
-          <PrimaryButton
-            label="Add to collection"
-            busy={busy}
-            onPress={() =>
-              onPay({
-                artistId: album.artistId,
-                artistSlug: albumArtistSlug(album),
-                items: [{ type: "trackGroup", id: album.id, price: "0" }],
-              })
-            }
-          />
-        </>
-      ) : (
-        <>
-          <Text style={styles.body}>
-            This release is free for Mirlo listeners. Sign in to add it to your collection.
-          </Text>
-          <PrimaryButton label="Sign in" icon="log-in-outline" onPress={() => router.push("/login")} />
-        </>
-      )}
-    </>
-  );
 }
 
 // Releases sold elsewhere. Faircamp releases get the sheet's own Faircamp checkout; other

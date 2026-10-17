@@ -105,36 +105,40 @@ describe("redirectSystemPath", () => {
     Platform.OS = "ios";
   });
 
-  test("maps mirloblue: custom scheme to internal app routes", async () => {
+  test("maps nimueblue: and mirloblue: custom schemes to internal app routes", async () => {
+    expect(await redirect("nimueblue://station/wfmu")).toBe("/station/wfmu");
+    expect(await redirect("nimueblue://podcast/srsly-wrong")).toBe(
+      "/podcast/srsly-wrong",
+    );
     expect(await redirect("mirloblue://station/wfmu")).toBe("/station/wfmu");
     expect(await redirect("mirloblue://podcast/srsly-wrong")).toBe(
       "/podcast/srsly-wrong",
     );
     expect(
-      await redirect("mirloblue://artist/arod/album/single/tracks/42"),
+      await redirect("nimueblue://artist/arod/album/single/tracks/42"),
     ).toBe("/artist/arod/album/single/album-tracks");
     expect(
-      await redirect("mirloblue://artist/arod/album/single"),
+      await redirect("nimueblue://artist/arod/album/single"),
     ).toBe("/artist/arod/album/single/album-tracks");
     expect(
-      await redirect("mirloblue://artist/arod"),
+      await redirect("nimueblue://artist/arod"),
     ).toBe("/artist/arod/artist-page");
   });
 
   test("extracts app route parameter from grendel116.github.io listen hub URL", async () => {
     expect(
       await redirect(
-        "https://grendel116.github.io/mirlo-blue/listen/?type=radio&app=%2Fstation%2Fwfmu",
+        "https://grendel116.github.io/nimueblue/listen/?type=radio&app=%2Fstation%2Fwfmu",
       ),
     ).toBe("/station/wfmu");
   });
 
   test("resolves track short links (/t/:id) across share hubs and mirlo.space", async () => {
     expect(
-      await redirect("https://mirlo-blue-share.mirloblue.workers.dev/t/42"),
+      await redirect("https://nimueblue-share.nimueblue.workers.dev/t/42"),
     ).toBe("/artist/arod/album/penaflor-single/album-tracks");
     expect(
-      await redirect("https://mirlo-blue-share.mirloblue.workers.dev/listen/t/42"),
+      await redirect("https://nimueblue-share.nimueblue.workers.dev/listen/t/42"),
     ).toBe("/artist/arod/album/penaflor-single/album-tracks");
     expect(
       await redirect("https://mirlo.space/t/42"),
@@ -147,7 +151,7 @@ describe("redirectSystemPath", () => {
       .mockResolvedValue("fairplayer-primer-calaix%40calaixdesastre.online");
     expect(
       await redirect(
-        "https://mirlo-blue-share.mirloblue.workers.dev/t/f8153",
+        "https://nimueblue-share.nimueblue.workers.dev/t/f8153",
       ),
     ).toBe(
       "/artist/fairplayer/album/fairplayer-primer-calaix%40calaixdesastre.online/album-tracks",
@@ -157,26 +161,26 @@ describe("redirectSystemPath", () => {
 
   test("handles workers.dev short routes for stations and podcasts", async () => {
     expect(
-      await redirect("https://mirlo-blue-share.mirloblue.workers.dev/r/wfmu"),
+      await redirect("https://nimueblue-share.nimueblue.workers.dev/r/wfmu"),
     ).toBe("/station/wfmu");
     expect(
       await redirect(
-        "https://mirlo-blue-share.mirloblue.workers.dev/p/colonial-outcasts",
+        "https://nimueblue-share.nimueblue.workers.dev/p/colonial-outcasts",
       ),
     ).toBe("/podcast/colonial-outcasts");
     expect(
       await redirect(
-        "https://mirlo-blue-share.mirloblue.workers.dev/?app=%2Fstation%2Fkexp",
+        "https://nimueblue-share.nimueblue.workers.dev/?app=%2Fstation%2Fkexp",
       ),
     ).toBe("/station/kexp");
   });
 
   test("opens artist short links (/art/:slug) from share hubs at the artist page", async () => {
     expect(
-      await redirect("https://mirlo-blue-share.mirloblue.workers.dev/art/mowukis"),
+      await redirect("https://nimueblue-share.nimueblue.workers.dev/art/mowukis"),
     ).toBe("/artist/mowukis/artist-page");
     expect(
-      await redirect("https://mirlo-blue-share.mirloblue.workers.dev/listen/art/mowukis/"),
+      await redirect("https://nimueblue-share.nimueblue.workers.dev/listen/art/mowukis/"),
     ).toBe("/artist/mowukis/artist-page");
   });
 

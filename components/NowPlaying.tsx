@@ -745,10 +745,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff3b5c",
   },
   liveText: {
-    fontFamily: theme.fonts.display,
+    fontFamily: theme.fonts.sans,
     color: theme.colors.primary,
-    fontSize: 12,
-    fontWeight: "normal",
+    fontSize: 11,
+    fontWeight: "700",
     letterSpacing: 1,
   },
   playerWrapper: {

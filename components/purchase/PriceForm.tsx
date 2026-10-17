@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Text } from "react-native";
-import { useAuthContext } from "@/state/AuthContext";
 import { formatMoney } from "@/queries/listener";
 import { checkAmount, isEmail, toAmountText, type PriceChip } from "./helpers";
 import { AmountField, ErrorText, Field, GuestEmailField, PrimaryButton, styles } from "./ui";
@@ -8,7 +7,7 @@ import { AmountField, ErrorText, Field, GuestEmailField, PrimaryButton, styles }
 export type PriceFormExtras = { message?: string; guestEmail?: string };
 
 // The paying half of every purchase: an amount (editable unless the price is set), an optional
-// note to the artist, the email of a listener who isn't signed in, and the pay button
+// note to the artist, the listener's email for receipt & download link, and the pay button
 export function PriceForm({
   label,
   currency,
@@ -36,7 +35,6 @@ export function PriceForm({
   error?: string;
   onSubmit: (cents: number, extras: PriceFormExtras) => void;
 }) {
-  const { user } = useAuthContext();
   const [amount, setAmount] = useState(toAmountText(initial));
   const [note, setNote] = useState("");
   const [email, setEmail] = useState("");
@@ -48,14 +46,14 @@ export function PriceForm({
       setProblem(check.error);
       return;
     }
-    if (!user && !isEmail(email)) {
+    if (!isEmail(email)) {
       setProblem("Enter your email so Mirlo can send your receipt");
       return;
     }
     setProblem(undefined);
     onSubmit(check.cents, {
       message: note.trim() || undefined,
-      guestEmail: user ? undefined : email.trim(),
+      guestEmail: email.trim(),
     });
   };
 
@@ -79,7 +77,7 @@ export function PriceForm({
           multiline
         />
       ) : null}
-      {!user ? <GuestEmailField value={email} onChangeText={setEmail} /> : null}
+      <GuestEmailField value={email} onChangeText={setEmail} />
       <ErrorText message={problem ?? error} />
       <PrimaryButton
         label={action(check.cents !== undefined ? formatMoney(check.cents, currency) : undefined)}

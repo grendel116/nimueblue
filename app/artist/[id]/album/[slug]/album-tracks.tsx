@@ -11,7 +11,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { usePlayer } from "@/state/PlayerContext";
 import { audioTrackType, isTrackOwnedOrPreview, linkifyUrls, htmlToMarkdown } from "@/scripts/utils";
-import { useAuthContext } from "@/state/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { queryAlbum } from "@/queries/queries";
 import { resolveFeedSourceName } from "@/queries/chorus";
@@ -117,7 +116,6 @@ export default function AlbumTracks() {
   );
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
-  const { user } = useAuthContext();
   const { t } = useTranslation("translation");
   const [showError, setShowError] = useState<boolean>(true);
 
@@ -217,7 +215,7 @@ export default function AlbumTracks() {
 
         allTracks.push(newTrack);
 
-        if (isTrackOwnedOrPreview(newTrack, user, data.result, disabledTrackIds)) {
+        if (isTrackOwnedOrPreview(newTrack, null, data.result, disabledTrackIds)) {
           newTrack.queueIndex = playableIndex;
           playableIndex++;
           tracksToPlay.push(newTrack);
@@ -226,7 +224,7 @@ export default function AlbumTracks() {
     }
 
     return { allTracks, playableTracks: tracksToPlay };
-  }, [data, user, disabledTrackIds]);
+  }, [data, disabledTrackIds]);
 
   if (isPending) {
     return (

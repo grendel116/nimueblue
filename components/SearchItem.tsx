@@ -54,7 +54,7 @@ export default function SearchItem({ result, index }: Result) {
               ? { uri: result.trackGroupCover.sizes[120] }
               : result.avatar?.sizes?.[120]
                 ? { uri: result.avatar.sizes[120] }
-                : require("@/assets/images/mirlo-logo-logoOnly-light.png")
+                : require("@/assets/images/nimue-blue-logo.png")
           }
           style={styles.image}
         />

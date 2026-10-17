@@ -1,4 +1,4 @@
-// MirloBlue - Nightwing Dark Mode Theme Tokens
+// NimueBlue - Nightwing Dark Mode Theme Tokens
 export const theme = {
   colors: {
     // Void Obsidian Backgrounds
@@ -19,7 +19,7 @@ export const theme = {
     secondaryAccent: "#38bdf8",
     activeBadge: "#00e5ff",
     notificationDot: "#ff3b69",
-    logo: "#ffd60a",
+    logo: "#00d2ff",
 
     // Typography
     textPrimary: "#f8fafc",
@@ -35,29 +35,30 @@ export const theme = {
     playButtonIcon: "#070b14",
   },
   fonts: {
-    display: "Cubano",
+    display: "MedievalScroll",
+    accent: "MedievalScroll",
     sans: "OpenSans",
   },
   typography: {
     fontFamily: "OpenSans",
     h1: {
-      fontFamily: "Cubano",
+      fontFamily: "MedievalScroll",
       fontSize: 24,
       fontWeight: "normal" as const,
       color: "#f8fafc",
       letterSpacing: 0.5,
     },
     h2: {
-      fontFamily: "Cubano",
+      fontFamily: "MedievalScroll",
       fontSize: 18,
       fontWeight: "normal" as const,
       color: "#f8fafc",
       letterSpacing: 0.5,
     },
     sectionHeader: {
-      fontFamily: "Cubano",
-      fontSize: 15,
-      fontWeight: "normal" as const,
+      fontFamily: "OpenSans",
+      fontSize: 14,
+      fontWeight: "700" as const,
       color: "#00d2ff",
       letterSpacing: 1.2,
       textTransform: "uppercase" as const,

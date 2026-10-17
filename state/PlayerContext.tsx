@@ -30,7 +30,6 @@ import TrackPlayer, {
   State,
   TrackType,
 } from "react-native-track-player";
-import { useAuthContext } from "./AuthContext";
 import { isTrackOwned, audioTrackType, resolveArtworkUrl } from "@/scripts/utils";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
@@ -255,11 +254,8 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const [activeTrack, setActiveTrack] = useState<RNTrack>();
   const [activeIndex, setActiveIndex] = useState(-1);
   const playBackState = usePlaybackState();
-  const { user } = useAuthContext();
+  const user: LoggedInUser | null = null;
   const userRef = useRef(user);
-  useEffect(() => {
-    userRef.current = user;
-  }, [user]);
   const incrementedRef = useRef(false);
   const [disabledTrackIds, setDisabledTrackIds] = useState<Set<number>>(new Set());
 

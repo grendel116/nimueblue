@@ -2,13 +2,13 @@ import { Platform, Share } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
 // The share hub serves short preview pages (/t/, /r/, /p/, /art/) with an Open in App button
-export const MIRLO_BLUE_LISTEN_HUB =
+export const NIMUE_BLUE_LISTEN_HUB =
   process.env.EXPO_PUBLIC_SHARE_HUB_URL ||
-  "https://mirlo-blue-share.mirloblue.workers.dev";
+  "https://nimueblue-share.nimueblue.workers.dev";
 
 // Short share page for a Mirlo artist
 export function artistShareUrl(artistSlug: string): string {
-  return `${new URL(MIRLO_BLUE_LISTEN_HUB).origin}/art/${encodeURIComponent(artistSlug)}`;
+  return `${new URL(NIMUE_BLUE_LISTEN_HUB).origin}/art/${encodeURIComponent(artistSlug)}`;
 }
 
 // Hands the message to the phone's share sheet. Browsers without a share sheet copy it

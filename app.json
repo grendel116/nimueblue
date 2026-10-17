@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MirloBlue",
+    "name": "NimueBlue",
     "slug": "mirlo-blue",
     "version": "1.0.8",
     "orientation": "portrait",
-    "icon": "./assets/images/mirlo-blue-icon.png",
-    "scheme": "mirloblue",
+    "icon": "./assets/images/nimue-blue-icon.png",
+    "scheme": "nimueblue",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/mirlo-blue-adaptive.png",
+        "foregroundImage": "./assets/images/nimue-blue-adaptive.png",
         "backgroundColor": "#070b14"
       },
       "permissions": [
@@ -39,7 +39,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/mirlo-blue-splash.png",
+          "image": "./assets/images/nimue-blue-splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#070b14"
@@ -49,7 +49,7 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "Allow MirloBlue to access your Face ID biometric data."
+          "faceIDPermission": "Allow NimueBlue to access your Face ID biometric data."
         }
       ],
       "expo-localization",

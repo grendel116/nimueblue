@@ -1,5 +1,4 @@
 import { Pressable, View, StyleSheet, Text, Image } from "react-native";
-import { useAuthContext } from "@/state/AuthContext";
 import { usePlayer } from "@/state/PlayerContext";
 import { isTrackOwnedOrPreview } from "@/scripts/utils";
 import FavoriteTrackButton from "./FavoriteTrackButton";
@@ -24,11 +23,10 @@ export default function PlayPauseWrapper({
   selectedAlbum,
 }: PlayPauseWrapperProps) {
   const { activeTrack, playTrack, disabledTrackIds } = usePlayer("activeTrack", "playTrack", "disabledTrackIds");
-  const { user } = useAuthContext();
 
   const canPlayTrack = isTrackOwnedOrPreview(
     trackObject,
-    user,
+    null,
     selectedAlbum,
     disabledTrackIds,
   );

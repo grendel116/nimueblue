@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useAuthContext } from "@/state/AuthContext";
 import { theme } from "@/constants/theme";
 import {
   DownloadFormat,
@@ -11,7 +10,6 @@ import {
 import { chooseFormat } from "@/scripts/chooseFormat";
 import { showError } from "@/scripts/showError";
 import { askChoice } from "@/scripts/askChoice";
-import { ownsAlbum } from "@/scripts/utils";
 import { CAN_DOWNLOAD, downloadAlbum, removeDownloads } from "@/scripts/offlineFiles";
 import { chooseFaircampDownload } from "@/scripts/faircampDownload";
 
@@ -21,17 +19,15 @@ const STAGE_LABELS: Record<DownloadStage, string> = {
   unpacking: "Unpacking",
 };
 
-// Saves an album you own: to the phone for offline listening (where it can be removed again),
-// or as a zip through the browser on web. Faircamp free downloads offer their zips the same way
+// Saves a Faircamp free download album as a zip
 export default function DownloadAlbumButton({ album, size = 32 }: { album: AlbumProps; size?: number }) {
-  const { user } = useAuthContext();
   const downloads = useDownloads();
   const [stage, setStage] = useState<DownloadStage | null>(null);
   // Faircamp free downloads offer their zips straight from the album page
   const shop = album.source === "Faircamp" ? album.faircampShop : undefined;
   const faircampDownloads = shop?.mode === "free" ? shop.downloadsUrl : undefined;
 
-  if (!faircampDownloads && (!CAN_DOWNLOAD || !ownsAlbum(user, album))) return null;
+  if (!faircampDownloads) return null;
 
   const saved = downloads.filter((d) => album.tracks?.some((t) => t.id === d.id));
   const isDownloaded = !faircampDownloads && saved.length > 0 && saved.length >= (album.tracks?.length ?? 0);

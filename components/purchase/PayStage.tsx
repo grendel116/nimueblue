@@ -56,7 +56,7 @@ const INJECTED_CSS = `
     color: ${theme.colors.textSecondary} !important;
   }
 
-  /* Primary action button matching Mirlo-Blue */
+  /* Primary action button matching NimueBlue */
   button[type="submit"],
   .btn-primary {
     background-color: ${theme.colors.primary} !important;
@@ -72,9 +72,9 @@ const INJECTED_CSS = `
 const INJECT_SKIN_SCRIPT = `
 (function() {
   function applySkin() {
-    if (document.getElementById('mirlo-blue-skin')) return;
+    if (document.getElementById('nimueblue-skin')) return;
     const style = document.createElement('style');
-    style.id = 'mirlo-blue-skin';
+    style.id = 'nimueblue-skin';
     style.textContent = \`${INJECTED_CSS}\`;
     (document.head || document.documentElement).appendChild(style);
   }

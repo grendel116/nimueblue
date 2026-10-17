@@ -35,11 +35,11 @@ describe("ShareTrackButton clean short routes", () => {
     );
 
     const shareUrl = buildShareUrl(track);
-    expect(shareUrl).toBe("https://mirlo-blue-share.mirloblue.workers.dev/t/42");
+    expect(shareUrl).toBe("https://nimueblue-share.nimueblue.workers.dev/t/42");
 
     const { fullText, headline } = buildShareMessage(track);
     expect(headline).toBe("Utah Phillips - Solidarity Forever");
-    expect(fullText).toBe("https://mirlo-blue-share.mirloblue.workers.dev/t/42");
+    expect(fullText).toBe("https://nimueblue-share.nimueblue.workers.dev/t/42");
   });
 
   test("builds the same short track route style for Faircamp tracks", () => {
@@ -57,7 +57,7 @@ describe("ShareTrackButton clean short routes", () => {
     } as any);
 
     expect(shareUrl).toBe(
-      "https://mirlo-blue-share.mirloblue.workers.dev/t/f8153",
+      "https://nimueblue-share.nimueblue.workers.dev/t/f8153",
     );
   });
 
@@ -74,7 +74,7 @@ describe("ShareTrackButton clean short routes", () => {
     } as any);
 
     expect(shareUrl).toBe(
-      "https://mirlo-blue-share.mirloblue.workers.dev/t/fprimer-calaix%40sockpuppet.band%232",
+      "https://nimueblue-share.nimueblue.workers.dev/t/fprimer-calaix%40sockpuppet.band%232",
     );
   });
 
@@ -129,7 +129,7 @@ describe("ShareTrackButton clean short routes", () => {
     } as any;
 
     const shareUrl = buildShareUrl(track);
-    expect(shareUrl).toBe("https://mirlo-blue-share.mirloblue.workers.dev/p/srsly-wrong");
+    expect(shareUrl).toBe("https://nimueblue-share.nimueblue.workers.dev/p/srsly-wrong");
 
     const { headline, fullText } = buildShareMessage(track);
     expect(headline).toBe("Shawn Vulliez & Aaron Moritz - Library Socialism 101");
@@ -187,10 +187,10 @@ describe("ShareTrackButton clean short routes", () => {
     } as any;
 
     const shareUrl = buildShareUrl(track);
-    expect(shareUrl).toBe("https://mirlo-blue-share.mirloblue.workers.dev/t/99");
+    expect(shareUrl).toBe("https://nimueblue-share.nimueblue.workers.dev/t/99");
 
     const { headline, fullText } = buildShareMessage(track);
     expect(headline).toBe("Untitled Demo");
-    expect(fullText).toBe("https://mirlo-blue-share.mirloblue.workers.dev/t/99");
+    expect(fullText).toBe("https://nimueblue-share.nimueblue.workers.dev/t/99");
   });
 });

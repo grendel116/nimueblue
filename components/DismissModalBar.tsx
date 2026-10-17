@@ -22,12 +22,12 @@ export default function DismissModalBar({ onPress }: { onPress?: () => void }) {
         />
         <View style={styles.brandRow}>
           <Image
-            source={require("@/assets/images/Logo-Mirlo_LogoOnly.png")}
+            source={require("@/assets/images/nimue-blue-logo.png")}
             style={styles.logoImage}
             resizeMode="contain"
           />
           <View style={styles.brandWordmark}>
-            <Text style={styles.brandText}>MIRLO</Text>
+            <Text style={styles.brandText}>NIMUE</Text>
             <Text style={[styles.brandText, styles.brandHighlight]}>BLUE</Text>
           </View>
         </View>
@@ -60,11 +60,12 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 4,
   },
   brandWordmark: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 3,
   },
   logoImage: {
     width: 22,
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontFamily: theme.fonts.display,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "normal",
     color: theme.colors.textPrimary,
     letterSpacing: 0.5,

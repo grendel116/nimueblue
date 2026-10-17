@@ -66,12 +66,12 @@ describe("checkAndroidVersion", () => {
         json: () =>
           Promise.resolve({
             tag_name: "v1.0.7",
-            html_url: "https://github.com/grendel116/mirlo-blue/releases/tag/v1.0.7",
+            html_url: "https://github.com/grendel116/nimueblue/releases/tag/v1.0.7",
             assets: [
               {
-                name: "MirloBlue-1.0.7.apk",
+                name: "NimueBlue-1.0.7.apk",
                 browser_download_url:
-                  "https://github.com/grendel116/mirlo-blue/releases/download/v1.0.7/MirloBlue-1.0.7.apk",
+                  "https://github.com/grendel116/nimueblue/releases/download/v1.0.7/NimueBlue-1.0.7.apk",
               },
             ],
           }),
@@ -82,7 +82,7 @@ describe("checkAndroidVersion", () => {
       const result = await checkAndroidVersion();
       expect(result).toEqual({
         version: "1.0.7",
-        url: "https://github.com/grendel116/mirlo-blue/releases/download/v1.0.7/MirloBlue-1.0.7.apk",
+        url: "https://github.com/grendel116/nimueblue/releases/download/v1.0.7/NimueBlue-1.0.7.apk",
       });
     } finally {
       global.fetch = originalFetch;

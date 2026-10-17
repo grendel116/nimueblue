@@ -30,9 +30,10 @@ export function normalizeAppRoute(route: string): string {
   let pathOnly = route;
   try {
     const parsed = new URL(route);
-    pathOnly = parsed.host && parsed.protocol === "mirloblue:"
-      ? `/${parsed.host}${parsed.pathname}`
-      : parsed.pathname;
+    pathOnly =
+      parsed.host && (parsed.protocol === "nimueblue:" || parsed.protocol === "mirloblue:")
+        ? `/${parsed.host}${parsed.pathname}`
+        : parsed.pathname;
   } catch {
     // Already a pathname
   }
@@ -69,7 +70,7 @@ export async function redirectSystemPath({
   }
 
   if (url.protocol === "trackplayer:") return "/now-playing";
-  if (url.protocol === "mirloblue:") {
+  if (url.protocol === "nimueblue:" || url.protocol === "mirloblue:") {
     const hostAndPath = url.host ? `/${url.host}${url.pathname}` : url.pathname;
     return normalizeAppRoute(hostAndPath || "/");
   }

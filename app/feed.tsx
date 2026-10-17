@@ -598,7 +598,7 @@ export default function QueueScreen() {
               accessibilityRole="button"
               accessibilityLabel="Explore Music"
             >
-              <Text style={styles.exploreButtonText}>Explore Mirlo Music</Text>
+              <Text style={styles.exploreButtonText}>Explore Music</Text>
             </TouchableOpacity>
           </View>
         )}

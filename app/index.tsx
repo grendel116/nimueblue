@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { queryTrackGroups, queryTopSold } from "@/queries/queries";
+import { queryTrackGroups } from "@/queries/queries";
 import {
   distributeFairChorusAlbums,
   queryFederatedChorusAlbums,
@@ -50,11 +50,9 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
-import { openPurchase } from "@/scripts/openPurchase";
+import { openInBrowser } from "@/scripts/openInBrowser";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
-import { useAuthContext } from "@/state/AuthContext";
-import { queryUnreadCount } from "@/queries/listener";
 import {
   isQualityArtwork,
   resolveArtworkUrl,
@@ -119,7 +117,6 @@ const CAROUSEL_STALE_TIME = 15 * 60 * 1000;
 // Queries behind Home's carousels
 const HOME_QUERIES = new Set([
   "fetchTrackGroups",
-  "fetchTopSold",
   "federatedChorusAlbums",
   "fairplayerAlbums",
   "discoveredRadioStations",
@@ -159,9 +156,6 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [shuffleSeed, setShuffleSeed] = useState(0);
-  const { user } = useAuthContext();
-  const userId = user?.id;
-  const { data: unreadCount } = useQuery(queryUnreadCount(userId));
 
   // Recent Releases: loads behind the splash screen on startup. Held until the listener
   // pulls down to refresh so the home page never re-queries or re-renders automatically.
@@ -183,22 +177,6 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     refetchOnMount: false,
     refetchOnReconnect: false,
     retry: false,
-  });
-
-  // Query Popular Purchases
-  const {
-    data: topSoldData,
-    isPending: isTopSoldPending,
-    refetch: refetchTopSold,
-  } = useQuery({
-    ...queryTopSold({
-      take: 12,
-      datePurchased: "pastMonth",
-    }),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
   });
 
   // Query releases from the configured Mirlo Chorus catalog
@@ -267,7 +245,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     refetchDiscoveredRadio();
     refetchDiscoveredPodcasts();
     // The pull spinner waits for Mirlo's picks; the wider catalogs fill in as they arrive
-    return Promise.all([refetchRecent(), refetchTopSold()]);
+    return Promise.all([refetchRecent()]);
   };
   const pullToRefresh = () => {
     setIsPullRefreshing(true);
@@ -302,11 +280,6 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     return sortDiscussionsByLastUpdate(combined).slice(0, CAROUSEL_LIMIT);
   }, [discoveredPodcasts]);
 
-  const popularPurchases = useMemo(
-    () => shuffleCarousel(topSoldData?.results || []).slice(0, CAROUSEL_LIMIT),
-    [topSoldData?.results, shuffleSeed],
-  );
-
   // The splash screen stays up until Home has its first content (or an error to show)
   const { setIsDataLoaded } = useAppIsReadyContext();
   useEffect(() => {
@@ -340,41 +313,26 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <Image
-            source={require("@/assets/images/Logo-Mirlo_LogoOnly.png")}
+            source={require("@/assets/images/nimue-blue-logo.png")}
             style={styles.logoImage}
             resizeMode="contain"
           />
           <View style={styles.brandWordmark}>
-            <Text style={styles.brandText}>MIRLO</Text>
+            <Text style={styles.brandText}>NIMUE</Text>
             <Text style={[styles.brandText, styles.brandHighlight]}>BLUE</Text>
           </View>
         </View>
 
         <View style={styles.headerActions}>
           <Pressable
-            onPress={() => openPurchase(router, { kind: "support", artist: "team" })}
+            onPress={() => openInBrowser("https://cash.app/$grendel116/")}
             style={styles.subscribeButton}
             accessibilityRole="button"
-            accessibilityLabel="Subscribe to support Mirlo"
+            accessibilityLabel="Support NimueBlue"
           >
             <Ionicons name="heart" size={15} color={theme.colors.playButtonIcon} />
-            <Text style={styles.subscribeText}>Subscribe</Text>
+            <Text style={styles.subscribeText}>Support</Text>
           </Pressable>
-          {userId ? (
-            <Pressable
-              onPress={() => router.push("/activity")}
-              style={styles.searchButton}
-              accessibilityRole="button"
-              accessibilityLabel={unreadCount ? `Your activity, ${unreadCount} new` : "Your activity"}
-            >
-              <Ionicons name="notifications-outline" size={21} color={theme.colors.textPrimary} />
-              {unreadCount ? (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          ) : null}
           <Pressable
             onPress={() => router.push("/search")}
             style={styles.searchButton}
@@ -527,65 +485,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
               )}
             </View>
 
-            {/* SECTION 2: POPULAR PURCHASES (Horizontal Carousel) */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionHeader}>Popular Purchases</Text>
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
-              </View>
 
-              {isTopSoldPending ? (
-                <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: 30 }} />
-              ) : (
-                <FlatList
-                  ref={dragScroll}
-                  horizontal
-                  data={popularPurchases}
-                  keyExtractor={(item, index) => String(item.id ?? index)}
-                  initialNumToRender={4}
-                  maxToRenderPerBatch={4}
-                  windowSize={3}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.carouselContent}
-                  renderItem={({ item }) => {
-                    const coverUri =
-                      item.cover?.sizes?.[300] ||
-                      item.cover?.sizes?.[600] ||
-                      item.cover?.sizes?.[120];
-                    return (
-                      <Pressable
-                        android_ripple={{ color: theme.colors.ripple, borderless: false }}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/artist/[id]/album/[slug]/album-tracks",
-                            params: {
-                              id: String(item.artistId),
-                              slug: String(item.urlSlug),
-                            },
-                          })
-                        }
-                        style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
-                      >
-                        <View style={styles.cardImageContainer}>
-                          <Image
-                            source={resolveQualityArtworkSource(coverUri)}
-                            style={styles.cardCoverImage}
-                            resizeMode="cover"
-                          />
-                          <View style={styles.glassSheen} />
-                        </View>
-                        <Text style={styles.cardTitle} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={styles.cardArtist} numberOfLines={1}>
-                          {item.artist?.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  }}
-                />
-              )}
-            </View>
 
             {/* RADIO: one card per station, showing what's on air */}
             <View style={styles.section}>
@@ -748,7 +648,7 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 5,
   },
   logoImage: {
     width: 28,
@@ -758,13 +658,14 @@ const styles = StyleSheet.create({
   brandWordmark: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 4,
   },
   brandText: {
     fontFamily: theme.fonts.display,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "normal",
     color: theme.colors.textPrimary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   brandHighlight: {
     color: theme.colors.primary,
@@ -785,6 +686,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   subscribeText: {
+    fontFamily: theme.fonts.sans,
     color: theme.colors.playButtonIcon,
     fontSize: 14,
     fontWeight: "700",
@@ -798,23 +700,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: theme.colors.surfaceCardBorder,
-  },
-  bellBadge: {
-    position: "absolute",
-    top: -3,
-    right: -3,
-    minWidth: 17,
-    height: 17,
-    paddingHorizontal: 4,
-    borderRadius: 9,
-    backgroundColor: theme.colors.notificationDot,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  bellBadgeText: {
-    color: theme.colors.textPrimary,
-    fontSize: 10,
-    fontWeight: "700",
   },
   scrollView: {
     flex: 1,

@@ -2,12 +2,11 @@ import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
-import { useAuthContext } from "@/state/AuthContext";
-import { artistRelation, formatMoney } from "@/queries/listener";
+import { formatMoney } from "@/queries/listener";
 import { defaultAlbumPrice, intervalLabel, paidTiers, tierAmount } from "./helpers";
 import { PriceForm } from "./PriceForm";
 import type { CheckoutControls } from "./useCheckout";
-import { Notice, styles as ui } from "./ui";
+import { styles as ui } from "./ui";
 
 const DEFAULT_TIP = 500;
 const COLLAPSED_DESC_LENGTH = 140;
@@ -28,9 +27,7 @@ export function SupportPurchase({
   onBuyAlbum,
   ...checkout
 }: SupportPurchaseProps) {
-  const { user } = useAuthContext();
   const tiers = paidTiers(artist);
-  const current = artistRelation(user, artist.id).subscriptionTier;
   // Default to "One-time tip" so supporting from anywhere starts on a simple, clear action
   const [choice, setChoice] = useState<number | "tip">("tip");
   const tier = tiers.find((t) => t.id === choice);
@@ -84,14 +81,11 @@ export function SupportPurchase({
             title={t.name}
             price={`${formatMoney(tierAmount(t), currency)} / ${intervalLabel(t.interval)}`}
             description={t.description}
-            badge={t.id === current?.id ? "Your tier" : undefined}
           />
         ))}
       </View>
 
-      {tier && tier.id === current?.id ? (
-        <Notice icon="checkmark-circle-outline" title={`You subscribe to ${tier.name}`} />
-      ) : tier ? (
+      {tier ? (
         <PriceForm
           key={tier.id}
           label={`Amount per ${intervalLabel(tier.interval)}`}

@@ -1,8 +1,8 @@
-# MirloBlue
+# NimueBlue
 
-A music player for Mirlo, Faircamp, independent radio, podcasts, and your own files.
+A music player for Faircamp, Chorus catalogs, independent radio, podcasts, and your own files.
 
-<img src="docs/preview-v8.png" alt="MirloBlue home screen" width="300"/>
+<img src="docs/preview-v8.png" alt="NimueBlue home screen" width="300"/>
 
 ## Features
 
@@ -18,17 +18,17 @@ A music player for Mirlo, Faircamp, independent radio, podcasts, and your own fi
 
 ## Music federation
 
-MirloBlue reads Mirlo's Chorus catalog at `/v1/sm/canimus.json` and discovers verified Faircamp catalogs listed in the [Fairplayer hub](https://fairplayer.band/hub/). Faircamp releases appear alongside Mirlo music in discovery and search, and play from the artists' original audio URLs. Fairplayer's [data-sharing protocol](https://interop.fairplayer.org/specs/catalog/data-sharing-protocol.html) defines how independent catalogs can share release metadata. Faircamp likes and wishlist entries are stored on the device because Faircamp releases do not have Mirlo account IDs. Mirlo purchases remain available through Mirlo to support artists and cooperative workers.
+NimueBlue reads Mirlo's Chorus catalog at `/v1/sm/canimus.json` and discovers verified Faircamp catalogs listed in the [Fairplayer hub](https://fairplayer.band/hub/). Faircamp releases appear alongside Mirlo music in discovery and search, and play from the artists' original audio URLs. Fairplayer's [data-sharing protocol](https://interop.fairplayer.org/specs/catalog/data-sharing-protocol.html) defines how independent catalogs can share release metadata. Faircamp likes and wishlist entries are stored on the device because Faircamp releases do not have Mirlo account IDs. Mirlo purchases remain available through Mirlo to support artists and cooperative workers.
 
-Other catalogs may be added when MirloBlue can play their audio directly and respect artist consent and access limits. Catalogs that require another platform's player are not included.
+Other catalogs may be added when NimueBlue can play their audio directly and respect artist consent and access limits. Catalogs that require another platform's player are not included.
 
 ## Radio
 
-Stations provide their own live streams, often through Icecast. MirloBlue combines curated stations with listings from [Radio-Browser](https://www.radio-browser.info/), and filters for working streams and suitable artwork.
+Stations provide their own live streams, often through Icecast. NimueBlue combines curated stations with listings from [Radio-Browser](https://www.radio-browser.info/), and filters for working streams and suitable artwork.
 
 ## Podcasts
 
-MirloBlue finds shows through the [Castopod Index](https://index.castopod.org/) and curated picks. Episodes play from the publisher's RSS feed.
+NimueBlue finds shows through the [Castopod Index](https://index.castopod.org/) and curated picks. Episodes play from the publisher's RSS feed.
 
 ## Quick Start
 
@@ -62,11 +62,11 @@ starting Expo to route Fairplayer requests through that local worker.
 
 ## Installation
 
-**Android:** Download the latest APK from [Releases](https://github.com/grendel116/mirlo-blue/releases).
+**Android:** Download the latest APK from [Releases](https://github.com/grendel116/nimueblue/releases).
 
 ## Faircamp support
 
-MirloBlue discovers verified Faircamp catalogs through the [Fairplayer
+NimueBlue discovers verified Faircamp catalogs through the [Fairplayer
 hub](https://fairplayer.band/hub/) and its public release directory. Releases
 appear alongside Mirlo music in discovery and search, and play from the artist's
 Faircamp site. Faircamp likes and wishlist entries are kept locally on the
