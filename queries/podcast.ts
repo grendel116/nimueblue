@@ -241,9 +241,39 @@ export const SRSLY_WRONG: PodcastShow = createPodcastShow({
   lastUpdated: "2026-08-22T19:09:14Z",
 });
 
+export const WORKING_CLASS_HISTORY: PodcastShow = createPodcastShow({
+  id: "working-class-history",
+  name: "Working Class History",
+  author: "Working Class History",
+  description:
+    "Audio documentaries hearing from ordinary people who have helped make history, uncovering grassroots labor struggles, strikes, uprisings, and social movements worldwide.",
+  artwork:
+    "https://d3wo5wojvuv7l.cloudfront.net/t_rss_itunes_square_1400/images.spreaker.com/original/c25d55a3135a63530c92fbf1236277b0.jpg",
+  feedUrl: "https://www.spreaker.com/show/5711490/episodes/feed",
+  webUrl: "https://workingclasshistory.com",
+  supportUrl: "https://patreon.com/workingclasshistory",
+  lastUpdated: "2026-09-30T15:54:14Z",
+});
+
+export const LABOR_HISTORY_TODAY: PodcastShow = createPodcastShow({
+  id: "labor-history-today",
+  name: "Labor History Today",
+  author: "Labor History Today",
+  description:
+    "Gripping stories of historic battles for worker rights, union campaigns, and the lessons they offer for today's labor struggles.",
+  artwork:
+    "https://pbcdn1.podbean.com/imglogo/image-logo/8144168/Labor_History_Today_podcast_cover-new_771ff.png",
+  feedUrl: "https://feed.podbean.com/laborhistorytoday/feed.xml",
+  webUrl: "https://www.laborhistorytoday.info",
+  supportUrl: "https://www.patreon.com/LaborHistoryToday",
+  lastUpdated: "2026-10-10T12:00:00Z",
+});
+
 export const PODCAST_SHOWS: PodcastShow[] = [
   UPSTREAM,
+  WORKING_CLASS_HISTORY,
   EVERYTHING_COOP,
+  LABOR_HISTORY_TODAY,
   MAKC,
   SRSLY_WRONG,
   COLONIAL_OUTCASTS,

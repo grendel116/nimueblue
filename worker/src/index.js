@@ -301,6 +301,21 @@ const PODCAST_DISCOVERY_TERMS = [
   "degrowth",
   "permaculture",
   "food sovereignty",
+  "labor history",
+  "working class history",
+  "working-class history",
+  "labor movement",
+  "union history",
+  "general strike",
+  "radical history",
+  "peoples history",
+  "people's history",
+  "anti-colonial",
+  "anticolonial",
+  "anti-imperial",
+  "antiimperial",
+  "decolonial",
+  "social ecology",
 ];
 
 async function fetchCastopodCatalog() {

@@ -103,7 +103,9 @@ describe("findPodcastShow", () => {
   test("finds shows by ID and verifies list contains ongoing curated shows", () => {
     expect(PODCAST_SHOWS.map((s) => s.id)).toEqual([
       "upstream",
+      "working-class-history",
       "everything-coop",
+      "labor-history-today",
       "millennials-killing-capitalism",
       "srsly-wrong",
       "colonial-outcasts",
