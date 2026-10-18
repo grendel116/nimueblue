@@ -50,7 +50,6 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
-import RefreshOverlay from "@/components/RefreshOverlay";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
@@ -345,7 +344,6 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         </View>
       </View>
 
-      <View style={styles.scrollView}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -531,8 +529,6 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           </>
         )}
       </ScrollView>
-      <RefreshOverlay visible={isPullRefreshing} />
-      </View>
     </SafeAreaView>
   );
 });
