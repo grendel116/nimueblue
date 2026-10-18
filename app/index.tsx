@@ -50,6 +50,7 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
+import DropletSpinner from "@/components/DropletSpinner";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
@@ -358,6 +359,11 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           />
         }
       >
+        {isPullRefreshing && (
+          <View style={styles.pullRefreshingDroplet}>
+            <DropletSpinner size={34} />
+          </View>
+        )}
         {offline ? (
           <OfflineNotice retrying={isRecentFetching} onRetry={retry} onOpenLibrary={() => openMainTab("library")} />
         ) : (
@@ -836,5 +842,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.surface,
+  },
+  pullRefreshingDroplet: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

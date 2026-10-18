@@ -1,11 +1,12 @@
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { theme } from "@/constants/theme";
+import DropletSpinner from "./DropletSpinner";
 
-// Full-screen loading state: a centered spinner on the app background
+// Full-screen loading state: a centered swirling droplet spinner on the app background
 export default function LoadingScreen() {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <DropletSpinner size={52} color={theme.colors.primary} />
     </View>
   );
 }

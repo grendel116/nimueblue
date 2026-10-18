@@ -7,8 +7,8 @@ import {
   Image,
   TouchableOpacity,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
+import DropletSpinner from "@/components/DropletSpinner";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -189,7 +189,7 @@ export default function PodcastScreen() {
         }
         ListEmptyComponent={
           isPending ? (
-            <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: 36 }} />
+            <DropletSpinner size={38} style={{ marginVertical: 36 }} />
           ) : isError ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>Unable to load episodes from the feed.</Text>

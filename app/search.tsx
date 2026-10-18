@@ -1,8 +1,8 @@
 import { debounce } from "lodash";
 import SearchHeader from "@/components/SearchHeader";
+import DropletSpinner from "@/components/DropletSpinner";
 import {
   View,
-  ActivityIndicator,
   StyleSheet,
   Text,
   ScrollView,
@@ -77,7 +77,7 @@ export default function SearchPage() {
       >
         <SearchHeader />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <DropletSpinner size={46} />
         </View>
       </View>
     );
@@ -106,7 +106,7 @@ export default function SearchPage() {
       ) : null}
       {isSearching ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <DropletSpinner size={46} />
         </View>
       ) : null}
       {Boolean(searchValue && showSuggestions && !isSearching) ? (

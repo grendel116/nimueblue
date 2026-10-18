@@ -1,6 +1,7 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
+import DropletSpinner from "./DropletSpinner";
 
 // Shown on Home when Mirlo can't be reached: downloaded music is still one tap away
 export default function OfflineNotice({
@@ -23,7 +24,7 @@ export default function OfflineNotice({
       </Pressable>
       <Pressable onPress={onRetry} disabled={retrying} style={styles.secondary} accessibilityRole="button">
         {retrying ? (
-          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <DropletSpinner size={20} />
         ) : (
           <Text style={styles.secondaryText}>Try again</Text>
         )}
