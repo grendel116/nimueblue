@@ -658,7 +658,6 @@ const styles = StyleSheet.create({
   brandWordmark: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
   },
   brandText: {
     fontFamily: theme.fonts.display,

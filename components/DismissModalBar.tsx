@@ -65,7 +65,6 @@ const styles = StyleSheet.create({
   brandWordmark: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 3,
   },
   logoImage: {
     width: 22,
