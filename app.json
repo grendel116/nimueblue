@@ -27,7 +27,8 @@
       "permissions": [
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "package": "space.mirlo.blue"
+      "package": "space.mirlo.blue",
+      "versionCode": 16
     },
     "web": {
       "bundler": "metro",
@@ -54,7 +55,23 @@
       ],
       "expo-localization",
       "expo-asset",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Medieval-Scroll-of-Wisdom.ttf",
+            "./assets/fonts/OpenSans-VariableFont_wdth,wght.ttf",
+            "./assets/fonts/Ionicons.ttf",
+            "./assets/fonts/FontAwesome6_Regular.ttf",
+            "./assets/fonts/FontAwesome6_Solid.ttf",
+            "./assets/fonts/FontAwesome6_Brands.ttf"
+          ]
+        }
+      ],
       "./plugins/withMirloAppLinks"
+    ],
+    "assetBundlePatterns": [
+      "**/*"
     ],
     "experiments": {
       "typedRoutes": true

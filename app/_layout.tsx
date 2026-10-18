@@ -13,6 +13,8 @@ import { AppReadyContextProvider } from "@/state/AppReadyContext";
 import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { MEDIEVAL_FONT_BASE64 } from "@/constants/medievalFontBase64";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Footer from "@/components/Footer";
 import NowPlaying from "@/components/NowPlaying";
 import ChoiceSheet from "@/components/ChoiceSheet";
@@ -38,6 +40,8 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     MedievalScroll: require("../assets/fonts/Medieval-Scroll-of-Wisdom.ttf"),
     OpenSans: require("../assets/fonts/OpenSans-VariableFont_wdth,wght.ttf"),
+    ...Ionicons.font,
+    ...FontAwesome6.font,
   });
   // Needed for TanStack Query Devtools
   const onCopy = async (text: string) => {
