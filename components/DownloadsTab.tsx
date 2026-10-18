@@ -15,7 +15,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { showError } from "@/scripts/showError";
 import { askChoice } from "@/scripts/askChoice";
 import { theme } from "@/constants/theme";
-import { DropletSpinner } from "@/components/DropletSpinner";
+import DropletSpinner from "@/components/DropletSpinner";
+import RefreshOverlay from "@/components/RefreshOverlay";
 import { DownloadedAlbum, groupTracksIntoAlbums, useDownloads } from "@/scripts/downloadManager";
 import { openDownloadedAlbum } from "@/scripts/albumLookup";
 import { PICKS_PHONE_FILES, chooseAlbumCover, removeDownloads } from "@/scripts/offlineFiles";
@@ -121,6 +122,7 @@ export default memo(function DownloadsTab() {
 
   return (
     <View style={styles.pane}>
+      <RefreshOverlay visible={importing} />
       <View style={styles.bar}>
         <Text style={styles.total}>
           {albums.length > 0

@@ -50,7 +50,7 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
-import DropletSpinner from "@/components/DropletSpinner";
+import RefreshOverlay from "@/components/RefreshOverlay";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
@@ -345,13 +345,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         </View>
       </View>
 
-      {isPullRefreshing && (
-        <View style={styles.floatingRefreshDroplet} pointerEvents="none">
-          <View style={styles.dropletPill}>
-            <DropletSpinner size={24} />
-          </View>
-        </View>
-      )}
+      <RefreshOverlay visible={isPullRefreshing} />
 
       <ScrollView
         style={styles.scrollView}
@@ -846,29 +840,5 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.surface,
-  },
-  floatingRefreshDroplet: {
-    position: "absolute",
-    top: 68,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 9999,
-    elevation: 10,
-  },
-  dropletPill: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
