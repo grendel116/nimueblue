@@ -60,23 +60,23 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
   brandWordmark: {
     flexDirection: "row",
     alignItems: "center",
   },
   logoImage: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
     tintColor: theme.colors.logo,
   },
   brandText: {
     fontFamily: theme.fonts.display,
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "normal",
     color: theme.colors.textPrimary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   brandHighlight: {
     color: theme.colors.primary,

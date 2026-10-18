@@ -712,6 +712,73 @@ function findFaircampDownloadAccessUrl(html, pageUrl) {
   return null;
 }
 
+function parseFaircampPageTracks(pageHtml, releaseUrl) {
+  if (!pageHtml || !releaseUrl) return [];
+  const tracks = [];
+  const titles = [];
+  const titleRegex = /<a[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let titleMatch;
+  while ((titleMatch = titleRegex.exec(pageHtml)) !== null) {
+    const t = titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    if (t) titles.push(t);
+  }
+
+  const audioRegex = /<audio\b[^>]*>([\s\S]*?)<\/audio>/gi;
+  let audioMatch;
+  let idx = 0;
+  while ((audioMatch = audioRegex.exec(pageHtml)) !== null) {
+    const audioInner = audioMatch[1];
+    const sourceRegex = /<source\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+    let preferredSrc = "";
+    let sMatch;
+    while ((sMatch = sourceRegex.exec(audioInner)) !== null) {
+      const src = sMatch[1];
+      if (!preferredSrc || /\.opus(?:[?#]|$)/i.test(src)) {
+        preferredSrc = src;
+        if (/\.opus(?:[?#]|$)/i.test(src)) break;
+      }
+    }
+
+    if (preferredSrc) {
+      try {
+        const fullUrl = new URL(preferredSrc, releaseUrl).href;
+        tracks.push({
+          order: idx + 1,
+          title: titles[idx] || `Track ${idx + 1}`,
+          url: fullUrl,
+        });
+      } catch {}
+    }
+    idx++;
+  }
+  return tracks;
+}
+
+function reconcileFaircampReleaseTracks(releaseHtml, pageHtml, releaseUrl) {
+  if (!releaseHtml || !pageHtml || !releaseUrl) return releaseHtml;
+  const pageTracks = parseFaircampPageTracks(pageHtml, releaseUrl);
+  if (!pageTracks.length) return releaseHtml;
+
+  return releaseHtml.replace(
+    /(<div\b[^>]*\bclass=["'][^"']*\bsong\b[^"']*["'][^>]*>)/gi,
+    (tag) => {
+      const title = getHtmlAttribute(tag, "data-title");
+      if (!title) return tag;
+      const cleanTitle = title.trim().toLowerCase();
+      const matched = pageTracks.find(
+        (pt) => pt.title.toLowerCase() === cleanTitle,
+      );
+      if (matched && matched.url) {
+        return tag.replace(
+          /(data-url=["'])([^"']*)(["'])/i,
+          `$1${matched.url}$3`,
+        );
+      }
+      return tag;
+    },
+  );
+}
+
 async function resolveFaircampShare(releaseId, trackNumber) {
   let cleanId = String(releaseId || "").trim();
   try {
@@ -746,9 +813,36 @@ async function resolveFaircampShare(releaseId, trackNumber) {
   const songTag = songs[trackNumber - 1];
   if (!songTag) return null;
 
-  const rawAudio = getHtmlAttribute(songTag, "data-url");
+  let rawAudio = getHtmlAttribute(songTag, "data-url");
   const rawArtwork = getHtmlAttribute(songTag, "data-image");
   if (!rawAudio || !rawArtwork) return null;
+
+  const trackTitle = getHtmlAttribute(songTag, "data-title");
+  let cleanBase = sourceUrl.replace(/\/+$/, "");
+  const [, subpath] = idMatch[2].split(":");
+  if (subpath && !cleanBase.toLowerCase().endsWith(`/${subpath.toLowerCase()}`)) {
+    cleanBase = `${cleanBase}/${subpath.replace(/^\/+/, "")}`;
+  }
+  const pageReleaseUrl = `${cleanBase}/${encodeURIComponent(idMatch[1])}/`;
+  try {
+    const pageResponse = await fetch(pageReleaseUrl, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "NimueBlueSocialBot/1.0",
+      },
+      cf: { cacheTtl: 1800, cacheEverything: true },
+    });
+    if (pageResponse.ok) {
+      const pageHtml = await pageResponse.text();
+      const pageTracks = parseFaircampPageTracks(pageHtml, pageReleaseUrl);
+      const cleanTitle = (trackTitle || "").trim().toLowerCase();
+      const matched = pageTracks.find((pt) => pt.title.toLowerCase() === cleanTitle);
+      if (matched && matched.url) {
+        rawAudio = matched.url;
+      }
+    }
+  } catch {}
+
   let audioUrl;
   let artwork;
   try {
@@ -765,7 +859,6 @@ async function resolveFaircampShare(releaseId, trackNumber) {
   }
 
   const releaseTitle = getHtmlAttribute(songTag, "data-release");
-  const trackTitle = getHtmlAttribute(songTag, "data-title");
   const artist = getHtmlAttribute(songTag, "data-artist");
   if (!releaseTitle || !trackTitle || !artist) return null;
 
@@ -1478,7 +1571,9 @@ export default {
         }
 
         const cache = globalThis.caches?.default;
-        const cacheKey = new Request(url.toString(), { headers: request.headers });
+        const cacheUrl = new URL(url.toString());
+        cacheUrl.searchParams.set("_v", "2");
+        const cacheKey = new Request(cacheUrl.toString(), { headers: request.headers });
         if (cache) {
           try {
             const cachedResponse = await cache.match(cacheKey);
@@ -1583,9 +1678,15 @@ export default {
             }
           }
 
+          const reconciledReleaseHtml = reconcileFaircampReleaseTracks(
+            releaseHtml,
+            pageHtml,
+            releaseUrl,
+          );
+
           const payload = JSON.stringify({
             releaseId,
-            releaseHtml,
+            releaseHtml: reconciledReleaseHtml,
             catalogUrl,
             releaseUrl,
             pageHtml,

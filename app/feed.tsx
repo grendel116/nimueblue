@@ -760,7 +760,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "normal",
     letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
   dragArea: {
     position: "relative",

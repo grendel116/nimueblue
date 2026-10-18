@@ -241,12 +241,19 @@ export type FaircampDownloadAccess =
   | { kind: "page"; url: string }
   | { kind: "external"; links: FaircampStoreLink[] };
 
+export type FaircampPageTrack = {
+  order: number;
+  title: string;
+  url: string;
+};
+
 export type FaircampPageDetails = {
   abstractText: string;
   aboutMarkdown: string;
   bannerUrl: string;
   links: ArtistLink[];
   downloadAccess?: FaircampDownloadAccess;
+  tracks?: FaircampPageTrack[];
 };
 
 export function parseFaircampPageDetails(
@@ -372,12 +379,49 @@ export function parseFaircampPageDetails(
     }
   }
 
+  // 5. Audio tracks parsed directly from the Faircamp release page
+  const pageTracks: FaircampPageTrack[] = [];
+  const trackTitles: string[] = [];
+  const titleAnchors = findElements(
+    root,
+    (node) => node.tagName === "a" && hasClass(node, "title"),
+  );
+  for (const anchor of titleAnchors) {
+    const text = getText(anchor).trim();
+    if (text) trackTitles.push(text);
+  }
+
+  const audioNodes = findElements(root, (node) => node.tagName === "audio");
+  audioNodes.forEach((audioNode, idx) => {
+    const sources = findElements(audioNode, (node) => node.tagName === "source");
+    let chosenSrc = "";
+    for (const source of sources) {
+      const src = getAttribute(source, "src");
+      if (!src) continue;
+      if (!chosenSrc || /\.opus(?:[?#]|$)/i.test(src)) {
+        chosenSrc = src;
+        if (/\.opus(?:[?#]|$)/i.test(src)) break;
+      }
+    }
+    if (chosenSrc) {
+      const resolved = resolveRelativeUrl(chosenSrc, pageUrl);
+      if (resolved && resolved.startsWith("https://")) {
+        pageTracks.push({
+          order: idx + 1,
+          title: trackTitles[idx] || `Track ${idx + 1}`,
+          url: resolved,
+        });
+      }
+    }
+  });
+
   return {
     abstractText: normalizeParagraphLines(abstractText),
     aboutMarkdown,
     bannerUrl,
     links,
     downloadAccess: findFaircampDownloadAccess(root, pageUrl),
+    tracks: pageTracks,
   };
 }
 
@@ -1280,6 +1324,20 @@ export async function fetchFairplayerAlbum(
           mode: "external",
           links: pageDetails.downloadAccess.links,
         };
+      }
+      if (pageDetails.tracks && pageDetails.tracks.length > 0 && album.tracks) {
+        album.tracks.forEach((track) => {
+          const trackTitle = (track.title || "").trim().toLowerCase();
+          const matched = pageDetails.tracks!.find(
+            (pt) => pt.title.toLowerCase() === trackTitle,
+          );
+          if (matched && matched.url) {
+            track.url = matched.url;
+            if (track.audio) {
+              track.audio.url = matched.url;
+            }
+          }
+        });
       }
     }
   }
