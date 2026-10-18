@@ -345,8 +345,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         </View>
       </View>
 
-      <RefreshOverlay visible={isPullRefreshing} />
-
+      <View style={styles.scrollView}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -355,10 +354,9 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           <RefreshControl
             refreshing={isPullRefreshing}
             onRefresh={pullToRefresh}
-            progressViewOffset={-1000}
-            tintColor="transparent"
-            colors={["transparent"]}
-            progressBackgroundColor="transparent"
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.surfaceElevated}
           />
         }
       >
@@ -533,6 +531,8 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           </>
         )}
       </ScrollView>
+      <RefreshOverlay visible={isPullRefreshing} />
+      </View>
     </SafeAreaView>
   );
 });
