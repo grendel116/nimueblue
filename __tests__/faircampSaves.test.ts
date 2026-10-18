@@ -6,7 +6,9 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  isFaircampAlbumWishlisted,
   isFaircampArtistFollowed,
+  isFaircampTrackLiked,
   toggleFaircampAlbumWishlist,
   toggleFaircampArtistFollow,
   toggleFaircampTrackLike,
@@ -141,5 +143,72 @@ describe("device-only Faircamp saves", () => {
     );
     expect(isFaircampArtistFollowed(artist, stored)).toBe(false);
     expect(stored.artists).toHaveLength(0);
+  });
+
+  test("persists and syncs likes between Now Playing (downloaded or streaming) and Album page", async () => {
+    await AsyncStorage.clear();
+    const album: AlbumProps = {
+      id: 542,
+      trackGroupId: 542,
+      title: "Mama",
+      urlSlug: "mama",
+      source: "Mirlo Space",
+      cover: { sizes: { 60: "", 120: "", 300: "", 600: "", 960: "", 1200: "", 1500: "" } },
+      artist: {
+        id: 88,
+        name: "Iron Curtain",
+        bio: "",
+        activityPub: false,
+        userId: 88,
+        enabled: true,
+        createdAt: "",
+        trackGroups: [],
+      },
+      artistId: 88,
+      releaseDate: "2026-01-01",
+      tracks: [],
+    };
+
+    // Track on the Album page
+    const albumTrack: RNTrack = {
+      id: 10483,
+      trackGroupId: album.id,
+      title: "Mama",
+      artist: "Iron Curtain",
+      url: "https://mirlo.space/v1/tracks/10483/audio",
+      source: "Mirlo Space",
+      trackGroup: album,
+      order: 1,
+      queueIndex: 0,
+      allowIndividualSale: true,
+      isPreview: false,
+      headers: {},
+      audio: {
+        url: "https://mirlo.space/v1/tracks/10483/audio",
+        duration: 210,
+      },
+    };
+
+    // Playing track on Now Playing (e.g. playing from local file download)
+    const nowPlayingTrack: RNTrack = {
+      ...albumTrack,
+      url: "file:///data/user/0/space.mirlo.blue/files/tracks/10483.mp3",
+    };
+
+    // Liking on Now Playing
+    await toggleFaircampTrackLike(nowPlayingTrack);
+
+    // Both Now Playing and Album page track must reflect as liked
+    expect(isFaircampTrackLiked(nowPlayingTrack)).toBe(true);
+    expect(isFaircampTrackLiked(albumTrack)).toBe(true);
+
+    // The album page must also reflect as wishlisted
+    expect(isFaircampAlbumWishlisted(album)).toBe(true);
+
+    // Unliking on Album page
+    await toggleFaircampTrackLike(albumTrack);
+    expect(isFaircampTrackLiked(nowPlayingTrack)).toBe(false);
+    expect(isFaircampTrackLiked(albumTrack)).toBe(false);
+    expect(isFaircampAlbumWishlisted(album)).toBe(false);
   });
 });

@@ -911,8 +911,8 @@ function renderHtml(meta) {
 
     <style>
       @font-face {
-        font-family: "NueGothicRound";
-        src: url("https://grendel116.github.io/nimueblue/Nue-Gothic-Round.ttf") format("truetype");
+        font-family: "MedievalScroll";
+        src: url("https://grendel116.github.io/nimueblue/Medieval-Scroll-of-Wisdom.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -963,15 +963,15 @@ function renderHtml(meta) {
       .brand {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 5px;
         text-decoration: none;
         color: var(--text);
       }
       .brand img {
-        width: 26px;
-        height: 26px;
+        width: 28px;
+        height: 28px;
       }
-      .brand-text { font-family: "NueGothicRound", sans-serif; font-size: 20px; font-weight: 400; letter-spacing: 0.5px; }
+      .brand-text { font-family: "MedievalScroll", sans-serif; font-size: 18px; font-weight: 400; letter-spacing: 0.8px; }
       .brand-highlight { color: var(--primary); }
       .nav-cta {
         font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none;
@@ -1002,7 +1002,7 @@ function renderHtml(meta) {
         background: radial-gradient(circle at center, #132235 0%, #060b13 100%);
       }
       .artwork-placeholder svg { width: 64px; height: 64px; fill: var(--primary); opacity: 0.85; }
-      .track-title { font-family: "NueGothicRound", sans-serif; font-size: 24px; line-height: 1.15; color: var(--text); margin-bottom: 6px; word-break: break-word; }
+      .track-title { font-family: "MedievalScroll", sans-serif; font-size: 24px; line-height: 1.15; color: var(--text); margin-bottom: 6px; word-break: break-word; }
       .track-artist { font-size: 15px; font-weight: 600; line-height: 1.25; color: var(--primary); margin-bottom: 20px; }
       .track-meta { font-size: 13px; color: var(--text-muted); margin-top: -12px; margin-bottom: 20px; display: ${album ? "block" : "none"}; }
       .player-box { width: 100%; margin-bottom: 24px; display: ${audioUrl ? "flex" : "none"}; align-items: center; gap: 14px; padding: 0 4px; }
@@ -1031,7 +1031,7 @@ function renderHtml(meta) {
     <header>
       <div class="nav-inner">
         <a href="https://grendel116.github.io/nimueblue/" class="brand" title="NIMUEBLUE Home">
-          <img src="https://grendel116.github.io/nimueblue/logo.png" alt="NIMUEBLUE Logo" />
+          <img src="https://grendel116.github.io/nimueblue/logo.svg" alt="NIMUEBLUE Logo" width="28" height="28" />
           <span class="brand-text">NIMUE<span class="brand-highlight">BLUE</span></span>
         </a>
         <a href="https://grendel116.github.io/nimueblue/" class="nav-cta">About App</a>

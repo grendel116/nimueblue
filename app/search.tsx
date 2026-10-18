@@ -101,7 +101,6 @@ export default function SearchPage() {
         >
           <Text style={styles.sectionHeader}>{t("mobileApp.searchScreen.popularTags")}</Text>
           <View style={styles.tagWrap}>{tagPills}</View>
-          <TypeLinks />
         </ScrollView>
       ) : null}
       {isSearching ? (
@@ -139,36 +138,6 @@ export default function SearchPage() {
   );
 }
 
-function TypeLinks() {
-  const router = useRouter();
-  const { t } = useTranslation("translation");
-  return (
-    <View style={styles.typeLinksContainer}>
-      <Text style={styles.sectionHeader}>{t("mobileApp.searchScreen.discoverByCategory")}</Text>
-      <Pressable
-        onPress={() => router.navigate("/topSold")}
-        style={styles.typeLinkCard}
-        accessibilityRole="button"
-      >
-        <View style={styles.typeLinkRow}>
-          <Text style={styles.typeLinkText}>{t("mobileApp.searchScreen.popularPurchases")}</Text>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-        </View>
-      </Pressable>
-      <Pressable
-        onPress={() => router.navigate("/mostPlayed")}
-        style={styles.typeLinkCard}
-        accessibilityRole="button"
-      >
-        <View style={styles.typeLinkRow}>
-          <Text style={styles.typeLinkText}>{t("mobileApp.searchScreen.topListened")}</Text>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-        </View>
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -191,29 +160,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     marginBottom: 12,
-  },
-  typeLinksContainer: {
-    gap: 12,
-    marginTop: 8,
-  },
-  typeLinkCard: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
-    borderRadius: theme.radius.md,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  typeLinkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  typeLinkText: {
-    color: theme.colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "600",
   },
   centerContainer: {
     flex: 1,

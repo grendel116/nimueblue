@@ -15,7 +15,7 @@ export function trackStreamPath(trackId: number | string): string {
  */
 export function isQualityArtwork(rawUrl?: string): boolean {
   if (!rawUrl || typeof rawUrl !== "string") return false;
-  const trimmed = rawUrl.trim().toLowerCase();
+  const trimmed = rawUrl.trim();
   if (
     !trimmed.startsWith("http://") &&
     !trimmed.startsWith("https://") &&
@@ -24,17 +24,58 @@ export function isQualityArtwork(rawUrl?: string): boolean {
   ) {
     return false;
   }
-  // Reject microscopic browser .ico files
-  if (trimmed.endsWith(".ico") || trimmed.includes("/favicon.ico") || trimmed.includes("favicon.ico?")) {
+
+  const lower = trimmed.toLowerCase();
+
+  // Reject microscopic browser .ico files and generic favicons
+  if (
+    lower.endsWith(".ico") ||
+    lower.includes("/favicon") ||
+    lower.includes("favicon.") ||
+    lower.includes("favicon-")
+  ) {
     return false;
   }
-  // Reject tiny thumbnail indicators in URL path or parameters (e.g. 16x16, 32x32)
-  if (/(?:^|[^a-z0-9])(?:16x16|32x32|16px|32px)(?:[^a-z0-9]|$)/i.test(trimmed)) {
+
+  // Reject mobile bookmark touch-icons and low-res device icons
+  if (
+    lower.includes("apple-touch-icon") ||
+    lower.includes("touch-icon") ||
+    /(?:^|[\/_-])(?:ipad|iphone|android)(?:[\/._-]|$)/i.test(lower)
+  ) {
     return false;
   }
-  if (/[?&](?:w|h|width|height|size)=(?:16|32)(?:&|$)/i.test(trimmed)) {
+
+  // Reject microscopic/tiny thumbnail indicators in URL path or parameters (<= 144px)
+  if (
+    /(?:^|[^a-z0-9])(?:16x16|32x32|48x48|64x64|72x72|80x80|96x96|120x120|128x128|144x144|16px|32px|48px|64px|72px|80px|96px|128px)(?:[^a-z0-9]|$)/i.test(
+      lower,
+    )
+  ) {
     return false;
   }
+  if (/[?&](?:w|h|width|height|size)=(?:1[0-4][0-9]|[1-9][0-9]?)(?:&|$)/i.test(lower)) {
+    return false;
+  }
+
+  // Reject bare web pages that don't have an image path or extension
+  if (!lower.startsWith("data:") && !lower.startsWith("file://")) {
+    try {
+      const parsed = new URL(trimmed);
+      const path = parsed.pathname.toLowerCase();
+      const hasImageExt = /\.(jpg|jpeg|png|webp|svg|gif|avif)($|\?)/i.test(path);
+      const hasImagePath =
+        /(?:^|\/)(?:image|images|img|cover|covers|artwork|art|media|assets|uploads|photos|pictures|logos)(?:\/|$)/i.test(
+          path,
+        );
+      if (!hasImageExt && !hasImagePath) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
   return true;
 }
 

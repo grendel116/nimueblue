@@ -397,13 +397,19 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         TrackPlayer.getActiveTrack() as Promise<RNTrack | undefined>,
         TrackPlayer.getRepeatMode(),
       ]);
-      setPlayingQueue(queue);
-      setActiveIndex((await TrackPlayer.getActiveTrackIndex()) ?? -1);
+      const activeIdx = (await TrackPlayer.getActiveTrackIndex()) ?? -1;
+      setActiveIndex(activeIdx);
       if (playlistOrderRef.current.length === 0) playlistOrderRef.current = queue;
       if (track) {
-        setActiveTrack(track);
-        activeTrackOwnedRef.current = isTrackOwned(track, track.trackGroup, userRef.current);
-        activeTrackIdRef.current = track.id ?? null;
+        const queueTrack =
+          (activeIdx >= 0 && queue[activeIdx]) ||
+          queue.find((t) => isSameTrack(t, track));
+        const fullTrack = queueTrack
+          ? { ...track, ...queueTrack, url: queueTrack.url || track.url }
+          : track;
+        setActiveTrack(fullTrack);
+        activeTrackOwnedRef.current = isTrackOwned(fullTrack, fullTrack.trackGroup, userRef.current);
+        activeTrackIdRef.current = fullTrack.id ?? null;
       }
       setLooping(REPEAT_CYCLE.find((setting) => REPEAT_MODES[setting] === mode) ?? "none");
     } catch (err) {
@@ -490,13 +496,18 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (event.type === Event.PlaybackActiveTrackChanged) {
         resetRadioTimer();
-        const track = ((event as any).track ??
+        const rawTrack = ((event as any).track ??
           (await TrackPlayer.getActiveTrack())) as RNTrack | undefined;
-        if (track) {
-          setActiveTrack((prev) =>
-            prev?._queueKey && prev._queueKey === track._queueKey ? prev : track,
-          );
-          setActiveIndex(event.index ?? -1);
+        if (rawTrack) {
+          const idx = event.index ?? -1;
+          const queueTrack =
+            (typeof idx === "number" && idx >= 0 && latest.current.playingQueue[idx]) ||
+            latest.current.playingQueue.find((t) => isSameTrack(t, rawTrack));
+          const track = queueTrack
+            ? { ...rawTrack, ...queueTrack, url: queueTrack.url || rawTrack.url }
+            : rawTrack;
+          setActiveTrack(track);
+          setActiveIndex(idx);
           const owned = isTrackOwned(track, track.trackGroup, userRef.current);
           activeTrackOwnedRef.current = owned;
           activeTrackIdRef.current = track.id ?? null;

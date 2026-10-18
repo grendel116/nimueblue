@@ -446,12 +446,19 @@ export async function fetchDiscoveredRadioStations(
     });
 
   return [...stationsById.values()]
-    .filter(
-      (station) =>
-        Boolean(station.url || station.url_resolved) &&
-        Boolean(station.name) &&
-        isQualityArtwork(station.favicon),
-    )
+    .filter((station) => {
+      const stream = (station.url_resolved || station.url || "").trim();
+      if (!stream || !station.name?.trim()) return false;
+      // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
+      if (!stream.toLowerCase().startsWith("https://")) return false;
+      // Reject playlist files which are not direct playable audio streams
+      if (/\.(pls|m3u|asx)(\?|$)/i.test(stream)) return false;
+      // Radio-Browser verification: check status and SSL health
+      if (station.lastcheckok !== undefined && station.lastcheckok !== 1) return false;
+      if (station.ssl_error !== undefined && station.ssl_error !== 0) return false;
+      // High-resolution artwork is required
+      return isQualityArtwork(station.favicon);
+    })
     .slice(0, limit)
     .map(radioBrowserToRadioStation);
 }
