@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router";
 import { Pressable, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { theme } from "@/constants/theme";
 import { useCallback } from "react";
-import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { albumArtistRouteId } from "@/scripts/routes";
 import { openPurchase } from "@/scripts/openPurchase";
 import { faircampAction } from "@/components/purchase/helpers";
 
@@ -20,9 +21,7 @@ export default function AddAlbumButton({ style, size = 32, trackGroup }: AddAlbu
   const onPress = useCallback(() => {
     openPurchase(router, {
       kind: "album",
-      artist:
-        fairplayerReleaseSlug.artistRouteId(trackGroup.urlSlug) ??
-        String(trackGroup.artist?.urlSlug || trackGroup.artistId),
+      artist: albumArtistRouteId(trackGroup) ?? "",
       slug: trackGroup.urlSlug,
     });
   }, [trackGroup, router]);
@@ -34,7 +33,7 @@ export default function AddAlbumButton({ style, size = 32, trackGroup }: AddAlbu
       accessibilityRole="button"
       accessibilityLabel="Purchase album"
     >
-      <Ionicons name="bag-handle-outline" size={size} color="#ababab" />
+      <Ionicons name="bag-handle-outline" size={size} color={theme.colors.iconIdle} />
     </Pressable>
   );
 }

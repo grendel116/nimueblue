@@ -65,12 +65,12 @@ export function SupportPurchase({
         <Option
           selected={choice === "tip"}
           onPress={() => setChoice("tip")}
-          title="One-time tip"
+          title="One-Time Tip"
           description={`Send ${artist.name} any amount, once.`}
         />
 
         {tiers.length > 0 ? (
-          <Text style={styles.sectionLabel}>RECURRING MEMBERSHIP TIERS</Text>
+          <Text style={styles.sectionLabel}>Recurring Membership Tiers</Text>
         ) : null}
 
         {tiers.map((t) => (
@@ -115,7 +115,7 @@ export function SupportPurchase({
           minimum={0}
           initial={DEFAULT_TIP}
           noteTo={artist.name}
-          action={(price) => (price ? `Send ${price}` : "Send tip")}
+          action={(price) => (price ? `Send ${price}` : "Send Tip")}
           busy={checkout.busy}
           error={checkout.error}
           onSubmit={(cents, { message, guestEmail }) =>
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: {
     borderColor: theme.colors.primary,
-    backgroundColor: "rgba(0, 210, 255, 0.08)",
+    backgroundColor: theme.colors.primarySoft,
   },
   optionText: {
     flex: 1,

@@ -1,32 +1,11 @@
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  ViewStyle,
-  StyleProp,
-  ViewProps,
-} from "react-native";
+import { View, TouchableOpacity, StyleSheet, ViewProps } from "react-native";
 import { usePlayer } from "@/state/PlayerContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import NextButton from "./NextButton";
 import PrevButton from "./PrevButton";
 import LoopButton from "./LoopButton";
 import ShuffleButton from "./ShuffleButton";
-import { Link } from "expo-router";
-import TrackPlayer, {
-  State,
-  PlaybackState,
-  useProgress,
-} from "react-native-track-player";
-import Slider from "@react-native-community/slider";
-
 import { theme } from "@/constants/theme";
-
-type PlayerStyleProps = {
-  bottomDistance: number;
-};
 
 type PlayButtonProps = {
   buttonColor?: string;
@@ -74,7 +53,7 @@ const styles = StyleSheet.create({
   playButton: {
     width: 64,
     height: 64,
-    borderRadius: 32,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",

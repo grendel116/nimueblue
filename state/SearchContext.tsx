@@ -1,8 +1,20 @@
 import { useState, createContext, useContext } from "react";
-import SearchItem from "@/components/SearchItem";
 import * as api from "../queries/fetch/fetchWrapper";
-import { useTranslation } from "react-i18next";
 import { searchFairplayerAlbums } from "@/queries/fairplayer";
+
+// Albums carrying every tag that matches the search, so "disco" also finds releases
+// tagged disco, nu-disco, italo-disco, disco-house and the rest
+const ALBUMS_PER_TAG = 8;
+
+async function fetchTaggedAlbums(term: string): Promise<AlbumProps[]> {
+  const tags = await api.getMany<Tag>(`/v1/tags`, {}, { tag: term, orderBy: "count" });
+  const pages = await Promise.all(
+    tags.results.map((tag) =>
+      api.getMany<AlbumProps>(`/v1/trackGroups`, {}, { tag: tag.tag, take: String(ALBUMS_PER_TAG) }),
+    ),
+  );
+  return pages.flatMap((page) => page.results);
+}
 
 type SearchContextType = {
   isSearching: boolean;
@@ -61,48 +73,41 @@ export const SearchContextProvider: React.FC<{
   const [searchResults, setSearchResults] = useState<Result[]>([]);
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [searchValue, setSeachValue] = useState<string>("");
-  const { t } = useTranslation();
 
   async function getOptions(searchString: string) {
-    const artists = await api.getMany<Artist>(
-      `/v1/artists`,
-      {},
-      { name: searchString.trim() },
-    );
-    const trackGroups = await api.getMany<AlbumProps>(
-      `/v1/trackGroups`,
-      {},
-      { title: searchString.trim() },
-    );
-    const tracks = await api.getMany<RNTrack>(
-      `/v1/tracks`,
-      {},
-      { title: searchString.trim() },
-    );
-    const tags = await api.getMany<Tag>(
-      `/v1/tags`,
-      {},
-      { tag: searchString.trim(), orderBy: "count" },
-    );
-    let fairplayerAlbums: AlbumProps[] = [];
-    try {
-      fairplayerAlbums = await searchFairplayerAlbums(searchString);
-    } catch (error) {
-      console.warn("Fairplayer catalog search failed:", error);
-    }
+    const term = searchString.trim();
+    const [artists, trackGroups, tracks, taggedAlbums, fairplayerAlbums] = await Promise.all([
+      api.getMany<Artist>(`/v1/artists`, {}, { name: term }),
+      api.getMany<AlbumProps>(`/v1/trackGroups`, {}, { title: term }),
+      api.getMany<RNTrack>(`/v1/tracks`, {}, { title: term }),
+      fetchTaggedAlbums(term),
+      searchFairplayerAlbums(term).catch((error) => {
+        console.warn("Fairplayer catalog search failed:", error);
+        return [] as AlbumProps[];
+      }),
+    ]);
+
+    const seenAlbums = new Set<string>();
+    const mirloAlbums = [...trackGroups.results, ...taggedAlbums].filter((album) => {
+      const key = String(album.id);
+      if (seenAlbums.has(key)) return false;
+      seenAlbums.add(key);
+      return true;
+    });
+
     const results = [
       ...artists.results.map((r, rid) => ({
         firstInCategory: rid === 0,
-        category: t("label.artist"),
+        category: "Artist",
         artistId: r.urlSlug ?? r.id,
         id: r.id,
         avatar: r.avatar,
         name: r.name,
         isArtist: true,
       })),
-      ...trackGroups.results.map((tr, trid) => ({
+      ...mirloAlbums.map((tr, trid) => ({
         firstInCategory: trid === 0,
-        category: t("manageArtistTools.album"),
+        category: "Album",
         id: tr.urlSlug ?? tr.id,
         artistId: tr.artist?.urlSlug ?? tr.artistId,
         artistName: tr.artist.name,
@@ -114,7 +119,7 @@ export const SearchContextProvider: React.FC<{
       ...tracks.results.map((tr, trid) => ({
         firstInCategory: trid === 0,
         id: tr.id,
-        category: t("trackDetails.track").replace(":", ""),
+        category: "Track",
         trackGroupId: tr.trackGroup.urlSlug ?? tr.trackGroupId,
         artistId: tr.trackGroup.artist.urlSlug ?? tr.trackGroup.artistId,
         artistName: tr.trackGroup.artist.name,
@@ -122,14 +127,8 @@ export const SearchContextProvider: React.FC<{
         name: tr.title,
         isTrack: true,
       })),
-      ...tags.results.map((tg, tgid) => ({
-        id: tgid,
-        name: tg.tag,
-        category: t("headerSearch.tags").slice(0, -1),
-        isTag: true,
-      })),
       ...fairplayerAlbums.map((album) => ({
-        category: t("manageArtistTools.album"),
+        category: "Album",
         id: album.urlSlug,
         artistId: album.artist.urlSlug,
         artistName: album.artist.name,

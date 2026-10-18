@@ -4,8 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated} from "react-native";
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { theme } from "@/constants/theme";
 
 type ErrorNotificationProps = {
   onDismiss: () => void;
@@ -23,9 +25,12 @@ const ErrorNotification = ({
   return (
     <SafeAreaView>
       <View style={[styles.errorNotification]}>
-        <View style={styles.errorIcon}>
-          <Text style={styles.iconText}>⚠️</Text>
-        </View>
+        <Ionicons
+          name="alert-circle"
+          size={24}
+          color={theme.colors.textPrimary}
+          style={styles.errorIcon}
+        />
         <View style={styles.errorContent}>
           {error.message === "Network request failed" ? (
             <View>
@@ -45,8 +50,10 @@ const ErrorNotification = ({
           style={styles.dismissBtn}
           onPress={onDismiss}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
         >
-          <Text style={styles.dismissText}>×</Text>
+          <Ionicons name="close" size={14} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -55,15 +62,15 @@ const ErrorNotification = ({
 
 const styles = StyleSheet.create({
   errorNotification: {
-    backgroundColor: "#ff6b6b",
+    backgroundColor: theme.colors.danger,
     paddingVertical: 12,
     paddingHorizontal: 20,
     marginHorizontal: 16,
     marginVertical: 15,
-    borderRadius: 15,
+    borderRadius: theme.radius.lg,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#ff6b6b",
+    shadowColor: theme.colors.danger,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -75,65 +82,31 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   errorIcon: {
-    width: 24,
-    height: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
     marginRight: 12,
-  },
-  iconText: {
-    fontSize: 14,
   },
   errorContent: {
     flex: 1,
   },
   errorTitle: {
-    color: "white",
+    color: theme.colors.textPrimary,
     fontWeight: "600",
     fontSize: 16,
     marginBottom: 2,
   },
   errorMessage: {
-    color: "white",
+    color: theme.colors.textPrimary,
     fontSize: 15,
     opacity: 0.9,
     lineHeight: 16,
   },
   dismissBtn: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: theme.colors.overlayLight,
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: theme.radius.full,
     alignItems: "center",
     justifyContent: "center",
-  },
-  dismissText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
   },
 });
 
 export default ErrorNotification;
-
-// Usage example:
-/*
-import React from 'react';
-import { View } from 'react-native';
-import ErrorNotification from './ErrorNotification';
-
-const App: React.FC = () => {
-  const [showError, setShowError] = React.useState<boolean>(true);
-
-  return (
-    <View style={{ flex: 1 }}>
-      <ErrorNotification 
-        visible={showError}
-        onDismiss={() => setShowError(false)}
-      />
-      {/* Rest of your app content */
-//</View>
-//);
-//};

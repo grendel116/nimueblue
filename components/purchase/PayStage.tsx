@@ -12,80 +12,6 @@ import {
 import type { PayStageProps } from "./useCheckout";
 import { Loading, SecondaryButton } from "./ui";
 
-const INJECTED_CSS = `
-  :root, html {
-    --mi-instance-button-color: ${theme.colors.primary} !important;
-    --mi-instance-button-text-color: ${theme.colors.background} !important;
-    --mi-instance-background-color: ${theme.colors.background} !important;
-    --mi-instance-text-color: ${theme.colors.textPrimary} !important;
-    background-color: ${theme.colors.background} !important;
-    color: ${theme.colors.textPrimary} !important;
-  }
-
-  body {
-    background-color: ${theme.colors.background} !important;
-    color: ${theme.colors.textPrimary} !important;
-    margin: 0 !important;
-    padding: 16px 12px !important;
-    overflow-x: hidden !important;
-  }
-
-  /* Strip website chrome: header, nav, footer, cookie banner */
-  header,
-  footer,
-  nav,
-  [data-nosnippet],
-  [aria-label*="cookie" i] {
-    display: none !important;
-  }
-
-  /* Fill sheet width cleanly without desktop margins */
-  main, [role="main"] {
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  /* Typography */
-  h1, h2, h3 {
-    color: ${theme.colors.textPrimary} !important;
-    letter-spacing: -0.02em !important;
-  }
-
-  p, label {
-    color: ${theme.colors.textSecondary} !important;
-  }
-
-  /* Primary action button matching NimueBlue */
-  button[type="submit"],
-  .btn-primary {
-    background-color: ${theme.colors.primary} !important;
-    color: ${theme.colors.background} !important;
-    font-weight: 700 !important;
-    border-radius: ${theme.radius.md}px !important;
-    border: none !important;
-    padding: 12px 20px !important;
-    box-shadow: 0 4px 12px ${theme.colors.primaryGlow} !important;
-  }
-`;
-
-const INJECT_SKIN_SCRIPT = `
-(function() {
-  function applySkin() {
-    if (document.getElementById('nimueblue-skin')) return;
-    const style = document.createElement('style');
-    style.id = 'nimueblue-skin';
-    style.textContent = \`${INJECTED_CSS}\`;
-    (document.head || document.documentElement).appendChild(style);
-  }
-  applySkin();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applySkin);
-  }
-})();
-true;
-`;
-
 function generateInAppStripeHtml(deferred: DeferredQuote, guestEmail?: string): string {
   const amountFormatted = formatMoney(deferred.amount, deferred.currency);
 
@@ -124,7 +50,7 @@ function generateInAppStripeHtml(deferred: DeferredQuote, guestEmail?: string): 
   </style>
 </head>
 <body>
-  <h2>Complete your purchase</h2>
+  <h2>Complete Your Purchase</h2>
   <p>Paying ${amountFormatted} to ${deferred.artistName}</p>
   <form id="payment-form">
     <div id="payment-element"></div>
@@ -268,8 +194,6 @@ export function PayStage({
         ref={webViewRef}
         source={source}
         onMessage={handleMessage}
-        injectedJavaScriptBeforeContentLoaded={INJECT_SKIN_SCRIPT}
-        injectedJavaScript={INJECT_SKIN_SCRIPT}
         onShouldStartLoadWithRequest={(request) => proceed(request.url)}
         onNavigationStateChange={(state) => proceed(state.url)}
         startInLoadingState

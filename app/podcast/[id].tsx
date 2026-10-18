@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   albumPlayBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",

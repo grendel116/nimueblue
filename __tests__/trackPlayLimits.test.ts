@@ -6,9 +6,9 @@ import {
   getDisabledTrackIds,
   markTrackDisabled,
   isTrackDisabledSync,
-  clearDisabledTracks,
-  reachedMaxPlays,
-  incrementPlayCount,
+  clearPlayCounts,
+  isPlaybackLimitReached,
+  recordTrackPlay,
 } from "@/scripts/trackPlayUtils";
 import { isTrackOwnedOrPreview } from "@/scripts/utils";
 import { createMockRNTrack } from "@/__mocks__/mockRNTrack";
@@ -17,7 +17,7 @@ import { createMockUser } from "@/__mocks__/mockUser";
 
 describe("Track play limit and HTTP 402 root-cause handling", () => {
   beforeEach(async () => {
-    await clearDisabledTracks();
+    await clearPlayCounts();
   });
 
   test("marks a track as disabled and remembers it in memory and storage", async () => {
@@ -30,24 +30,23 @@ describe("Track play limit and HTTP 402 root-cause handling", () => {
     expect(set.has(1234)).toBe(true);
   });
 
-  test("reachedMaxPlays returns true and marks track disabled when threshold is reached", async () => {
+  test("isPlaybackLimitReached returns true once the play count reaches the limit", async () => {
     const trackId = 5555;
-    // Set up play counts by incrementing
-    await incrementPlayCount(trackId);
-    await incrementPlayCount(trackId);
+    // Set up play counts by recording plays
+    await recordTrackPlay(trackId);
+    expect(await isPlaybackLimitReached(trackId, 2)).toBe(false);
+    await recordTrackPlay(trackId);
 
     // Limit is 2; 2 plays have occurred
-    const reached = await reachedMaxPlays(trackId, 2);
-    expect(reached).toBe(true);
-    expect(isTrackDisabledSync(trackId)).toBe(true);
+    expect(await isPlaybackLimitReached(trackId, 2)).toBe(true);
   });
 
-  test("incrementPlayCount automatically marks track disabled if maxFreePlays is passed", async () => {
+  test("recordTrackPlay automatically marks track disabled if maxFreePlays is passed", async () => {
     const trackId = 8888;
-    await incrementPlayCount(trackId, 2);
+    await recordTrackPlay(trackId, 2);
     expect(isTrackDisabledSync(trackId)).toBe(false);
 
-    await incrementPlayCount(trackId, 2);
+    await recordTrackPlay(trackId, 2);
     expect(isTrackDisabledSync(trackId)).toBe(true);
   });
 

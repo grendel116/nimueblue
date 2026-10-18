@@ -21,7 +21,6 @@ import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import PlayPauseWrapper from "@/components/PlayPauseWrapper";
-import { useTranslation } from "react-i18next";
 import Markdown from "react-native-markdown-display";
 import WishlistButton from "@/components/WishlistButton";
 import ErrorNotification from "@/components/ErrorNotification";
@@ -87,7 +86,7 @@ function AlbumPlayButton({ playableTracks }: { playableTracks: RNTrack[] }) {
 
 const MemoizedAlbumPlayButton = React.memo(AlbumPlayButton);
 
-function formatUTCDate(utcDate: string | undefined, t: (key: string) => string) {
+function formatUTCDate(utcDate: string | undefined) {
   if (!utcDate) return undefined;
   const date = new Date(utcDate);
 
@@ -101,12 +100,7 @@ function formatUTCDate(utcDate: string | undefined, t: (key: string) => string) 
   };
   const result = localDate.toLocaleDateString("en-US", options);
 
-  return date.getTime() > Date.now()
-    ? `${t("trackGroupCard.releaseDate")} ${result}`
-    : t("trackGroupCard.released").substring(
-        0,
-        t("trackGroupCard.released").indexOf(":") + 1,
-      ) + ` ${result}`;
+  return date.getTime() > Date.now() ? `Release date: ${result}` : `Released: ${result}`;
 }
 
 export default function AlbumTracks() {
@@ -117,7 +111,6 @@ export default function AlbumTracks() {
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
   const downloads = useDownloads();
-  const { t } = useTranslation("translation");
   const [showError, setShowError] = useState<boolean>(true);
 
   useEffect(() => {
@@ -304,9 +297,7 @@ export default function AlbumTracks() {
                   </Text>
                   <View style={styles.artistNameRow}>
                     <Text style={styles.byText}>
-                      {t("trackGroupDetails.byArtist")
-                        .replace(/<[^>]*>.*?<\/[^>]*>/g, "")
-                        .trim() + " "}
+                      {"by "}
                     </Text>
                     <Pressable
                       onPress={() =>
@@ -352,10 +343,10 @@ export default function AlbumTracks() {
           ListFooterComponent={
             <View style={styles.footerSection}>
               <Text style={styles.aboutHeader}>
-                {t("trackGroupDetails.about")}
+                About
               </Text>
               <Text style={styles.releaseDateText}>
-                {formatUTCDate(selectedAlbum?.releaseDate, t)}
+                {formatUTCDate(selectedAlbum?.releaseDate)}
               </Text>
               {albumSource ? (
                 <Pressable
@@ -521,7 +512,7 @@ const styles = StyleSheet.create({
   albumPlayBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",

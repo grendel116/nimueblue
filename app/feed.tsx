@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Modal,
   PanResponder,
   Platform,
   Animated,
@@ -16,11 +15,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Button } from "@/components/ui";
+import { showChoice } from "@/state/choice";
 import { usePlayer, QueueSlot } from "@/state/PlayerContext";
 import { openMainTab } from "@/components/Footer";
 import { theme } from "@/constants/theme";
 import { AUTOPLAY_SOURCE } from "@/scripts/autoplay";
-import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { albumHref } from "@/scripts/routes";
 import ShuffleButton from "@/components/ShuffleButton";
 import LoopButton from "@/components/LoopButton";
 import {
@@ -42,6 +43,12 @@ const OVERSCAN_PX = ROW_HEIGHT * 12;
 const SCROLL_STEP_PX = ROW_HEIGHT * 3;
 const INITIAL_VIEWPORT_HEIGHT = Dimensions.get("window").height || 900;
 
+// A queue row's picture: the track's own artwork, otherwise its album cover
+function trackArtwork(track?: RNTrack): string | undefined {
+  const sizes = track?.trackGroup?.cover?.sizes;
+  return track?.artwork || sizes?.[300] || sizes?.[600] || sizes?.[120];
+}
+
 type QueueRowProps = {
   track: RNTrack;
   section: QueueSlot["section"];
@@ -54,6 +61,7 @@ type QueueRowProps = {
   onDragStart: (slot: QueueSlot) => void;
   onDragMove: (dy: number) => void;
   onDragEnd: () => void;
+  onOptions?: (track: RNTrack, index: number) => void;
 };
 
 const QueueRow = React.memo(function QueueRow({
@@ -68,6 +76,7 @@ const QueueRow = React.memo(function QueueRow({
   onDragStart,
   onDragMove,
   onDragEnd,
+  onOptions,
 }: QueueRowProps) {
   const slotRef = useRef<QueueSlot>({ section, index });
   slotRef.current = { section, index };
@@ -130,10 +139,7 @@ const QueueRow = React.memo(function QueueRow({
     }),
   ).current;
 
-  const artwork =
-    track.artwork ||
-    track.trackGroup?.cover?.sizes?.[300] ||
-    track.trackGroup?.cover?.sizes?.[120];
+  const artwork = trackArtwork(track);
   const isExplicit = (track as any).isExplicit || (track as any).explicit;
 
   return (
@@ -151,6 +157,7 @@ const QueueRow = React.memo(function QueueRow({
     >
       <Pressable
         onPress={() => onPlay(section, index)}
+        onLongPress={onOptions ? () => onOptions(track, index) : undefined}
         disabled={isAnyDragging}
         style={styles.trackMainPressable}
       >
@@ -212,24 +219,53 @@ export default function QueueScreen() {
     playFromUserQueue,
     skipToUpcoming,
   } = usePlayer("activeTrack", "queueSource", "userQueue", "upcoming", "clearUserQueue", "removeFromUserQueue", "moveQueueItem", "playFromUserQueue", "skipToUpcoming");
+  const openTrackOptions = (track: RNTrack, queueIndex?: number) => {
+    const buttons: { text: string; style?: "cancel" | "destructive"; onPress?: () => void }[] = [];
+    if (track.trackGroup) {
+      const href = albumHref(track.trackGroup);
+      if (href) {
+        buttons.push({
+          text: "View Album",
+          onPress: () => router.push(href),
+        });
+      }
+    }
+    if (queueIndex !== undefined) {
+      buttons.push({
+        text: "Remove from Queue",
+        style: "destructive",
+        onPress: () => removeFromUserQueue(queueIndex),
+      });
+    }
+    showChoice({
+      title: track.title || "Track Options",
+      message: track.artist || track.trackGroup?.artist?.name,
+      buttons,
+    });
+  };
 
-  const [activeMenu, setActiveMenu] = useState<{
-    visible: boolean;
-    track?: RNTrack;
-    isQueueHeader?: boolean;
-    queueIndex?: number;
-  }>({ visible: false });
+  const openQueueOptions = () => {
+    showChoice({
+      title: "Queue Options",
+      buttons: [
+        {
+          text: "Clear Queue",
+          style: "destructive",
+          onPress: () => clearUserQueue(),
+        },
+      ],
+    });
+  };
 
-  // Once playback has moved into autoplay, every upcoming track is a discovery pick
-  const nextUpSource = activeTrack?.autoplay ? AUTOPLAY_SOURCE : queueSource;
-  const firstAutoplayIndex = activeTrack?.autoplay
+  // Once playback has moved into autoplay or all upcoming tracks are discovery,
+  // the upcoming section is discovery with no intermediate divider
+  const isAllAutoplay = upcomingTracks.length > 0 && upcomingTracks.every((t) => t.autoplay);
+  const nextUpSource = activeTrack?.autoplay || isAllAutoplay ? AUTOPLAY_SOURCE : queueSource;
+  const firstAutoplayIndex = activeTrack?.autoplay || isAllAutoplay
     ? -1
     : upcomingTracks.findIndex((t) => t.autoplay);
 
-  const currentArtwork =
-    activeTrack?.artwork ||
-    activeTrack?.trackGroup?.cover?.sizes?.[300] ||
-    activeTrack?.trackGroup?.cover?.sizes?.[600];
+  const currentArtwork = trackArtwork(activeTrack);
 
   const metrics: QueueMetrics = useMemo(
     () => ({
@@ -362,10 +398,7 @@ export default function QueueScreen() {
       : upcomingTracks[drag.from.index]
     : undefined;
 
-  const draggedArtwork =
-    draggedTrack?.artwork ||
-    draggedTrack?.trackGroup?.cover?.sizes?.[300] ||
-    draggedTrack?.trackGroup?.cover?.sizes?.[120];
+  const draggedArtwork = trackArtwork(draggedTrack);
 
   const areaHeight = totalDragAreaHeight(metrics);
 
@@ -380,7 +413,7 @@ export default function QueueScreen() {
           accessibilityLabel="Back"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
+          <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -425,12 +458,7 @@ export default function QueueScreen() {
             </View>
 
             <TouchableOpacity
-              onPress={() =>
-                setActiveMenu({
-                  visible: true,
-                  track: activeTrack,
-                })
-              }
+              onPress={() => openTrackOptions(activeTrack)}
               style={styles.optionsButton}
               accessibilityRole="button"
               accessibilityLabel="Track Options"
@@ -455,12 +483,7 @@ export default function QueueScreen() {
           <Text style={styles.sectionTitle}>Your Queue</Text>
           {userQueue.length > 0 && (
             <TouchableOpacity
-              onPress={() =>
-                setActiveMenu({
-                  visible: true,
-                  isQueueHeader: true,
-                })
-              }
+              onPress={openQueueOptions}
               style={styles.optionsButton}
               accessibilityRole="button"
               accessibilityLabel="Queue Options"
@@ -550,6 +573,7 @@ export default function QueueScreen() {
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}
+                onOptions={section === "queue" ? (t, idx) => openTrackOptions(t, idx) : undefined}
               />
             );
           })}
@@ -592,90 +616,14 @@ export default function QueueScreen() {
         {/* Global Empty State if nothing is playing and queue is completely empty */}
         {!activeTrack && userQueue.length === 0 && upcomingTracks.length === 0 && (
           <View style={styles.fullEmptyContainer}>
-            <TouchableOpacity
+            <Button
+              label="Explore Music"
               onPress={() => openMainTab("home")}
-              style={styles.exploreButton}
-              accessibilityRole="button"
-              accessibilityLabel="Explore Music"
-            >
-              <Text style={styles.exploreButtonText}>Explore Music</Text>
-            </TouchableOpacity>
+              rounded
+            />
           </View>
         )}
       </ScrollView>
-
-      {/* Options Modal */}
-      <Modal
-        visible={activeMenu.visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActiveMenu({ visible: false })}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setActiveMenu({ visible: false })}
-        >
-          <View style={styles.modalSheet}>
-            {activeMenu.isQueueHeader ? (
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => {
-                  clearUserQueue();
-                  setActiveMenu({ visible: false });
-                }}
-              >
-                <Ionicons name="trash-outline" size={20} color="#ff5252" />
-                <Text style={[styles.modalItemText, { color: "#ff5252" }]}>Clear Queue</Text>
-              </TouchableOpacity>
-            ) : activeMenu.track ? (
-              <>
-                {activeMenu.track.trackGroup && (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      const tg = activeMenu.track!.trackGroup;
-                      setActiveMenu({ visible: false });
-                      if (tg?.urlSlug && (tg?.artistId || fairplayerReleaseSlug.decode(String(tg.urlSlug)))) {
-                        router.push({
-                          pathname: "/artist/[id]/album/[slug]/album-tracks",
-                          params: {
-                            id:
-                              fairplayerReleaseSlug.artistRouteId(String(tg.urlSlug)) ??
-                              String(tg.artist?.urlSlug || tg.artistId),
-                            slug: String(tg.urlSlug),
-                          },
-                        });
-                      }
-                    }}
-                  >
-                    <Ionicons name="disc-outline" size={20} color={theme.colors.textPrimary} />
-                    <Text style={styles.modalItemText}>View Album</Text>
-                  </TouchableOpacity>
-                )}
-                {activeMenu.queueIndex !== undefined && (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      removeFromUserQueue(activeMenu.queueIndex!);
-                      setActiveMenu({ visible: false });
-                    }}
-                  >
-                    <Ionicons name="remove-circle-outline" size={20} color="#ff5252" />
-                    <Text style={[styles.modalItemText, { color: "#ff5252" }]}>Remove from Queue</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.modalItem, styles.modalCloseItem]}
-              onPress={() => setActiveMenu({ visible: false })}
-            >
-              <Text style={styles.modalCloseText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -787,7 +735,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1.5,
     borderColor: theme.colors.primary,
-    shadowColor: "#000",
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.45,
     shadowRadius: 14,
@@ -806,7 +754,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderStyle: "dashed",
     borderColor: theme.colors.primary,
-    backgroundColor: "rgba(56, 189, 248, 0.08)",
+    backgroundColor: theme.colors.primarySoft,
     zIndex: 0,
   },
   dropSlotThumb: {
@@ -857,14 +805,14 @@ const styles = StyleSheet.create({
   explicitBadge: {
     width: 16,
     height: 16,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: theme.radius.xs,
+    backgroundColor: theme.colors.overlayLight,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 6,
   },
   explicitText: {
-    color: "#d0d7de",
+    color: theme.colors.textSecondary,
     fontSize: 10,
     fontWeight: "800",
   },
@@ -937,54 +885,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 40,
     paddingHorizontal: 20,
-  },
-  exploreButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: theme.radius.full,
-  },
-  exploreButtonText: {
-    color: theme.colors.playButtonIcon,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
-  },
-  modalItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    gap: 12,
-  },
-  modalItemText: {
-    color: theme.colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  modalCloseItem: {
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
-    justifyContent: "center",
-  },
-  modalCloseText: {
-    color: theme.colors.textSecondary,
-    fontSize: 15,
-    fontWeight: "600",
-    textAlign: "center",
   },
 });

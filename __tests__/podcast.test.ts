@@ -105,12 +105,20 @@ describe("findPodcastShow", () => {
       "upstream",
       "working-class-history",
       "everything-coop",
+      "native-roots-radio",
       "labor-history-today",
       "millennials-killing-capitalism",
       "srsly-wrong",
       "colonial-outcasts",
       "black-autonomy",
     ]);
+
+    const nativeRoots = findPodcastShow("native-roots-radio");
+    expect(nativeRoots).toBeDefined();
+    expect(nativeRoots?.name).toBe("Native Roots Radio");
+    expect(nativeRoots?.author).toBe("Robert Pilot");
+    expect(nativeRoots?.feedUrl).toBe("https://www.am950radio.com/category/podcasts/im-awake/feed/");
+    expect(nativeRoots?.supportUrl).toBe("https://nativerootsradio.com");
 
     const colonial = findPodcastShow("colonial-outcasts");
     expect(colonial).toBeDefined();

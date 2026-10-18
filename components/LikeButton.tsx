@@ -28,7 +28,7 @@ export default function LikeButton({ liked, onPress, kind = "heart", style, size
     >
       <Ionicons
         name={liked ? kind : `${kind}-outline`}
-        color={liked ? (bookmark ? theme.colors.primary : "#BE3455") : "#ababab"}
+        color={liked ? (bookmark ? theme.colors.primary : theme.colors.brandRed) : theme.colors.iconIdle}
         size={size}
       />
     </Pressable>

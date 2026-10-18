@@ -1,5 +1,6 @@
 import { Pressable, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { theme } from "@/constants/theme";
 import {
   isFaircampAlbumWishlisted,
   toggleFaircampAlbumWishlist,
@@ -44,7 +45,7 @@ export default function WishlistButton({
     >
       <Ionicons
         name={isInWishlist ? "heart" : "heart-outline"}
-        color={isInWishlist ? "#BE3455" : "#ababab"}
+        color={isInWishlist ? theme.colors.brandRed : theme.colors.iconIdle}
         size={size}
       />
     </Pressable>

@@ -1,6 +1,5 @@
 import { memo, useState, useEffect, useMemo } from "react";
 import {
-  ActivityIndicator,
   BackHandler,
   View,
   Text,
@@ -15,14 +14,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryTrackGroups } from "@/queries/queries";
-import {
-  distributeFairChorusAlbums,
-  queryFederatedChorusAlbums,
-} from "@/queries/chorus";
-import {
-  fairplayerReleaseSlug,
-  queryFairplayerAlbums,
-} from "@/queries/fairplayer";
+import { queryFederatedChorusAlbums } from "@/queries/chorus";
+import { queryFairplayerAlbums } from "@/queries/fairplayer";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
@@ -33,13 +26,14 @@ import {
   useMainTab,
 } from "@/components/Footer";
 import { openDownloadedAlbum } from "@/scripts/albumLookup";
+import { AlbumLink, albumHref } from "@/scripts/routes";
+import { CAROUSEL_LIMIT, blendCarouselReleases } from "@/scripts/carousel";
 import QueueScreen from "@/app/feed";
 import LibraryScreen from "@/app/library";
 import {
   RADIO_STATIONS,
   RadioStation,
   deduplicateRadioStations,
-  sortRadioRandomly,
   queryRadioPlays,
   queryDiscoveredRadioStations,
 } from "@/queries/radio";
@@ -50,79 +44,28 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
-import { openInBrowser } from "@/scripts/openInBrowser";
+import BrandMark from "@/components/BrandMark";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
 import {
   isQualityArtwork,
   resolveArtworkUrl,
   resolveQualityArtworkSource,
+  shuffle,
 } from "@/scripts/utils";
-
-export const CAROUSEL_LIMIT = 12;
 
 // Keys for the empty cards a carousel shows while its releases load
 const EMPTY_CARD_KEYS = Array.from({ length: CAROUSEL_LIMIT }, (_, index) => `empty-${index}`);
 
-export function shuffleCarousel<T>(items: T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-export function blendCarouselReleases(
-  direct: AlbumProps[] = [],
-  chorus: AlbumProps[] = [],
-  fairplayer: AlbumProps[] = [],
-  limit: number = CAROUSEL_LIMIT,
-): AlbumProps[] {
-  const seenIds = new Set<number>();
-  const seenSlugs = new Set<string>();
-  const artistCounts = new Map<string, number>();
-
-  const shuffledDirect = shuffleCarousel(direct);
-  const shuffledChorus = distributeFairChorusAlbums(shuffleCarousel(chorus), 2);
-  const shuffledFairplayer = distributeFairChorusAlbums(shuffleCarousel(fairplayer), 2);
-
-  const combinedCandidates = shuffleCarousel([
-    ...shuffledDirect,
-    ...shuffledChorus,
-    ...shuffledFairplayer,
-  ]);
-
-  const blended: AlbumProps[] = [];
-  for (const item of combinedCandidates) {
-    if (!item) continue;
-    const artistKey = (item.artist?.name || String(item.artistId || "")).toLowerCase().trim();
-    const count = artistCounts.get(artistKey) || 0;
-    if (count >= 2) continue;
-    if (seenIds.has(item.id) || (item.urlSlug && seenSlugs.has(item.urlSlug))) continue;
-
-    seenIds.add(item.id);
-    if (item.urlSlug) seenSlugs.add(item.urlSlug);
-    artistCounts.set(artistKey, count + 1);
-    blended.push(item);
-    if (blended.length >= limit) break;
-  }
-
-  return blended;
-}
-
-// Home's carousels keep their picks this long before drawing new ones
-const CAROUSEL_STALE_TIME = 15 * 60 * 1000;
-
-// Queries behind Home's carousels
-const HOME_QUERIES = new Set([
-  "fetchTrackGroups",
-  "federatedChorusAlbums",
-  "fairplayerAlbums",
-  "discoveredRadioStations",
-  "castopodPodcasts",
-  "fetchRadioPlays",
-]);
+// Home's carousels load once and hold until the listener pulls down to refresh.
+// meta.home lets Home cancel their refreshes when the listener leaves
+const HOME_QUERY = {
+  staleTime: Infinity,
+  refetchOnWindowFocus: false,
+  refetchOnMount: false,
+  refetchOnReconnect: false,
+  meta: { home: true },
+};
 
 export default function Index() {
   const router = useRouter();
@@ -157,6 +100,11 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
   const { width } = useWindowDimensions();
   const [shuffleSeed, setShuffleSeed] = useState(0);
 
+  const openAlbum = (album: AlbumLink) => {
+    const href = albumHref(album);
+    if (href) router.push(href);
+  };
+
   // Recent Releases: loads behind the splash screen on startup. Held until the listener
   // pulls down to refresh so the home page never re-queries or re-renders automatically.
   const {
@@ -172,10 +120,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
       distinctArtists: true,
       isReleased: "released",
     }),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    ...HOME_QUERY,
     retry: false,
   });
 
@@ -185,19 +130,13 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     refetch: refetchChorus,
   } = useQuery({
     ...queryFederatedChorusAlbums({ take: 40 }),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    ...HOME_QUERY,
     retry: false,
   });
 
   const { data: fairplayerAlbums, refetch: refetchFairplayer } = useQuery({
     ...queryFairplayerAlbums(40),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    ...HOME_QUERY,
     retry: false,
   });
 
@@ -207,10 +146,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     refetch: refetchDiscoveredRadio,
   } = useQuery({
     ...queryDiscoveredRadioStations(8),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    ...HOME_QUERY,
   });
 
   // Discover podcast feeds through the open Castopod Index catalog
@@ -219,10 +155,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     refetch: refetchDiscoveredPodcasts,
   } = useQuery({
     ...queryDiscoveredPodcasts(6),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    ...HOME_QUERY,
   });
 
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
@@ -234,8 +167,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     if (active) return;
     setIsPullRefreshing(false);
     queryClient.cancelQueries({
-      predicate: (query) =>
-        HOME_QUERIES.has(String(query.queryKey[0])) && query.state.data !== undefined,
+      predicate: (query) => query.meta?.home === true && query.state.data !== undefined,
     });
   }, [active, queryClient]);
   const retry = () => {
@@ -269,7 +201,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     const combined = [...RADIO_STATIONS, ...discoveredRadio].filter((station) =>
       isQualityArtwork(station.artwork),
     );
-    return sortRadioRandomly(deduplicateRadioStations(combined)).slice(0, CAROUSEL_LIMIT);
+    return shuffle(deduplicateRadioStations(combined)).slice(0, CAROUSEL_LIMIT);
   }, [discoveredRadio, shuffleSeed]);
 
   // Curated and Castopod-indexed discussion shows, ordered by latest episode
@@ -307,25 +239,19 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
 
   const cardWidth = Math.max(140, Math.min(170, (width - 48) / 2.2));
 
+  const handleSupport = () => {
+    router.push("/supportModal");
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <Image
-            source={require("@/assets/images/nimue-blue-logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <View style={styles.brandWordmark}>
-            <Text style={styles.brandText}>NIMUE</Text>
-            <Text style={[styles.brandText, styles.brandHighlight]}>BLUE</Text>
-          </View>
-        </View>
+        <BrandMark />
 
         <View style={styles.headerActions}>
           <Pressable
-            onPress={() => openInBrowser("https://cash.app/$grendel116/")}
+            onPress={handleSupport}
             style={styles.subscribeButton}
             accessibilityRole="button"
             accessibilityLabel="Support NimueBlue"
@@ -377,16 +303,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                         onPress={() =>
                           item.downloadAlbum
                             ? openDownloadedAlbum(item.downloadAlbum)
-                            : router.push({
-                                pathname: "/artist/[id]/album/[slug]/album-tracks",
-                                params: {
-                                  id:
-                                    fairplayerReleaseSlug.artistRouteId(
-                                      item.urlSlug ?? "",
-                                    ) ?? String(item.artistId),
-                                  slug: String(item.urlSlug),
-                                },
-                              })
+                            : openAlbum(item)
                         }
                         style={({ pressed }) => [styles.historyCard, pressed && styles.cardPressed]}
                       >
@@ -450,18 +367,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                     return (
                       <Pressable
                         android_ripple={{ color: theme.colors.ripple, borderless: false }}
-                        onPress={() =>
-                          router.push({
-                            pathname: "/artist/[id]/album/[slug]/album-tracks",
-                            params: {
-                              id:
-                                fairplayerReleaseSlug.artistRouteId(
-                                  String(item.urlSlug || ""),
-                                ) ?? String(item.artist?.urlSlug || item.artistId),
-                              slug: String(item.urlSlug),
-                            },
-                          })
-                        }
+                        onPress={() => openAlbum(item)}
                         style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
                       >
                         <View style={styles.cardImageContainer}>
@@ -549,6 +455,7 @@ function StationCard({
   const { data: plays } = useQuery({
     ...queryRadioPlays(station),
     refetchInterval: active ? 60_000 : false,
+    meta: { home: true },
   });
   const onAir = plays?.[0];
   const [failedArtwork, setFailedArtwork] = useState<string>();
@@ -644,31 +551,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.surfaceCardBorder,
     backgroundColor: theme.colors.surface,
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  logoImage: {
-    width: 28,
-    height: 28,
-    tintColor: theme.colors.logo,
-  },
-  brandWordmark: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  brandText: {
-    fontFamily: theme.fonts.display,
-    fontSize: 18,
-    fontWeight: "normal",
-    color: theme.colors.textPrimary,
-    letterSpacing: 0.8,
-  },
-  brandHighlight: {
-    color: theme.colors.primary,
-    paddingRight: 2,
   },
   headerActions: {
     flexDirection: "row",
@@ -796,7 +678,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: "40%",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.colors.overlayLight,
   },
   airtimeBadge: {
     position: "absolute",
@@ -805,7 +687,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: theme.radius.sm,
-    backgroundColor: "rgba(7, 11, 20, 0.8)",
+    backgroundColor: theme.colors.scrim,
     color: theme.colors.textCyan,
     fontSize: 11,
     fontWeight: "700",

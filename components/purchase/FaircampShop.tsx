@@ -27,7 +27,7 @@ export function FaircampShop({ album, onOpen }: { album: AlbumProps; onOpen: (ur
     return (
       <Notice
         icon="cloud-download-outline"
-        title="No downloads"
+        title="No Downloads"
         body={`${artistName} doesn't offer downloads of this release.`}
       />
     );
@@ -226,13 +226,13 @@ function PayStep({
       </Pressable>
       <ErrorText message={problem} />
       <PrimaryButton
-        label="Continue to downloads"
+        label="Continue to Downloads"
         icon="arrow-down-circle-outline"
         disabled={!confirmed}
         busy={busy}
         onPress={onContinue}
       />
-      <SecondaryButton label="Change amount" onPress={onBack} />
+      <SecondaryButton label="Change Amount" onPress={onBack} />
     </>
   );
 }
@@ -275,7 +275,7 @@ function CodeStep({
 function FormatStep({ formats }: { formats: FaircampDownloadFormat[] }) {
   return (
     <>
-      <Text style={[ui.sectionTitle, local.center]}>Choose a format</Text>
+      <Text style={[ui.sectionTitle, local.center]}>Choose a Format</Text>
       {formats.map((format) => (
         <PrimaryButton
           key={format.url}

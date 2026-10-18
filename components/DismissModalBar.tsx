@@ -1,7 +1,8 @@
-import { View, Text, Image, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
+import BrandMark from "@/components/BrandMark";
 
 export default function DismissModalBar({ onPress }: { onPress?: () => void }) {
   const router = useRouter();
@@ -20,17 +21,7 @@ export default function DismissModalBar({ onPress }: { onPress?: () => void }) {
           color={theme.colors.textSecondary}
           style={styles.chevron}
         />
-        <View style={styles.brandRow}>
-          <Image
-            source={require("@/assets/images/nimue-blue-logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-          <View style={styles.brandWordmark}>
-            <Text style={styles.brandText}>NIMUE</Text>
-            <Text style={[styles.brandText, styles.brandHighlight]}>BLUE</Text>
-          </View>
-        </View>
+        <BrandMark />
       </Pressable>
     </View>
   );
@@ -56,31 +47,6 @@ const styles = StyleSheet.create({
   chevron: {
     position: "absolute",
     left: 16,
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  brandWordmark: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  logoImage: {
-    width: 28,
-    height: 28,
-    tintColor: theme.colors.logo,
-  },
-  brandText: {
-    fontFamily: theme.fonts.display,
-    fontSize: 18,
-    fontWeight: "normal",
-    color: theme.colors.textPrimary,
-    letterSpacing: 0.8,
-  },
-  brandHighlight: {
-    color: theme.colors.primary,
-    paddingRight: 2,
   },
 });
 

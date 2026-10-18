@@ -1,6 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { TrackType } from "react-native-track-player";
 import { isQualityArtwork } from "@/scripts/utils";
+import { API_KEY } from "@/constants/api-key";
+import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
+// A station plays as a 10-minute set in the queue, then playback moves on to what's next
+import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 
 // Independent radio stations shown on Home. Each station has a live stream and a
 // public feed of what's on air. All feeds except WFMU's are CORS-open, so web reads them directly.
@@ -364,6 +368,8 @@ export type RadioBrowserStation = {
   clicktimestamp?: string;
   codec?: string;
   bitrate?: number;
+  lastcheckok?: number;
+  ssl_error?: number;
 };
 
 export const RADICAL_RADIO_TAGS = [
@@ -477,20 +483,6 @@ export function findStation(id: string | undefined): RadioStation | undefined {
   return RADIO_STATIONS.find((s) => s.id === id) || DISCOVERED_STATIONS.get(id);
 }
 
-/**
- * Returns a randomly shuffled copy of radio stations using the Fisher-Yates algorithm.
- */
-export function sortRadioRandomly(stations: RadioStation[]): RadioStation[] {
-  const shuffled = [...stations];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = shuffled[i];
-    shuffled[i] = shuffled[j];
-    shuffled[j] = temp;
-  }
-  return shuffled;
-}
-
 // Recently played songs, refreshed every minute. Idle when no station is given
 export function queryRadioPlays(station: RadioStation | undefined) {
   return queryOptions({
@@ -500,12 +492,6 @@ export function queryRadioPlays(station: RadioStation | undefined) {
     refetchInterval: 60_000,
   });
 }
-
-// A station plays as a 10-minute set in the queue, then playback moves on to what's next
-import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
-import { API_KEY } from "@/constants/api-key";
-import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
-export { RADIO_SET_SECONDS };
 
 // The station's live broadcast as a player track. It has no Mirlo track id; the player
 // tells stations apart by stream URL. Empty headers keep the Mirlo API key off the

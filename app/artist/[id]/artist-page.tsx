@@ -14,10 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Markdown from "react-native-markdown-display";
 import React, { useState } from "react";
-import { useTranslation } from "react-i18next";
 import { htmlToMarkdown, linkifyUrls } from "@/scripts/utils";
 import { openInBrowser } from "@/scripts/openInBrowser";
-import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { albumHref } from "@/scripts/routes";
 import { theme } from "@/constants/theme";
 import LoadingScreen from "@/components/LoadingScreen";
 import ArtistActions from "@/components/artist/ArtistActions";
@@ -31,7 +30,6 @@ export default function ArtistPage() {
   const { data, isError, isPending, error } = useQuery(
     queryArtist({ artistSlug: routeId }),
   );
-  const { t } = useTranslation("translation");
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const [listWidth, setListWidth] = useState<number>(0);
@@ -119,17 +117,10 @@ export default function ArtistPage() {
           return (
             <Pressable
               style={[styles.albumItem, { width: itemWidth }]}
-              onPress={() =>
-                router.navigate({
-                  pathname: "/artist/[id]/album/[slug]/album-tracks",
-                  params: {
-                    id:
-                      fairplayerReleaseSlug.artistRouteId(String(item.urlSlug || "")) ??
-                      String(item.artist?.urlSlug || item.artistId),
-                    slug: String(item.urlSlug),
-                  },
-                })
-              }
+              onPress={() => {
+                const href = albumHref(item);
+                if (href) router.navigate(href);
+              }}
             >
               <View style={[styles.albumCoverWrap, { width: itemWidth, height: itemWidth }]}>
                 <Image
@@ -193,13 +184,13 @@ export default function ArtistPage() {
             {artistInfo.onMirlo ? (
               <CatalogueCard artist={artistInfo} routeId={routeId} />
             ) : null}
-            <Text style={styles.releasesHeader}>DISCOGRAPHY</Text>
+            <Text style={styles.releasesHeader}>Discography</Text>
           </View>
         }
         ListFooterComponent={
           <View style={styles.footerContainer}>
             <Text style={styles.aboutHeader}>
-              {t("trackGroupDetails.about")}
+              About
             </Text>
 
             {artistInfo.bio ? (
@@ -293,7 +284,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: theme.radius.full,
     borderWidth: 2,
     borderColor: theme.colors.primary,
   },

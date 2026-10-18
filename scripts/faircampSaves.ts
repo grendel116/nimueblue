@@ -115,20 +115,6 @@ function trackBelongsToAlbum(
   return false;
 }
 
-function trackKey(track: RNTrack): string {
-  if (typeof track.id === "number" && track.id > 0) {
-    return track.trackGroup?.urlSlug ? `${track.trackGroup.urlSlug}:${track.id}` : `id:${track.id}`;
-  }
-  if (track.fairplayerTrackId) {
-    return `fairplayer:${track.fairplayerTrackId}`;
-  }
-  return track.url || `${track.trackGroup?.urlSlug || track.trackGroupId}:${track.id}`;
-}
-
-function albumKey(album: AlbumProps): string {
-  return album.urlSlug || String(album.id);
-}
-
 function artistKey(artist: { id?: number; urlSlug?: string; name?: string }): string {
   return artist.urlSlug || (artist.id ? String(artist.id) : (artist.name || "").toLowerCase().trim());
 }

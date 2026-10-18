@@ -10,6 +10,7 @@ import {
   type TextInputProps,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Button, Card as SharedCard } from "@/components/ui";
 import { theme } from "@/constants/theme";
 import { formatMoney } from "@/queries/listener";
 import { toAmountText, type PriceChip } from "./helpers";
@@ -19,7 +20,7 @@ import { toAmountText, type PriceChip } from "./helpers";
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
 export function Card({ children }: { children: ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
+  return <SharedCard style={styles.card} padding="none">{children}</SharedCard>;
 }
 
 export function Notice({ icon, title, body }: { icon: IconName; title: string; body?: string }) {
@@ -47,7 +48,7 @@ export function LoadError() {
   return (
     <Notice
       icon="cloud-offline-outline"
-      title="Couldn't reach Mirlo"
+      title="Couldn't Reach Mirlo"
       body="Check your connection and open this again."
     />
   );
@@ -85,22 +86,16 @@ export function PrimaryButton({
   icon?: IconName;
 }) {
   return (
-    <Pressable
+    <Button
+      label={label}
       onPress={onPress}
-      disabled={busy || disabled}
-      style={[styles.button, styles.primaryButton, (busy || disabled) && styles.buttonDisabled]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      {busy ? (
-        <ActivityIndicator color={theme.colors.playButtonIcon} />
-      ) : (
-        <>
-          <Text style={styles.primaryButtonText}>{label}</Text>
-          {icon ? <Ionicons name={icon} size={16} color={theme.colors.playButtonIcon} /> : null}
-        </>
-      )}
-    </Pressable>
+      loading={busy}
+      disabled={disabled}
+      icon={icon}
+      iconPosition="right"
+      size="lg"
+      fullWidth
+    />
   );
 }
 
@@ -116,16 +111,16 @@ export function SecondaryButton({
   icon?: IconName;
 }) {
   return (
-    <Pressable
+    <Button
+      label={label}
+      variant="secondary"
       onPress={onPress}
       disabled={disabled}
-      style={[styles.button, styles.secondaryButton, disabled && styles.buttonDisabled]}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Text style={styles.secondaryButtonText}>{label}</Text>
-      {icon ? <Ionicons name={icon} size={16} color={theme.colors.primary} /> : null}
-    </Pressable>
+      icon={icon}
+      iconPosition="right"
+      size="lg"
+      fullWidth
+    />
   );
 }
 
@@ -236,7 +231,7 @@ export function PaymentsGate({
     return (
       <Notice
         icon="card-outline"
-        title="Payments aren't set up yet"
+        title="Payments Aren't Set Up Yet"
         body={`${artistName || "This artist"} isn't taking payments on Mirlo yet.`}
       />
     );
@@ -268,8 +263,8 @@ export const styles = StyleSheet.create({
   iconCircle: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(0, 210, 255, 0.12)",
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -386,7 +381,7 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
   },
   chipSelected: {
-    backgroundColor: "rgba(0, 210, 255, 0.2)",
+    backgroundColor: theme.colors.primarySoftStrong,
     borderColor: theme.colors.primary,
   },
   chipText: {

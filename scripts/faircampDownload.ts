@@ -12,7 +12,7 @@ export function saveFaircampZip(url: string) {
 export async function chooseFaircampDownload(downloadsUrl: string): Promise<void> {
   const formats = await fetchFaircampDownloadFormats(downloadsUrl);
   if (formats.length === 0) throw new Error("This release lists no downloads.");
-  askChoice("Download album", "Choose a format", [
+  askChoice("Download Album", "Choose a format", [
     ...formats.map((f) => ({ text: f.label, onPress: () => saveFaircampZip(f.url) })),
     { text: "Cancel", style: "cancel" as const },
   ]);

@@ -47,10 +47,10 @@ export function AlbumPurchase({
         <AlbumHeader album={album} />
         <Notice
           icon="star-outline"
-          title="Comes with a subscription"
+          title="Comes With a Subscription"
           body={`${album.artist?.name || "The artist"} shares this release with their subscribers.`}
         />
-        <PrimaryButton label="See subscriptions" onPress={onSupport} />
+        <PrimaryButton label="See Subscriptions" onPress={onSupport} />
       </>
     );
   }
@@ -125,7 +125,7 @@ function ExternalStores({
           )}
         </>
       ) : (
-        <Notice icon="storefront-outline" title="No store listed" body="This release doesn't list a place to buy it." />
+        <Notice icon="storefront-outline" title="No Store Listed" body="This release doesn't list a place to buy it." />
       )}
     </>
   );

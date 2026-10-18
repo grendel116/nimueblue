@@ -26,7 +26,7 @@ export function CataloguePurchase({ artist, currency, price, ...checkout }: Cata
         initial={price}
         chips={priceChips(price)}
         noteTo={artist.name}
-        action={(formatted) => (formatted ? `Buy everything for ${formatted}` : "Buy everything")}
+        action={(formatted) => (formatted ? `Buy Everything for ${formatted}` : "Buy Everything")}
         busy={checkout.busy}
         error={checkout.error}
         onSubmit={(cents, { message, guestEmail }) =>

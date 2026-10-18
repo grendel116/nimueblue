@@ -3,6 +3,7 @@ import * as api from "@/queries/fetch/fetchWrapper";
 import { queryClient } from "@/queries/QueryClientWrapper";
 import { queryAlbum, queryArtist } from "@/queries/queries";
 import { fairplayerReleaseSlug, searchFairplayerAlbums } from "@/queries/fairplayer";
+import { albumHref } from "@/scripts/routes";
 import {
   DownloadedAlbum,
   getDownloadedTracks,
@@ -56,13 +57,6 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-const pageRoute = (page: AlbumProps) => ({
-  id:
-    fairplayerReleaseSlug.artistRouteId(String(page.urlSlug)) ??
-    String(page.artist?.urlSlug || page.artistId),
-  slug: String(page.urlSlug),
-});
-
 async function savedAlbum(albumKey: string): Promise<DownloadedAlbum | undefined> {
   return groupTracksIntoAlbums(await getDownloadedTracks()).find((a) => a.key === albumKey);
 }
@@ -77,8 +71,9 @@ async function reachableOnlinePage(album: DownloadedAlbum): Promise<AlbumProps |
       queryFn: () => withTimeout(findOnlineAlbum({ title: album.title, artist: album.artist })),
       staleTime: Infinity,
     });
-    if (!page) return null;
-    await withTimeout(queryClient.fetchQuery(queryAlbum(pageRoute(page))));
+    const href = albumHref(page ?? undefined);
+    if (!href) return null;
+    await withTimeout(queryClient.fetchQuery(queryAlbum(href.params)));
     return page;
   } catch {
     return null;
@@ -91,12 +86,12 @@ export async function openDownloadedAlbum(albumKey: string): Promise<void> {
   const album = await savedAlbum(albumKey);
   if (!album) return;
   const page = await reachableOnlinePage(album);
-  router.push({
-    pathname: "/artist/[id]/album/[slug]/album-tracks",
-    params: page
-      ? pageRoute(page)
-      : { id: savedArtistSlug(album.artist), slug: savedAlbumSlug(album.key) },
-  });
+  router.push(
+    albumHref(page ?? undefined) ?? {
+      pathname: "/artist/[id]/album/[slug]/album-tracks",
+      params: { id: savedArtistSlug(album.artist), slug: savedAlbumSlug(album.key) },
+    },
+  );
 }
 
 // Opens the artist of a downloaded album the same way: the online artist page when it loads,

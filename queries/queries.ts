@@ -2,11 +2,8 @@ import {
   keepPreviousData,
   QueryFunction,
   queryOptions,
-  useMutation,
-  useQueryClient,
 } from "@tanstack/react-query";
 import * as api from "./fetch/fetchWrapper";
-import { MirloFetchError } from "./fetch/MirloFetchError";
 import { findChorusAlbum, findChorusArtist } from "./chorus";
 import {
   fairplayerReleaseSlug,
@@ -15,8 +12,6 @@ import {
   isKnownFairplayerArtistId,
 } from "./fairplayer";
 import { SAVED_PREFIX, findSavedAlbumPage, findSavedArtistPage } from "@/scripts/downloadManager";
-
-type UserPurchase = UserTrackPurchase | UserTrackGroupPurchase;
 
 const fetchTrackGroups: QueryFunction<
   { results: AlbumProps[] },
@@ -105,38 +100,6 @@ export function queryMostPlayed(opts: { take?: number }) {
     queryFn: fetchMostPlayed,
   });
 }
-const fetchUserPurchases: QueryFunction<
-  { results: UserTransaction[] },
-  ["fetchUserPurchases", { userId: number | undefined }, ...any]
-> = ({ queryKey: [_, { userId }], signal }) => {
-  return api.get(`/v1/users/${userId}/purchases`, {});
-};
-
-export function queryUserPurchases(userId: number | undefined) {
-  return queryOptions({
-    queryKey: ["fetchUserPurchases", { userId }],
-    queryFn: fetchUserPurchases,
-    enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
-const fetchUserCollection: QueryFunction<
-  { results: UserPurchase[] },
-  ["fetchUserCollection", { userId: number | undefined }, ...any]
-> = ({ queryKey: [_, { userId }], signal }) => {
-  return api.get(`/v1/users/${userId}/collection`, {});
-};
-
-export function queryUserCollection(userId: number | undefined) {
-  return queryOptions({
-    queryKey: ["fetchUserCollection", { userId }],
-    queryFn: fetchUserCollection,
-    enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
-  });
-}
-
 const fetchAlbum: QueryFunction<
   { result: AlbumProps },
   [
@@ -294,25 +257,3 @@ export function queryTags(opts: {
   });
 }
 
-const fetchWishlist: QueryFunction<
-  {
-    results: {
-      userId: number;
-      trackGroupId: number;
-      trackGroup: AlbumProps;
-      createdAt: Date;
-    }[];
-  },
-  ["fetchWishlist", { userId: number | undefined }, ...any]
-> = ({ queryKey: [_, { userId }], signal }) => {
-  return api.get(`/v1/users/${userId}/wishlist`, {});
-};
-
-export function queryWishlist(userId: number | undefined) {
-  return queryOptions({
-    queryKey: ["fetchWishlist", { userId }],
-    queryFn: fetchWishlist,
-    enabled: !!userId,
-    staleTime: 2 * 60 * 1000,
-  });
-}

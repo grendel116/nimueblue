@@ -9,6 +9,40 @@ export function trackStreamPath(trackId: number | string): string {
   return `/v1/tracks/${trackId}/stream/playlist.m3u8`;
 }
 
+// Fisher-Yates: every order equally likely
+export function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// A cover with one image at every size Mirlo's covers come in
+export function coverSizes(url: string) {
+  return { 60: url, 120: url, 300: url, 600: url, 960: url, 1200: url, 1500: url };
+}
+
+// Seconds as mm:ss
+export function formatTime(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return "00:00";
+  const total = Math.round(seconds);
+  const minutes = String(Math.floor(total / 60)).padStart(2, "0");
+  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// A Mirlo track counts plays and preview limits. Faircamp songs, stations, podcast episodes,
+// and songs from other named sources don't
+export function isMirloTrack(track?: RNTrack): boolean {
+  return !(
+    track?.fairplayerTrackId ||
+    track?.liveStation ||
+    track?.podcastEpisodeId ||
+    (track?.source && !String(track.source).toLowerCase().startsWith("mirlo"))
+  );
+}
+
 /**
  * Validates that an artwork URL meets the lower quality threshold.
  * Rejects empty strings, legacy desktop .ico files, and known microscopic dimensions (<= 32px).
@@ -257,11 +291,3 @@ export function songPageUrl(track: RNTrack): string | undefined {
   }
   return `https://mirlo.space/${artistSlug}/release/${albumSlug}/tracks/${track.id}`;
 }
-
-// True when you bought this album (including adding it free), or it's your own
-export const ownsAlbum = (user: LoggedInUser | null | undefined, album: AlbumProps): boolean =>
-  !!user &&
-  (album.artistId === user.id ||
-    !!album.userTrackGroupPurchases?.some((p) => p.userId === user.id) ||
-    !!user.userTrackGroupPurchases?.some((p) => p.trackGroupId === album.id));
-

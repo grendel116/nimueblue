@@ -1,7 +1,9 @@
 import { Platform } from "react-native";
 import { queryOptions } from "@tanstack/react-query";
 import type { TrackType } from "react-native-track-player";
-import { isQualityArtwork } from "@/scripts/utils";
+import { coverSizes, isQualityArtwork } from "@/scripts/utils";
+import { API_KEY } from "@/constants/api-key";
+import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
 
 // Podcast and talk shows shown under Discussion on Home. Episodes are parsed from
@@ -269,10 +271,25 @@ export const LABOR_HISTORY_TODAY: PodcastShow = createPodcastShow({
   lastUpdated: "2026-10-10T12:00:00Z",
 });
 
+export const NATIVE_ROOTS_RADIO: PodcastShow = createPodcastShow({
+  id: "native-roots-radio",
+  name: "Native Roots Radio",
+  author: "Robert Pilot",
+  description:
+    "Native American talk radio and discussions hosted by Robert Pilot, presenting national and local Indigenous news, treaty rights, environmental justice, and tribal affairs.",
+  artwork:
+    "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/24/cd/27/24cd27ee-ee40-70a4-f20a-6260831fcb2c/mza_15228667069575138186.jpg/600x600bb.jpg",
+  feedUrl: "https://www.am950radio.com/category/podcasts/im-awake/feed/",
+  webUrl: "https://nativerootsradio.com",
+  supportUrl: "https://nativerootsradio.com",
+  lastUpdated: "2026-10-15T22:56:00Z",
+});
+
 export const PODCAST_SHOWS: PodcastShow[] = [
   UPSTREAM,
   WORKING_CLASS_HISTORY,
   EVERYTHING_COOP,
+  NATIVE_ROOTS_RADIO,
   LABOR_HISTORY_TODAY,
   MAKC,
   SRSLY_WRONG,
@@ -417,9 +434,6 @@ export function queryDiscussionLatestDates(shows: PodcastShow[]) {
   });
 }
 
-import { API_KEY } from "@/constants/api-key";
-import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
-
 export function episodeTrack(
   episode: PodcastEpisode,
   show: PodcastShow,
@@ -463,66 +477,9 @@ export function episodeTrack(
         name: show.author,
         bio: show.description,
       },
-      cover: {
-        sizes: {
-          60: artwork,
-          120: artwork,
-          300: artwork,
-          600: artwork,
-          960: artwork,
-          1200: artwork,
-          1500: artwork,
-        },
-      },
+      cover: { sizes: coverSizes(artwork) },
     },
     podcastId: show.id,
     podcastEpisodeId: episode.id,
-  } as RNTrack;
-}
-
-export function podcastShowTrack(show: PodcastShow): RNTrack {
-  const artwork = show.artwork;
-  return {
-    id: -(Math.abs(hashString(`show-${show.id}`)) || 500000),
-    title: show.name,
-    artist: show.author,
-    artwork,
-    url: "",
-    headers: {},
-    type: "default" as TrackType,
-    duration: 0,
-    order: 1,
-    queueIndex: 0,
-    allowIndividualSale: false,
-    isPreview: false,
-    audio: {
-      url: "",
-      duration: 0,
-    },
-    trackGroupId: 0,
-    trackGroup: {
-      id: 0,
-      trackGroupId: 0,
-      title: show.name,
-      artistId: 0,
-      urlSlug: show.id,
-      releaseDate: show.lastUpdated || "",
-      artist: {
-        name: show.author,
-        bio: show.description,
-      },
-      cover: {
-        sizes: {
-          60: artwork,
-          120: artwork,
-          300: artwork,
-          600: artwork,
-          960: artwork,
-          1200: artwork,
-          1500: artwork,
-        },
-      },
-    },
-    podcastId: show.id,
   } as RNTrack;
 }

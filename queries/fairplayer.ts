@@ -1,6 +1,6 @@
 import { parse } from "parse5";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
-import { audioTrackType } from "@/scripts/utils";
+import { audioTrackType, coverSizes, shuffle } from "@/scripts/utils";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
 
 const FAIRPLAYER_ROOT = "https://fairplayer.band";
@@ -101,15 +101,6 @@ const knownArtistsById = new Map<number, { name: string; sourceUrl?: string }>()
 
 export function isKnownFairplayerArtistId(artistId: number): boolean {
   return knownArtistsById.has(artistId);
-}
-
-function shuffleItems<T>(items: T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
 }
 
 type HtmlNode = {
@@ -764,17 +755,7 @@ function toAlbumProps(
   const artistId = hashId(`faircamp:${artistName.toLowerCase()}`);
   const albumId = hashId(`faircamp:${releaseId.toLowerCase()}`);
   const siteUrl = getFaircampReleaseUrl(releaseId);
-  const cover = {
-    sizes: {
-      60: coverUrl,
-      120: coverUrl,
-      300: coverUrl,
-      600: coverUrl,
-      960: coverUrl,
-      1200: coverUrl,
-      1500: coverUrl,
-    },
-  };
+  const cover = { sizes: coverSizes(coverUrl) };
 
   const album: AlbumProps = {
     id: albumId,
@@ -804,7 +785,7 @@ function toAlbumProps(
   return album;
 }
 
-function parseReleaseCards(
+export function parseFairplayerReleaseCards(
   html: string,
   verifiedCatalogs?: Map<string, string>,
 ): AlbumProps[] {
@@ -865,7 +846,7 @@ function parseReleaseCards(
   return albums;
 }
 
-function parseSearchResults(raw: unknown): AlbumProps[] {
+export function parseFairplayerSearchResults(raw: unknown): AlbumProps[] {
   if (!raw || typeof raw !== "object") {
     throw new Error("Fairplayer search returned an invalid response.");
   }
@@ -1020,6 +1001,14 @@ async function fetchFairplayerText(
   return response.text();
 }
 
+async function fetchFairplayerJson<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  const text = await fetchFairplayerText(path, "application/json", signal);
+  return JSON.parse(text) as T;
+}
+
 export async function fetchFairplayerSongReleaseSlug(
   trackId: string,
   signal?: AbortSignal,
@@ -1063,7 +1052,7 @@ async function fetchVerifiedDirectoryAlbums(
     fetchFairplayerText("/fairplayer/player/all/releases", "text/html", signal),
     fetchVerifiedFaircampCatalogs(signal),
   ]);
-  const verifiedAlbums = parseReleaseCards(html, verifiedCatalogs);
+  const verifiedAlbums = parseFairplayerReleaseCards(html, verifiedCatalogs);
 
   if (verifiedAlbums.length === 0 && verifiedCatalogs.size > 0) {
     throw new Error(
@@ -1086,7 +1075,7 @@ export async function fetchFairplayerAlbums(
     },
   );
 
-  const shuffled = shuffleItems(verifiedAlbums);
+  const shuffled = shuffle(verifiedAlbums);
   const artistsSeen = new Map<string, number>();
   const fairAlbums = shuffled.filter((album) => {
     const key = album.artist.name.toLowerCase().trim();
@@ -1125,7 +1114,7 @@ export async function searchFairplayerAlbums(
     fetchFairplayerSearchJson(searchTerm, signal),
     fetchVerifiedFaircampCatalogs(signal),
   ]);
-  return parseSearchResults(rawSearch).filter((album) => {
+  return parseFairplayerSearchResults(rawSearch).filter((album) => {
     const releaseId = decodeReleaseSlug(album.urlSlug);
     const domain = releaseId ? getFaircampDomain(releaseId) : undefined;
     if (!releaseId || !domain || !verifiedCatalogs.has(domain)) return false;
@@ -1301,7 +1290,7 @@ export async function fetchFairplayerAlbum(
     album.sourceUrl = getFaircampReleaseUrl(releaseId, bundle.catalogUrl);
   }
 
-  if (bundle.pageHtml) {
+  if (bundle.pageHtml && album.sourceUrl) {
     const pageDetails = parseFaircampPageDetails(
       bundle.pageHtml,
       album.sourceUrl,
@@ -1386,12 +1375,20 @@ export async function fetchFairplayerArtist(
     artistName = knownArtistsById.get(numericId)?.name;
   }
 
-  if (!artistName && numericId !== undefined) {
+  if (!artistName) {
     try {
-      await fetchFairplayerAlbums(200, signal);
-      artistName = knownArtistsById.get(numericId)?.name;
+      const res = await fetchFairplayerJson<{
+        id?: number;
+        name?: string;
+        urlSlug?: string;
+        avatar?: string;
+      }>(`/fairplayer/artist?query=${encodeURIComponent(trimmed)}`, signal);
+      if (res?.name) {
+        artistName = res.name;
+        knownArtistsById.set(numericId || hashId(`faircamp:${res.name.toLowerCase().trim()}`), { name: res.name });
+      }
     } catch {
-      // Fall through if directory is unavailable
+      // Fall through if endpoint is unavailable
     }
   }
 
@@ -1418,7 +1415,7 @@ export async function fetchFairplayerArtist(
       return !uidDomain || verifiedCatalogs.has(uidDomain);
     });
 
-    searchedAlbums = parseSearchResults(rawSearch).filter((album) => {
+    searchedAlbums = parseFairplayerSearchResults(rawSearch).filter((album) => {
       const releaseId = decodeReleaseSlug(album.urlSlug);
       const domain = releaseId ? getFaircampDomain(releaseId) : undefined;
       if (!releaseId || !domain || !verifiedCatalogs.has(domain)) return false;
@@ -1438,7 +1435,7 @@ export async function fetchFairplayerArtist(
         "text/html",
         signal,
       );
-      for (const album of parseReleaseCards(artistPageHtml, verifiedCatalogs)) {
+      for (const album of parseFairplayerReleaseCards(artistPageHtml, verifiedCatalogs)) {
         searchedAlbums.push(album);
       }
     } catch {
@@ -1504,15 +1501,7 @@ export async function fetchFairplayerArtist(
     avatar: avatarUri
       ? {
           url: avatarUri,
-          sizes: {
-            60: avatarUri,
-            120: avatarUri,
-            300: avatarUri,
-            600: avatarUri,
-            960: avatarUri,
-            1200: avatarUri,
-            1500: avatarUri,
-          },
+          sizes: coverSizes(avatarUri),
           updatedAt: "",
         }
       : undefined,
@@ -1543,7 +1532,7 @@ export async function fetchFairplayerDiscoveryTracks(
 ): Promise<RNTrack[]> {
   if (take <= 0) return [];
   const albums = await fetchFairplayerAlbums(Math.max(take * 3, 12), signal);
-  const pickedAlbums = shuffleItems(albums).slice(0, take);
+  const pickedAlbums = shuffle(albums).slice(0, take);
 
   const settled = await Promise.allSettled(
     pickedAlbums.map((album) => fetchFairplayerAlbum(album.urlSlug, signal)),
@@ -1575,15 +1564,6 @@ export function queryFairplayerAlbums(take: number = 40) {
   });
 }
 
-export function queryFairplayerAlbum(releaseSlug: string) {
-  return queryOptions({
-    queryKey: ["fairplayerAlbum", releaseSlug],
-    queryFn: ({ signal }) => fetchFairplayerAlbum(releaseSlug, signal),
-    enabled: Boolean(decodeReleaseSlug(releaseSlug)),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
 export const fairplayerReleaseSlug = {
   encode: encodeReleaseSlug,
   decode: decodeReleaseSlug,
@@ -1611,7 +1591,3 @@ export const fairplayerReleaseSlug = {
     return String(trackGroup.artistId || trackGroup.artist?.urlSlug || "");
   },
 };
-
-export const parseFairplayerReleaseCards = parseReleaseCards;
-export const parseFairplayerSearchResults = parseSearchResults;
-

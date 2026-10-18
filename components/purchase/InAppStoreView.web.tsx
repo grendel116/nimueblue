@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
 import { StyleSheet, Text, View, Pressable } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
-import { SHARE_HUB_URL } from "@/queries/shareHub";
-import { FAIRCAMP_INJECTED_CSS, type InAppStoreViewProps } from "./InAppStoreView";
+import type { InAppStoreViewProps } from "./InAppStoreView";
 
 export function InAppStoreView({ url, title, source, onClose }: InAppStoreViewProps) {
   let hostname = "";
@@ -12,38 +10,6 @@ export function InAppStoreView({ url, title, source, onClose }: InAppStoreViewPr
   } catch {
     hostname = source || "Store";
   }
-
-  const [docHtml, setDocHtml] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadPage() {
-      try {
-        const proxyUrl = new URL("/fairplayer/page", SHARE_HUB_URL);
-        proxyUrl.searchParams.set("url", url);
-        const res = await fetch(proxyUrl.toString(), {
-          headers: { Accept: "text/html" },
-        }).catch(() => fetch(url));
-        if (res.ok) {
-          const html = await res.text();
-          if (html && !cancelled) {
-            const injected = html.replace(
-              /<head[^>]*>/i,
-              `$&<base href="${url}"><style>${FAIRCAMP_INJECTED_CSS}</style>`,
-            );
-            setDocHtml(injected);
-            return;
-          }
-        }
-      } catch {
-        // Fall back to direct iframe src
-      }
-    }
-    loadPage();
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
 
   return (
     <View style={styles.container}>
@@ -79,8 +45,7 @@ export function InAppStoreView({ url, title, source, onClose }: InAppStoreViewPr
 
       <View style={styles.iframeWrapper}>
         <iframe
-          srcDoc={docHtml || undefined}
-          src={!docHtml ? url : undefined}
+          src={url}
           style={{
             width: "100%",
             height: "100%",

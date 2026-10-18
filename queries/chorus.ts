@@ -2,7 +2,7 @@ import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
-import { audioTrackType, htmlToMarkdown } from "@/scripts/utils";
+import { audioTrackType, coverSizes, htmlToMarkdown } from "@/scripts/utils";
 import type {
   ChorusRoot,
   ChorusArtist,
@@ -179,17 +179,7 @@ export function chorusTrackToRNTrack(
     source: resolvedSource,
     sourceUrl: resolvedSourceUrl,
     purchaseLinks: purchaseLinks.length > 0 ? purchaseLinks : undefined,
-    cover: {
-      sizes: {
-        60: artwork,
-        120: artwork,
-        300: artwork,
-        600: artwork,
-        960: artwork,
-        1200: artwork,
-        1500: artwork,
-      },
-    },
+    cover: { sizes: coverSizes(artwork) },
   };
 
   return {
@@ -303,17 +293,7 @@ export function chorusAlbumToAlbumProps(
     source: resolvedSource,
     sourceUrl: resolvedSourceUrl,
     purchaseLinks: purchaseLinks.length > 0 ? purchaseLinks : undefined,
-    cover: {
-      sizes: {
-        60: coverUrl,
-        120: coverUrl,
-        300: coverUrl,
-        600: coverUrl,
-        960: coverUrl,
-        1200: coverUrl,
-        1500: coverUrl,
-      },
-    },
+    cover: { sizes: coverSizes(coverUrl) },
   };
 
   const tracks = (album.children || [])
@@ -460,8 +440,6 @@ export async function purgeChorusDeletedEntities(
   }
 }
 
-export const reconcileChorusDeletions = purgeChorusDeletedEntities;
-
 /**
  * Fetches a Chorus feed from a specified or default host.
  */
@@ -494,34 +472,6 @@ export async function fetchChorusFeed(
 
   const json = await response.json();
   return parseChorusFeed(json, host);
-}
-
-/**
- * Query options for fetching and caching a Chorus feed with React Query.
- */
-export function queryChorusFeed(options: ChorusQueryOptions = {}) {
-  return queryOptions({
-    queryKey: ["chorusFeed", options],
-    queryFn: ({ signal }) => fetchChorusFeed(options, signal),
-    placeholderData: keepPreviousData,
-  });
-}
-
-/**
- * Query options returning parsed AlbumProps[] directly from the Chorus feed.
- */
-export function queryChorusAlbums(options: ChorusQueryOptions = {}) {
-  return queryOptions({
-    queryKey: ["chorusAlbums", options],
-    queryFn: async ({ signal }) => {
-      const feed = await fetchChorusFeed(options, signal);
-      if (feed.deleted && feed.deleted.length > 0) {
-        await purgeChorusDeletedEntities(feed.deleted);
-      }
-      return chorusToAlbums(feed);
-    },
-    placeholderData: keepPreviousData,
-  });
 }
 
 /**
@@ -656,17 +606,10 @@ export async function findChorusArtist(
     name: primary.artist.name,
     urlSlug: primary.artist.urlSlug || String(primary.artistId),
     bio: primary.artist.bio || (primary.sourceUrl ? `Source: ${primary.sourceUrl}` : ""),
-    avatar: coverUri ? { sizes: primary.cover.sizes } : primary.artist.avatar,
+    avatar: coverUri
+      ? { url: coverUri, sizes: primary.cover.sizes, updatedAt: "" }
+      : primary.artist.avatar,
     trackGroups: matching,
   };
 }
-
-// Backward compatibility aliases for Canimus naming
-export const parseCanimusFeed = parseChorusFeed;
-export const canimusTrackToRNTrack = chorusTrackToRNTrack;
-export const canimusAlbumToAlbumProps = chorusAlbumToAlbumProps;
-export const canimusToAlbums = chorusToAlbums;
-export const fetchCanimusFeed = fetchChorusFeed;
-export const queryCanimusFeed = queryChorusFeed;
-export const queryCanimusAlbums = queryChorusAlbums;
 

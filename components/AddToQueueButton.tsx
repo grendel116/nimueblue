@@ -32,7 +32,7 @@ export default function AddToQueueButton({
         album?.cover?.sizes?.[120] ||
         "",
       artist: track.artist || album?.artist?.name || "",
-      trackGroupId: track.trackGroupId || album?.id || album?.trackGroupId,
+      trackGroupId: track.trackGroupId || album?.id || album?.trackGroupId || 0,
       trackGroup: track.trackGroup || album,
     };
 

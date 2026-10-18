@@ -1,5 +1,4 @@
 import TrackPlayer, { Event, RepeatMode } from "react-native-track-player";
-import { RADIO_SET_SECONDS } from "@/queries/radio";
 
 import { isRadioSetComplete, resetRadioTimer } from "@/scripts/radioTimer";
 

@@ -7,7 +7,6 @@ import {
   Image,
   TouchableOpacity,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -102,7 +101,7 @@ export default function StationScreen() {
               accessibilityRole="link"
               style={styles.footerLink}
             >
-              <Text style={styles.linkText}>Full playlist</Text>
+              <Text style={styles.linkText}>Full Playlist</Text>
               <Ionicons name="open-outline" size={14} color={theme.colors.textCyan} />
             </Pressable>
             <Pressable
@@ -272,7 +271,7 @@ const styles = StyleSheet.create({
   playBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",

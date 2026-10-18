@@ -1,6 +1,5 @@
 import { useRouter } from "expo-router";
-import { Pressable, Text, StyleSheet } from "react-native";
-import { theme } from "@/constants/theme";
+import { Pill } from "@/components/ui";
 
 type TagPillProps = {
   key?: number;
@@ -10,30 +9,11 @@ type TagPillProps = {
 export default function TagPill({ tagName }: TagPillProps) {
   const router = useRouter();
   return (
-    <Pressable
+    <Pill
+      label={`#${tagName}`}
+      variant="tag"
       onPress={() => router.push(`/tags/${encodeURIComponent(tagName)}` as const)}
-      style={styles.pill}
-      accessibilityRole="button"
-    >
-      <Text style={styles.text}>#{tagName}</Text>
-    </Pressable>
+      style={{ marginRight: 6, marginVertical: 4 }}
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  pill: {
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceGlassBorder,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: theme.radius.full,
-    marginRight: 6,
-    marginVertical: 4,
-  },
-  text: {
-    color: theme.colors.textCyan,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-});

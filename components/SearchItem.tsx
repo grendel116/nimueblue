@@ -1,8 +1,6 @@
 import { View, Pressable, Text, Image, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useSearch } from "@/state/SearchContext";
-import { toUpper } from "lodash";
-import { useTranslation } from "react-i18next";
 import { theme } from "@/constants/theme";
 
 type Result = {
@@ -34,7 +32,6 @@ type Result = {
 };
 
 export default function SearchItem({ result, index }: Result) {
-  const { t } = useTranslation();
   const router = useRouter();
   const { setSearchResults, setShowSuggestions } = useSearch();
   return (
@@ -72,15 +69,10 @@ export default function SearchItem({ result, index }: Result) {
               numberOfLines={1}
               style={styles.artistName}
             >
-              {t("profile.albumLink")
-                .replace(/<[^>]*>.*?<\/[^>]*>/g, "")
-                .trim()}{" "}
-              {result.artistName.trim()}
+              by {result.artistName.trim()}
             </Text>
           )}
-          <Text style={styles.category}>
-            {toUpper(result.category)}
-          </Text>
+          <Text style={styles.category}>{result.category}</Text>
         </View>
       </Pressable>
     </View>

@@ -17,6 +17,7 @@ import ErrorNotification from "@/components/ErrorNotification";
 import { useState } from "react";
 import { theme } from "@/constants/theme";
 import LoadingScreen from "@/components/LoadingScreen";
+import { albumHref } from "@/scripts/routes";
 
 export default function TagsView() {
   const { tag } = useLocalSearchParams();
@@ -28,7 +29,6 @@ export default function TagsView() {
     data,
     error,
     fetchNextPage,
-    hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery<{ results: AlbumProps[] }>({
     queryKey: ["infiniteTrackGroups", tag],
@@ -93,7 +93,7 @@ export default function TagsView() {
             color={theme.colors.textPrimary}
           />
         </Pressable>
-        <Text style={styles.headerTitle}>#{String(tag).toUpperCase()}</Text>
+        <Text style={styles.headerTitle}>#{String(tag)}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -104,12 +104,10 @@ export default function TagsView() {
         keyExtractor={(item, index) => `${item.id}-${index}`}
         renderItem={({ item }) => (
           <Pressable
-            onPress={() =>
-              router.navigate({
-                pathname: "/artist/[id]/album/[slug]/album-tracks",
-                params: { id: item.artistId, slug: item.urlSlug },
-              })
-            }
+            onPress={() => {
+              const href = albumHref(item);
+              if (href) router.navigate(href);
+            }}
           >
             <TrackGroupItem
               id={item.id}

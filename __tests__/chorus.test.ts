@@ -13,16 +13,13 @@ jest.mock("react-native-track-player", () => ({
 
 import {
   parseChorusFeed,
-  chorusAlbumToAlbumProps,
   chorusTrackToRNTrack,
   chorusToAlbums,
   fetchChorusFeed,
-  parseCanimusFeed,
-  canimusToAlbums,
   resolveFeedSourceName,
   distributeFairChorusAlbums,
 } from "@/queries/chorus";
-import type { ChorusRoot, ChorusAlbum, ChorusArtist, ChorusTrack } from "@/types/chorus";
+import type { ChorusRoot } from "@/types/chorus";
 
 describe("Chorus Protocol parser & converter", () => {
   const sampleFeed: ChorusRoot = {
@@ -147,11 +144,6 @@ describe("Chorus Protocol parser & converter", () => {
     expect(albums[0].cover.sizes[600]).toBe("https://cdn.mirlo.space/album-cover.webp");
   });
 
-  test("Canimus aliases match Chorus functions for backward compatibility", () => {
-    expect(parseCanimusFeed).toBe(parseChorusFeed);
-    expect(canimusToAlbums).toBe(chorusToAlbums);
-  });
-
   test("fetchChorusFeed serializes parameters correctly", async () => {
     const originalFetch = global.fetch;
     let requestedUrl = "";
@@ -199,8 +191,8 @@ describe("Chorus Protocol parser & converter", () => {
     expect(tags).toContain("postrock");
   });
 
-  test("sortRadioRandomly produces a shuffled copy containing all stations without mutating original", () => {
-    const { sortRadioRandomly } = require("@/queries/radio");
+  test("shuffle produces a shuffled copy containing all stations without mutating original", () => {
+    const { shuffle } = require("@/scripts/utils");
 
     const stations = [
       { id: "s1", name: "Station 1" },
@@ -210,7 +202,7 @@ describe("Chorus Protocol parser & converter", () => {
       { id: "s5", name: "Station 5" },
     ];
 
-    const shuffled = sortRadioRandomly(stations as any);
+    const shuffled = shuffle(stations);
     expect(shuffled.length).toBe(stations.length);
     expect(new Set(shuffled.map((s: { id: string }) => s.id))).toEqual(
       new Set(stations.map((s) => s.id)),

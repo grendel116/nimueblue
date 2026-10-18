@@ -92,7 +92,7 @@ function InAppCheckoutForm({
   return (
     <Card>
       <View style={styles.header}>
-        <Text style={styles.title}>Complete your purchase</Text>
+        <Text style={styles.title}>Complete Your Purchase</Text>
         <Text style={styles.subtitle}>
           Paying {amountFormatted} to {deferred.artistName}
         </Text>
@@ -115,7 +115,7 @@ function InAppCheckoutForm({
 
       <View style={styles.actions}>
         <PrimaryButton
-          label={submitting ? "Processing payment..." : `Pay ${amountFormatted}`}
+          label={submitting ? "Processing Payment..." : `Pay ${amountFormatted}`}
           busy={submitting}
           disabled={!stripe || !elements || !ready || submitting}
           onPress={handlePay}
@@ -212,7 +212,7 @@ export function PayStage({ checkoutUrl, deferred, guestEmail, onPaid, onCancel }
         <Loading label="Opening checkout..." />
         {checkoutUrl ? (
           <SecondaryButton
-            label="Open checkout"
+            label="Open Checkout"
             onPress={() => window.open(checkoutUrl, "_blank")}
           />
         ) : null}

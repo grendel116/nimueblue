@@ -145,8 +145,8 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 42,
     height: 42,
-    borderRadius: 12,
-    backgroundColor: "rgba(0, 210, 255, 0.1)",
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.primarySoft,
     alignItems: "center",
     justifyContent: "center",
   },

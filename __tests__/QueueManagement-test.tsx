@@ -1,6 +1,4 @@
-import TrackPlayer from "react-native-track-player";
 import { isTrackOwnedOrPreview } from "@/scripts/utils";
-import { createMockUser } from "@/__mocks__/mockUser";
 import { createMockRNTrack } from "@/__mocks__/mockRNTrack";
 
 //jest.mock("react-native-track-player");

@@ -7,24 +7,7 @@ jest.mock("@react-native-async-storage/async-storage", () =>
   require("@react-native-async-storage/async-storage/jest/async-storage-mock")
 );
 
-jest.mock("@/components/Footer", () => ({
-  openMainTab: jest.fn(),
-  setMainTab: jest.fn(),
-  useMainTab: () => ({ tab: "home" }),
-}));
-
-jest.mock("@/scripts/albumLookup", () => ({
-  openDownloadedAlbum: jest.fn(),
-}));
-
-jest.mock("@/app/feed", () => () => null);
-jest.mock("@/app/library", () => () => null);
-
-import {
-  CAROUSEL_LIMIT,
-  blendCarouselReleases,
-  shuffleCarousel,
-} from "@/app/index";
+import { CAROUSEL_LIMIT, blendCarouselReleases } from "@/scripts/carousel";
 
 describe("carousel limits and blending", () => {
   test("CAROUSEL_LIMIT is 12", () => {
@@ -74,15 +57,5 @@ describe("carousel limits and blending", () => {
     const direct = [makeAlbum(1, "Artist 1"), makeAlbum(2, "Artist 2")];
     const blended = blendCarouselReleases(direct, [], []);
     expect(blended.length).toBe(2);
-  });
-
-  test("shuffleCarousel preserves elements and slicing limits to 12", () => {
-    const items = Array.from({ length: 25 }, (_, i) => `item-${i}`);
-    const shuffled = shuffleCarousel(items);
-    expect(shuffled.length).toBe(25);
-    expect(new Set(shuffled)).toEqual(new Set(items));
-
-    const capped = shuffled.slice(0, CAROUSEL_LIMIT);
-    expect(capped.length).toBe(12);
   });
 });

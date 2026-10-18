@@ -17,120 +17,24 @@ import { theme } from "@/constants/theme";
 import AddToQueueButton from "@/components/AddToQueueButton";
 import DownloadsTab from "@/components/DownloadsTab";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
-import {
-  DownloadedTrack,
-  downloadedAlbumMatcher,
-  groupTracksIntoAlbums,
-  useDownloads,
-} from "@/scripts/downloadManager";
-import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { groupTracksIntoAlbums, useDownloads } from "@/scripts/downloadManager";
 import { resolveArtworkUrl } from "@/scripts/utils";
 import { useStationLikes } from "@/scripts/stationLikes";
-import { usePodcastShowBookmarks, PodcastShowBookmark } from "@/scripts/podcastLikes";
-import {
-  useFaircampSaves,
-  FaircampSaves,
-  toggleFaircampArtistFollow,
-} from "@/scripts/faircampSaves";
+import { usePodcastShowBookmarks } from "@/scripts/podcastLikes";
+import { useFaircampSaves, toggleFaircampArtistFollow } from "@/scripts/faircampSaves";
 import { dragScroll } from "@/scripts/dragScroll";
-import { findStation, liveTrack } from "@/queries/radio";
+import { Pill } from "@/components/ui";
 import { FollowedArtist } from "@/queries/listener";
+import {
+  albumCover,
+  buildBookmarks,
+  buildFollowedArtists,
+  buildWishlistAlbums,
+} from "@/scripts/library";
+import { albumHref } from "@/scripts/routes";
 import { LibraryTab, setLibraryTab, useLibraryTab } from "@/state/libraryTab";
 
 type IconName = ComponentProps<typeof Ionicons>["name"];
-
-export function albumCover(tg: any): string {
-  return resolveArtworkUrl(
-    tg?.cover?.sizes?.[300] ||
-      tg?.cover?.sizes?.[120] ||
-      tg?.cover?.sizes?.[600] ||
-      (typeof tg?.cover === "string" ? tg.cover : tg?.cover?.url),
-  );
-}
-
-// The page of a release, where the listener can play or buy it
-export function albumPageHref(tg: any) {
-  if (!tg?.urlSlug || !(tg.artistId || fairplayerReleaseSlug.decode(String(tg.urlSlug)))) {
-    return undefined;
-  }
-  return {
-    pathname: "/artist/[id]/album/[slug]/album-tracks" as const,
-    params: {
-      id:
-        fairplayerReleaseSlug.artistRouteId(String(tg.urlSlug)) ??
-        String(tg.artist?.urlSlug || tg.artistId),
-      slug: String(tg.urlSlug),
-    },
-  };
-}
-
-export type WishlistAlbum = { trackGroup: AlbumProps; savedAt: number };
-
-// One record, one box: an album moves from Wishlist to Downloads once saved on the device.
-// downloadedAlbumMatcher tells which albums are already there.
-
-// Wishlist: albums saved on the device or holding a liked song, newest first.
-// Albums already downloaded move out to Downloads. Each album opens its page.
-export function buildWishlistAlbums({
-  faircampSaves,
-  downloads = [],
-}: {
-  faircampSaves: FaircampSaves;
-  downloads?: DownloadedTrack[];
-}): WishlistAlbum[] {
-  const albums = new Map<string, WishlistAlbum>();
-  const isDownloaded = downloadedAlbumMatcher(downloads);
-  const keep = (trackGroup: any, savedAt: number) => {
-    if (!trackGroup || isDownloaded(trackGroup)) return;
-    const key = String(trackGroup.urlSlug || trackGroup.id);
-    const existing = albums.get(key);
-    albums.set(key, {
-      trackGroup: existing?.trackGroup ?? trackGroup,
-      savedAt: Math.max(existing?.savedAt ?? 0, savedAt),
-    });
-  };
-
-  faircampSaves.albums.forEach(({ album, savedAt }) => keep(album, savedAt));
-  faircampSaves.tracks.forEach(({ track, likedAt }) => keep(track.trackGroup, likedAt));
-
-  return Array.from(albums.values()).sort((a, b) => b.savedAt - a.savedAt);
-}
-
-// Artists followed on this device
-export function buildFollowedArtists({
-  faircampSaves,
-}: {
-  faircampSaves?: FaircampSaves;
-}): FollowedArtist[] {
-  return (faircampSaves?.artists ?? []).map(({ artist }): FollowedArtist => ({
-    artist,
-  }));
-}
-
-export type BookmarkItem =
-  | { kind: "station"; track: RNTrack }
-  | { kind: "show"; show: PodcastShowBookmark };
-
-// Bookmarks: radio stations and podcast shows, kept on the device, newest first
-export function buildBookmarks({
-  stationLikes,
-  podcastShows = [],
-}: {
-  stationLikes: { stationId: string; likedAt: number }[];
-  podcastShows?: PodcastShowBookmark[];
-}): BookmarkItem[] {
-  const stations = stationLikes.flatMap(({ stationId, likedAt }) => {
-    const station = findStation(stationId);
-    return station
-      ? [{ item: { kind: "station", track: liveTrack(station) } as BookmarkItem, savedAt: likedAt }]
-      : [];
-  });
-  const shows = podcastShows.map((show) => ({
-    item: { kind: "show", show } as BookmarkItem,
-    savedAt: show.bookmarkedAt,
-  }));
-  return [...stations, ...shows].sort((a, b) => b.savedAt - a.savedAt).map(({ item }) => item);
-}
 
 export default function LibraryScreen() {
   const router = useRouter();
@@ -184,7 +88,7 @@ export default function LibraryScreen() {
   );
 
   const openAlbumPage = (tg: any) => {
-    const href = albumPageHref(tg);
+    const href = albumHref(tg);
     if (href) router.push(href);
   };
 
@@ -378,11 +282,12 @@ export default function LibraryScreen() {
           <View style={styles.headerActions}>
             <Pressable
               onPress={() => router.push("/aboutModal")}
-              style={[styles.headerPill, { width: 36, paddingHorizontal: 0, justifyContent: "center" }]}
+              style={({ pressed }) => [styles.infoButton, pressed && { opacity: 0.6 }]}
+              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="About NimueBlue"
             >
-              <Ionicons name="information-circle-outline" size={16} color={theme.colors.textSecondary} />
+              <Ionicons name="information-circle-outline" size={22} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
         </View>
@@ -394,32 +299,16 @@ export default function LibraryScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.toggleRow}
         >
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                android_ripple={{ color: theme.colors.ripple, borderless: true, radius: 24 }}
-                onPress={() => setLibraryTab(tab.id)}
-                style={({ pressed }) => [
-                  styles.togglePill,
-                  active && styles.togglePillActive,
-                  pressed && { opacity: 0.8 },
-                ]}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-              >
-                <Ionicons
-                  name={tab.icon}
-                  size={15}
-                  color={active ? theme.colors.playButtonIcon : theme.colors.textSecondary}
-                />
-                <Text style={[styles.toggleText, active && styles.toggleTextActive]}>
-                  {tab.label} ({tab.count})
-                </Text>
-              </Pressable>
-            );
-          })}
+          {tabs.map((tab) => (
+            <Pill
+              key={tab.id}
+              label={tab.label}
+              count={tab.count}
+              icon={tab.icon}
+              active={activeTab === tab.id}
+              onPress={() => setLibraryTab(tab.id)}
+            />
+          ))}
         </ScrollView>
       </View>
 
@@ -504,16 +393,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  headerPill: {
-    flexDirection: "row",
+  infoButton: {
+    padding: 4,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
   },
   title: {
     fontFamily: theme.fonts.display,
@@ -530,30 +413,6 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: "row",
     gap: 8,
-  },
-  togglePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
-  },
-  togglePillActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.colors.textSecondary,
-  },
-  toggleTextActive: {
-    color: theme.colors.playButtonIcon,
-    fontWeight: "700",
   },
   listContent: {
     padding: 12,
@@ -594,7 +453,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    borderRadius: 24,
+    borderRadius: theme.radius.full,
   },
   unfollowBtn: {
     minWidth: 84,

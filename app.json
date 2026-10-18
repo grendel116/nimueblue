@@ -53,7 +53,6 @@
           "faceIDPermission": "Allow NimueBlue to access your Face ID biometric data."
         }
       ],
-      "expo-localization",
       "expo-asset",
       [
         "expo-font",

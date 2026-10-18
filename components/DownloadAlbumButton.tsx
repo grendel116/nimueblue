@@ -10,7 +10,7 @@ import {
 import { chooseFormat } from "@/scripts/chooseFormat";
 import { showError } from "@/scripts/showError";
 import { askChoice } from "@/scripts/askChoice";
-import { CAN_DOWNLOAD, downloadAlbum, removeDownloads } from "@/scripts/offlineFiles";
+import { downloadAlbum, removeDownloads } from "@/scripts/offlineFiles";
 import { chooseFaircampDownload } from "@/scripts/faircampDownload";
 
 const STAGE_LABELS: Record<DownloadStage, string> = {
@@ -49,7 +49,7 @@ export default function DownloadAlbumButton({ album, size = 32 }: { album: Album
       return;
     }
     if (isDownloaded) {
-      askChoice("Remove download?", `${album.title} will only play online.`, [
+      askChoice("Remove Download?", `${album.title} will only play online.`, [
         { text: "Cancel", style: "cancel" },
         {
           text: "Remove",
@@ -79,7 +79,7 @@ export default function DownloadAlbumButton({ album, size = 32 }: { album: Album
         <Ionicons
           name={isDownloaded ? "checkmark-circle" : "arrow-down-circle-outline"}
           size={size}
-          color={isDownloaded ? theme.colors.primary : "#ababab"}
+          color={isDownloaded ? theme.colors.primary : theme.colors.iconIdle}
         />
       )}
     </Pressable>

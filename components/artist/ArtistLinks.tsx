@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   iconImage: {
     width: 14,
     height: 14,
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
   },
   label: {
     color: theme.colors.textSecondary,

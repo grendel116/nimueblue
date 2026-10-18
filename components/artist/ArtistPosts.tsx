@@ -32,7 +32,7 @@ export default function ArtistPosts({ artist, routeId }: { artist: Artist; route
 
   return (
     <View style={styles.section}>
-      <Text style={styles.header}>Latest posts</Text>
+      <Text style={styles.header}>Latest Posts</Text>
       {posts.map((post) => (
         <PostCard
           key={post.id}

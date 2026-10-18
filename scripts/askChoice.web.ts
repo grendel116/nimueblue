@@ -23,7 +23,7 @@ export function askChoice(title: string, message: string | undefined, buttons: A
     : [...buttons, { text: "Cancel", style: "cancel" as const }];
   for (const b of withCancel) {
     const primary = b.style !== "cancel";
-    const color = b.style === "destructive" ? "#ff6b6b" : primary ? theme.colors.playButtonIcon : theme.colors.textSecondary;
+    const color = b.style === "destructive" ? theme.colors.danger : primary ? theme.colors.playButtonIcon : theme.colors.textSecondary;
     const background = b.style === "destructive" ? "transparent" : primary ? theme.colors.primary : "transparent";
     const el = document.createElement("button");
     el.textContent = b.text ?? "";

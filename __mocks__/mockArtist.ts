@@ -14,7 +14,6 @@ export const createMockArtist = (overrides?: Partial<Artist>): Artist => ({
   trackGroups: [],
   urlSlug: faker.helpers.slugify(faker.person.fullName().toLowerCase()),
   location: faker.location.city(),
-  artistLabels: [],
   links: [faker.internet.url(), faker.internet.url()],
   avatar: {
     url: faker.image.avatar(),

@@ -24,11 +24,11 @@ import { useRouter, type Href } from "expo-router";
 import TrackPlayer, { useProgress } from "react-native-track-player";
 import Slider from "@react-native-community/slider";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import DismissModalBar from "@/components/DismissModalBar";
 import { theme } from "@/constants/theme";
 import { useQuery } from "@tanstack/react-query";
-import { queryRadioPlays, findStation, RADIO_SET_SECONDS } from "@/queries/radio";
+import { queryRadioPlays, findStation } from "@/queries/radio";
+import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 import { findPodcastShow } from "@/queries/podcast";
 import { queryArtist } from "@/queries/queries";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
@@ -38,7 +38,9 @@ import { openPurchase, type PurchaseTarget } from "@/scripts/openPurchase";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { getRadioTimerElapsed, setRadioTimerElapsed } from "@/scripts/radioTimer";
+import { albumArtistRouteId, albumHref } from "@/scripts/routes";
 import {
+  formatTime,
   isQualityArtwork,
   resolveArtworkUrl,
 } from "@/scripts/utils";
@@ -199,7 +201,6 @@ export default function NowPlaying() {
 function NowPlayingBody({ visible, close }: { visible: boolean; close: () => void }) {
   const { activeTrack, looping } = usePlayer("activeTrack", "looping");
   const router = useRouter();
-  const { t } = useTranslation();
   const { width } = useWindowDimensions();
 
   // Links lead to pages under the sheet, so the sheet slides away as the page opens
@@ -283,11 +284,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
           </View>
 
           <View style={styles.artistGroupRow}>
-            <Text style={styles.infoLabel}>
-              {t("trackGroupDetails.byArtist")
-                .replace(/<[^>]*>.*?<\/[^>]*>/g, "")
-                .trim() + " "}
-            </Text>
+            <Text style={styles.infoLabel}>by </Text>
             <Text style={styles.cyanLink} numberOfLines={1}>
               {onAir?.artist || activeTrack?.artist}
             </Text>
@@ -334,11 +331,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
 
           <View style={styles.artistGroupRow}>
             <Text style={styles.infoLabel}>
-              {activeTrack?.podcastId
-                ? "Show "
-                : t("trackGroupDetails.fromAlbum")
-                    .replace(/<[^>]*>.*?<\/[^>]*>/g, "")
-                    .trim() + " "}
+              {activeTrack?.podcastId ? "Show " : "from "}
             </Text>
             <Pressable
               onPress={() => {
@@ -355,28 +348,14 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
                   openDownloadedAlbum(activeTrack.downloadAlbum);
                   return;
                 }
-                const albumSlug = String(
-                  activeTrack.trackGroup.urlSlug ||
+                const href = albumHref({
+                  ...activeTrack.trackGroup,
+                  urlSlug:
+                    activeTrack.trackGroup.urlSlug ||
                     activeTrack.trackGroup.id ||
-                    activeTrack.trackGroupId ||
-                    "",
-                );
-                if (!albumSlug) return;
-                const artistRouteId =
-                  fairplayerReleaseSlug.artistRouteId(albumSlug) ??
-                  String(
-                    activeTrack.trackGroup.artist?.urlSlug ||
-                      activeTrack.trackGroup.artistId ||
-                      activeTrack.trackGroup.artist?.id ||
-                      albumSlug,
-                  );
-                go({
-                  pathname: "/artist/[id]/album/[slug]/album-tracks",
-                  params: {
-                    id: artistRouteId,
-                    slug: albumSlug,
-                  },
+                    activeTrack.trackGroupId,
                 });
+                if (href) go(href);
               }}
               style={styles.linkPressable}
             >
@@ -388,11 +367,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
 
           <View style={styles.artistGroupRow}>
             <Text style={styles.infoLabel}>
-              {activeTrack?.podcastId
-                ? "Host "
-                : t("trackGroupDetails.byArtist")
-                    .replace(/<[^>]*>.*?<\/[^>]*>/g, "")
-                    .trim() + " "}
+              {activeTrack?.podcastId ? "Host " : "by "}
             </Text>
             {/* Podcasts have no artist page to open */}
             {activeTrack?.podcastId ? (
@@ -556,9 +531,7 @@ function SupportArtistButton({ track, onOpen }: { track: RNTrack; onOpen: () => 
     : albumSlug
       ? {
           kind: "album",
-          artist:
-            fairplayerReleaseSlug.artistRouteId(albumSlug) ??
-            String(track.trackGroup?.artist?.urlSlug || artistId || albumSlug),
+          artist: albumArtistRouteId(track.trackGroup) ?? albumSlug,
           slug: albumSlug,
         }
       : undefined;
@@ -585,18 +558,6 @@ function SupportArtistButton({ track, onOpen }: { track: RNTrack; onOpen: () => 
       </Text>
     </Pressable>
   );
-}
-
-function formatTime(seconds: number) {
-  if (!seconds || isNaN(seconds)) return "00:00";
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Number(seconds.toFixed(0)) % 60;
-
-  const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-  const formattedSeconds =
-    remainingSeconds < 10 ? `0${remainingSeconds}` : remainingSeconds;
-
-  return `${formattedMinutes}:${formattedSeconds}`;
 }
 
 const styles = StyleSheet.create({
@@ -741,8 +702,8 @@ const styles = StyleSheet.create({
   liveDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: "#ff3b5c",
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.danger,
   },
   liveText: {
     fontFamily: theme.fonts.sans,

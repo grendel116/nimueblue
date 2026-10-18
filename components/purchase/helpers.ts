@@ -95,7 +95,7 @@ export function formatPurchaseButtonLabel(
     lower.startsWith("download")
   ) {
     if (lower === "downloads" || lower === "download") {
-      return "Download release";
+      return "Download Release";
     }
     return sourceName;
   }

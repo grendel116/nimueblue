@@ -7,57 +7,7 @@ interface LoggedInUser {
   artistUserSubscriptions?: ArtistUserSubscription[];
   userTrackGroupPurchases?: { trackGroupId: number }[];
   userTrackPurchases?: { trackId: number }[];
-  isAdmin: boolean;
   currency?: string;
-  isLabelAccount?: boolean;
-  wishlist?: {
-    userId: number;
-    trackGroupId: number;
-  }[];
-  trackFavorites?: {
-    userId: number;
-    trackId: number;
-    track: RNTrack;
-    createdAt: Date;
-  }[];
-  language?: string;
-  canCreateArtists?: boolean;
-  merchPurchase?: MerchPurchase[];
-}
-
-interface UserTransaction {
-  id: string;
-  userId: number;
-  user: User;
-  createdAt: Date;
-  amount: number;
-  currency: string;
-  platformCut?: number;
-  stripeCut?: number;
-  stripeId?: string;
-  trackGroupPurchases: UserTrackGroupPurchase[];
-  trackPurchases: UserTrackPurchase[];
-}
-
-interface UserTrackGroupPurchase {
-  userId: number;
-  user?: User;
-  trackGroupId: number;
-  trackGroup?: TrackGroup;
-  pricePaid: number;
-  currencyPaid: string;
-  datePurchased: string;
-  singleDownloadToken?: string;
-}
-
-interface UserTrackPurchase {
-  userId: number;
-  user?: User;
-  trackId: number;
-  track?: Track;
-  pricePaid: number;
-  currencyPaid: string;
-  datePurchased: string;
 }
 
 interface AlbumProps {
@@ -94,22 +44,6 @@ interface AlbumProps {
   purchaseLinks?: { label: string; url: string }[];
   // Faircamp releases: how the release offers downloads; absent when downloads are off
   faircampShop?: import("@/queries/fairplayer").FaircampShop;
-}
-
-interface TrackProps {
-  title: string;
-  order: number;
-  id: number | undefined;
-  artist: string;
-  albumId: number;
-  trackGroup: AlbumProps;
-  isPreview: boolean;
-  audio: {
-    url: string;
-    duration: number | undefined;
-  };
-  source?: string;
-  sourceUrl?: string;
 }
 
 interface RNTrack {
@@ -181,13 +115,6 @@ interface RNTrack {
   _queueKey?: string;
 }
 
-interface PlayButtonProps {
-  albumTracks: RNTrack[];
-  trackObject: RNTrack;
-  buttonColor?: string;
-  albumInfo?: AlbumProps;
-}
-
 interface PropsWithChildren<P> extends P {
   children?: ReactNode;
 }
@@ -212,20 +139,18 @@ interface Artist {
   location?: string;
   enabled: boolean;
   createdAt: string;
-  artistLabels?: ArtistLabel[];
   trackGroups: AlbumProps[];
   // Legacy plain URLs; linksJson is what the artist edits today
   links?: string[];
   linksJson?: ArtistLink[];
-  properties?: {
-    colors: ArtistColors;
-  };
   user?: { currency?: string };
   // The default tier is the free "follow" tier; any other tier is a paid subscription
   subscriptionTiers?: SubscriptionTier[];
   // The wide banner image across the top of the artist page
   background?: {
+    url?: string;
     sizes?: { [key: string]: string };
+    updatedAt?: string;
   };
   purchaseEntireCatalogEnabled?: boolean;
   allowDirectMessages?: boolean;
@@ -237,8 +162,6 @@ interface Artist {
     sizes?: { [key: string]: string };
     updatedAt: string;
   };
-  location?: string;
-  bio: string;
   maxFreePlays?: number;
 }
 
@@ -289,23 +212,4 @@ interface ArtistUserSubscription {
   userId: number;
   artistSubscriptionTierId?: number;
   artistSubscriptionTier: SubscriptionTier;
-}
-
-interface MirloNotification {
-  id: string;
-  content?: string;
-  isRead: boolean;
-  createdAt: string;
-  // e.g. NEW_ARTIST_ALBUM, NEW_ARTIST_PREORDER, NEW_ARTIST_POST
-  notificationType: string;
-  artistId?: number;
-  artist?: Artist;
-  post?: ArtistPost;
-  trackGroup?: AlbumProps;
-}
-
-interface MerchPurchase {
-  merchId: string;
-  id: string;
-  userId: number;
 }

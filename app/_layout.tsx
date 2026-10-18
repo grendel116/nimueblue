@@ -3,8 +3,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SearchContextProvider } from "@/state/SearchContext";
 import { PlayerContextProvider } from "@/state/PlayerContext";
 import { QueryClientWrapper } from "@/queries/QueryClientWrapper";
-import { DevToolsBubble } from "react-native-react-query-devtools";
-import * as Clipboard from "expo-clipboard";
 import { StatusBar } from "expo-status-bar";
 import TrackPlayer from "react-native-track-player";
 import * as SplashScreen from "expo-splash-screen";
@@ -18,7 +16,7 @@ import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Footer from "@/components/Footer";
 import NowPlaying from "@/components/NowPlaying";
 import ChoiceSheet from "@/components/ChoiceSheet";
-import "../i18n";
+import { theme } from "@/constants/theme";
 import { checkForUpdates } from "../scripts/appVersionCheck";
 import { openMusicFolder } from "@/scripts/musicFolder";
 
@@ -43,15 +41,6 @@ export default function RootLayout() {
     ...Ionicons.font,
     ...FontAwesome6.font,
   });
-  // Needed for TanStack Query Devtools
-  const onCopy = async (text: string) => {
-    try {
-      await Clipboard.setStringAsync(text);
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   useEffect(() => {
     checkForUpdates();
@@ -97,7 +86,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070b14" }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
     <AppReadyContextProvider
       value={{ isDataLoaded: isDataLoaded, setIsDataLoaded: setIsDataLoaded }}
     >
@@ -108,7 +97,7 @@ export default function RootLayout() {
                 <Stack
                   screenOptions={{
                     animation: "none",
-                    contentStyle: { backgroundColor: "#070b14" },
+                    contentStyle: { backgroundColor: theme.colors.background },
                   }}
                 >
                   <Stack.Screen
@@ -203,15 +192,24 @@ export default function RootLayout() {
                       contentStyle: { backgroundColor: "transparent" },
                     }}
                   />
+                  <Stack.Screen
+                    name="supportModal"
+                    options={{
+                      headerShown: false,
+                      presentation: "transparentModal",
+                      animation: "slide_from_bottom",
+                      animationDuration: 200,
+                      contentStyle: { backgroundColor: "transparent" },
+                    }}
+                  />
                 </Stack>
                 <NowPlaying />
               </>
               <Footer />
               <ChoiceSheet />
-              <StatusBar style="light" backgroundColor="#070b14" />
+              <StatusBar style="light" backgroundColor={theme.colors.background} />
             </SearchContextProvider>
           </PlayerContextProvider>
-        {/* <DevToolsBubble onCopy={onCopy} /> */}
       </QueryClientWrapper>
     </AppReadyContextProvider>
     </GestureHandlerRootView>

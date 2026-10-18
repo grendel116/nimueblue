@@ -1,19 +1,10 @@
 import * as api from "@/queries/fetch/fetchWrapper";
 import { API_KEY } from "@/constants/api-key";
-import { trackStreamPath } from "@/scripts/utils";
+import { shuffle, trackStreamPath } from "@/scripts/utils";
 import { isTrackDisabledSync } from "@/scripts/trackPlayUtils";
 import { fetchFairplayerDiscoveryTracks } from "@/queries/fairplayer";
 
 export const AUTOPLAY_SOURCE = "Discovery";
-
-function shuffleTracks<T>(items: T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
 
 async function fetchMirloDiscoveryTracks(take: number): Promise<RNTrack[]> {
   const params = new URLSearchParams({
@@ -83,7 +74,7 @@ export async function fetchDiscoveryTracks(take: number): Promise<RNTrack[]> {
 
   const selectedFaircamp = faircampTracks.slice(0, faircampTarget);
   const remainingSlots = Math.max(0, take - selectedFaircamp.length);
-  const selectedMirlo = shuffleTracks(mirloTracks).slice(0, remainingSlots);
+  const selectedMirlo = shuffle(mirloTracks).slice(0, remainingSlots);
 
-  return shuffleTracks([...selectedMirlo, ...selectedFaircamp]);
+  return shuffle([...selectedMirlo, ...selectedFaircamp]);
 }

@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   ScrollView,
-  Pressable,
 } from "react-native";
 import { useSearch } from "@/state/SearchContext";
 import { useEffect, useMemo, useRef } from "react";
@@ -15,10 +14,8 @@ import { useQuery } from "@tanstack/react-query";
 import { queryTags } from "@/queries/queries";
 import TagPill from "@/components/TagPill";
 import { optionDisplay } from "@/components/SearchOptionRenderer";
-import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useTranslation } from "react-i18next";
 
 export default function SearchPage() {
   const {
@@ -35,8 +32,6 @@ export default function SearchPage() {
     queryTags({ orderBy: "count", take: 25 }),
   );
   const { top, bottom } = useSafeAreaInsets();
-  const router = useRouter();
-  const { t } = useTranslation("translation");
   const tagPills = useMemo(() => {
     return tags?.results.map((tag, index) => (
       <TagPill key={index} tagName={tag.tag} />
@@ -99,7 +94,7 @@ export default function SearchPage() {
           style={styles.contentScrollView}
           contentContainerStyle={styles.contentContainer}
         >
-          <Text style={styles.sectionHeader}>{t("mobileApp.searchScreen.popularTags")}</Text>
+          <Text style={styles.sectionHeader}>Popular Tags</Text>
           <View style={styles.tagWrap}>{tagPills}</View>
         </ScrollView>
       ) : null}
@@ -116,7 +111,7 @@ export default function SearchPage() {
         >
           {searchResults.length > 0 ? (
             <View>
-              <Text style={styles.sectionHeader}>{t("mobileApp.searchScreen.catalogResults")}</Text>
+              <Text style={styles.sectionHeader}>Catalog Results</Text>
               {searchResults.map((item, index) => (
                 <View key={`${index}-${item.id || item.name}`}>
                   {optionDisplay(item, index)}
@@ -128,7 +123,7 @@ export default function SearchPage() {
             <View style={styles.emptyContainer}>
               <Ionicons name="search" size={40} color={theme.colors.textMuted} />
               <Text style={styles.emptyText}>
-                {t("mobileApp.searchScreen.noResults", { query: searchValue })}
+                {`Couldn't find anything for "${searchValue}". Try another search!`}
               </Text>
             </View>
           ) : null}

@@ -103,15 +103,3 @@ export interface FederationNode {
   lastSynced?: string;
   itemCount?: number;
 }
-
-// Aliases for compatibility with earlier Canimus drafts
-export type CanimusImage = ChorusImage;
-export type CanimusMedia = ChorusMedia;
-export type CanimusLink = ChorusLink;
-export type CanimusTrack = ChorusTrack;
-export type CanimusAlbum = ChorusAlbum;
-export type CanimusArtist = ChorusArtist;
-export type CanimusDeletedEntity = ChorusDeletedEntity;
-export type CanimusRoot = ChorusRoot;
-export type CanimusQueryOptions = ChorusQueryOptions;
-

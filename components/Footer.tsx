@@ -16,7 +16,7 @@ import { usePlayer } from "@/state/PlayerContext";
 import { closeNowPlaying, openNowPlaying, useNowPlayingOpen } from "@/components/NowPlaying";
 import { router, usePathname } from "expo-router";
 import { theme } from "@/constants/theme";
-import { RADIO_SET_SECONDS } from "@/queries/radio";
+import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 import { LibraryTab, setLibraryTab } from "@/state/libraryTab";
 import {
   isQualityArtwork,
@@ -227,7 +227,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 0,
     borderWidth: 1,
     borderColor: theme.colors.surfaceGlassBorder,
     flexDirection: "row",
@@ -292,7 +291,7 @@ const styles = StyleSheet.create({
   miniPlayBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: theme.radius.full,
     backgroundColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",
@@ -360,7 +359,7 @@ const iconStyles = StyleSheet.create({
   },
   bar: {
     width: 3.5,
-    borderRadius: 1.5,
+    borderRadius: theme.radius.full,
   },
 });
 
@@ -376,7 +375,7 @@ const stackedBoxStyles = StyleSheet.create({
     right: 2,
     width: 14,
     height: 14,
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
     borderWidth: 2,
     opacity: 0.55,
   },
@@ -386,7 +385,7 @@ const stackedBoxStyles = StyleSheet.create({
     left: 2,
     width: 14,
     height: 14,
-    borderRadius: 3,
+    borderRadius: theme.radius.xs,
     borderWidth: 2,
     backgroundColor: theme.colors.surface,
   },

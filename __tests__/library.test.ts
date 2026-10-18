@@ -53,7 +53,7 @@ import {
   buildBookmarks,
   buildFollowedArtists,
   buildWishlistAlbums,
-} from "@/app/library";
+} from "@/scripts/library";
 import { createMockRNTrack } from "@/__mocks__/mockRNTrack";
 import { createMockArtist } from "@/__mocks__/mockArtist";
 

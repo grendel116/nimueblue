@@ -50,7 +50,7 @@ function emptyText(folder: MusicFolderStatus): string {
 function confirmDeleteAlbum(album: DownloadedAlbum) {
   const count = album.tracks.length;
   askChoice(
-    "Delete album?",
+    "Delete Album?",
     `Remove "${album.title}" and its ${count} ${count === 1 ? "song" : "songs"} from your downloads?`,
     [
       { text: "Cancel", style: "cancel" },
@@ -86,7 +86,7 @@ export default memo(function DownloadsTab() {
       ...(PICKS_PHONE_FILES
         ? [
             {
-              text: "Change cover",
+              text: "Change Cover",
               onPress: () => chooseAlbumCover(album).catch(showError("Couldn't set cover")),
             },
           ]
@@ -150,7 +150,7 @@ export default memo(function DownloadsTab() {
                   style={styles.folderButton}
                 >
                   <Ionicons name="folder-open-outline" size={14} color={theme.colors.primary} />
-                  <Text style={styles.folderButtonText}>Change folder</Text>
+                  <Text style={styles.folderButtonText}>Change Folder</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -165,7 +165,7 @@ export default memo(function DownloadsTab() {
               >
                 <Ionicons name="folder-open-outline" size={14} color={theme.colors.playButtonIcon} />
                 <Text style={styles.addButtonText}>
-                  {musicFolder.status === "needs-permission" ? "Reconnect music folder" : "Choose music folder"}
+                  {musicFolder.status === "needs-permission" ? "Reconnect Music Folder" : "Choose Music Folder"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -176,7 +176,7 @@ export default memo(function DownloadsTab() {
       {albums.length === 0 ? (
         <ScrollView contentContainerStyle={styles.empty} refreshControl={refreshControl}>
           <Ionicons name="download-outline" size={48} color={theme.colors.textMuted} />
-          <Text style={styles.emptyTitle}>No downloads yet</Text>
+          <Text style={styles.emptyTitle}>No Downloads Yet</Text>
           <Text style={styles.emptyText}>{emptyText(musicFolder.status)}</Text>
         </ScrollView>
       ) : (

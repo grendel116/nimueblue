@@ -364,7 +364,7 @@ const TrackPlayer = {
 
 export default TrackPlayer;
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export function usePlaybackState(): PlaybackState {
   const [state, setState] = useState<State>(currentState);
