@@ -1,4 +1,5 @@
 import * as Application from "expo-application";
+import * as Updates from "expo-updates";
 import { Alert, Linking, Platform } from "react-native";
 import { askChoice } from "./askChoice";
 
@@ -6,8 +7,23 @@ const GITHUB_LATEST_RELEASE_URL =
   "https://api.github.com/repos/grendel116/nimueblue/releases/latest";
 const NIMUE_BLUE_DOWNLOAD_PAGE = "https://grendel116.github.io/nimueblue/";
 
+export async function checkEASUpdate() {
+  if (__DEV__ || !Updates.isEnabled) return;
+  try {
+    const update = await Updates.checkForUpdateAsync();
+    if (update.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    }
+  } catch (err) {
+    console.log("EAS update check bypassed:", err);
+  }
+}
+
 export async function checkForUpdates() {
   try {
+    checkEASUpdate().catch(() => {});
+
     const currentVersion =
       Platform.OS === "android"
         ? Application.nativeApplicationVersion || Application.nativeBuildVersion
