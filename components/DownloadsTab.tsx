@@ -1,6 +1,5 @@
 import { memo, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Platform,
@@ -16,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { showError } from "@/scripts/showError";
 import { askChoice } from "@/scripts/askChoice";
 import { theme } from "@/constants/theme";
+import { DropletSpinner } from "@/components/DropletSpinner";
 import { DownloadedAlbum, groupTracksIntoAlbums, useDownloads } from "@/scripts/downloadManager";
 import { openDownloadedAlbum } from "@/scripts/albumLookup";
 import { PICKS_PHONE_FILES, chooseAlbumCover, removeDownloads } from "@/scripts/offlineFiles";
@@ -112,9 +112,10 @@ export default memo(function DownloadsTab() {
       <RefreshControl
         refreshing={importing}
         onRefresh={() => runMusicFolder(rescanMusicFolder)}
-        tintColor={theme.colors.primary}
-        colors={[theme.colors.primary]}
-        progressBackgroundColor={theme.colors.surfaceElevated}
+        progressViewOffset={-1000}
+        tintColor="transparent"
+        colors={["transparent"]}
+        progressBackgroundColor="transparent"
       />
     ) : undefined;
 
@@ -130,7 +131,7 @@ export default memo(function DownloadsTab() {
         </Text>
         {musicFolder.status !== "unsupported" && (
           <View style={styles.barActions}>
-            {importing && <ActivityIndicator size="small" color={theme.colors.primary} />}
+            {importing && <DropletSpinner size={16} />}
             {musicFolder.status === "ready" ? (
               <>
                 {Platform.OS === "web" && (
@@ -219,7 +220,7 @@ export default memo(function DownloadsTab() {
                   </Text>
                 </View>
                 {openingKey === album.key ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <DropletSpinner size={16} />
                 ) : (
                   <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
                 )}

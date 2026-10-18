@@ -345,6 +345,14 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         </View>
       </View>
 
+      {isPullRefreshing && (
+        <View style={styles.floatingRefreshDroplet} pointerEvents="none">
+          <View style={styles.dropletPill}>
+            <DropletSpinner size={24} />
+          </View>
+        </View>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -353,17 +361,13 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           <RefreshControl
             refreshing={isPullRefreshing}
             onRefresh={pullToRefresh}
-            tintColor={theme.colors.primary}
-            colors={[theme.colors.primary]}
-            progressBackgroundColor={theme.colors.surfaceElevated}
+            progressViewOffset={-1000}
+            tintColor="transparent"
+            colors={["transparent"]}
+            progressBackgroundColor="transparent"
           />
         }
       >
-        {isPullRefreshing && (
-          <View style={styles.pullRefreshingDroplet}>
-            <DropletSpinner size={34} />
-          </View>
-        )}
         {offline ? (
           <OfflineNotice retrying={isRecentFetching} onRetry={retry} onOpenLibrary={() => openMainTab("library")} />
         ) : (
@@ -843,9 +847,28 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.surface,
   },
-  pullRefreshingDroplet: {
-    paddingVertical: 14,
+  floatingRefreshDroplet: {
+    position: "absolute",
+    top: 68,
+    left: 0,
+    right: 0,
     alignItems: "center",
+    zIndex: 9999,
+    elevation: 10,
+  },
+  dropletPill: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
