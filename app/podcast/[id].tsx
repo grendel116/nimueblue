@@ -21,7 +21,7 @@ import {
   PodcastEpisode,
 } from "@/queries/podcast";
 import AddToQueueButton from "@/components/AddToQueueButton";
-import FavoriteTrackButton from "@/components/FavoriteTrackButton";
+import ShowBookmarkButton from "@/components/ShowBookmarkButton";
 import { theme } from "@/constants/theme";
 import {
   isQualityArtwork,
@@ -165,6 +165,7 @@ export default function PodcastScreen() {
                 {allTracks.length > 0 && (
                   <AddToQueueButton track={allTracks[0]} size={28} />
                 )}
+                <ShowBookmarkButton show={show} size={28} />
                 <TouchableOpacity
                   onPress={toggleShowPlayback}
                   disabled={allTracks.length === 0}
@@ -273,7 +274,6 @@ function EpisodeRow({
 
       <View style={styles.actionRow}>
         <AddToQueueButton track={track} size={17} />
-        <FavoriteTrackButton track={track} size={17} />
         {durationText ? (
           <Text
             style={[

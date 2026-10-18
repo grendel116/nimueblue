@@ -504,7 +504,7 @@ export default function QueueScreen() {
                 { transform: [{ translateY: nextUpHeaderAnim }] },
               ]}
             >
-              <Text style={[styles.sectionTitle, styles.nextUpTitle]} numberOfLines={1}>
+              <Text style={[styles.autoplayDividerText, styles.nextUpTitle]} numberOfLines={1}>
                 {nextUpSource ? `Next Up from: ${nextUpSource}` : "Next Up"}
               </Text>
               <View style={styles.modeButtons}>

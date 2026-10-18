@@ -302,6 +302,19 @@ export function groupTracksIntoAlbums(tracks: DownloadedTrack[]): DownloadedAlbu
     .sort((a, b) => b.downloadedAt - a.downloadedAt);
 }
 
+// Whether an album is saved on the device. Downloaded files carry a title and artist, and an
+// album with the same title and artist is that album.
+export function downloadedAlbumMatcher(downloads: DownloadedTrack[]) {
+  const saved = groupTracksIntoAlbums(downloads);
+  return (trackGroup: any) =>
+    saved.some((a) =>
+      sameAlbum(
+        { title: a.title, artist: a.artist },
+        { title: trackGroup?.title, artist: trackGroup?.artist?.name },
+      ),
+    );
+}
+
 // Changes what every song in an album shows. Imported albums are grouped by title, so a new
 // title can merge into another album; the album's key afterwards is returned
 export async function updateAlbum(

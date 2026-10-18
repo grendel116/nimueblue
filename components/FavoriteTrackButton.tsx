@@ -1,5 +1,5 @@
-import { Pressable, ViewStyle } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { ViewStyle } from "react-native";
+import LikeButton from "@/components/LikeButton";
 import { toggleStationLike, useStationLikes } from "@/scripts/stationLikes";
 import { togglePodcastEpisodeLike, usePodcastEpisodeLikes } from "@/scripts/podcastLikes";
 import {
@@ -14,40 +14,18 @@ type FavoriteTrackButtonProps = {
   size?: number;
 };
 
-type HeartProps = { liked: boolean; onPress: () => void; style?: ViewStyle; size?: number };
-
-function Heart({ liked, onPress, style, size }: HeartProps) {
-  return (
-    <Pressable
-      onPress={(e) => {
-        e?.stopPropagation?.();
-        onPress();
-      }}
-      hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-      style={style}
-      accessibilityRole="button"
-      accessibilityLabel={liked ? "Unlike" : "Like"}
-    >
-      <Ionicons
-        name={liked ? "heart" : "heart-outline"}
-        color={liked ? "#BE3455" : "#ababab"}
-        size={size}
-      />
-    </Pressable>
-  );
-}
-
-// Tracks, radio stations and podcast episodes save their likes locally on the device
+// Tracks, radio stations and podcast episodes save their likes locally on the device.
+// Songs are hearted; radio stations and podcast episodes are bookmarked
 export default function FavoriteTrackButton({
   track,
   style,
   size,
 }: FavoriteTrackButtonProps) {
   if (track.liveStation) {
-    return <StationHeart stationId={track.liveStation} style={style} size={size} />;
+    return <StationBookmark stationId={track.liveStation} style={style} size={size} />;
   }
   if (track.podcastEpisodeId) {
-    return <PodcastEpisodeHeart track={track} style={style} size={size} />;
+    return <PodcastEpisodeBookmark track={track} style={style} size={size} />;
   }
   if (!track.url && (!track.id || track.id <= 0)) return null;
   return <TrackHeart track={track} style={style} size={size} />;
@@ -65,7 +43,7 @@ function TrackHeart({
   useFaircampSaves();
   const liked = isFaircampTrackLiked(track);
   return (
-    <Heart
+    <LikeButton
       liked={liked}
       onPress={() => toggleFaircampTrackLike(track)}
       style={style}
@@ -74,7 +52,7 @@ function TrackHeart({
   );
 }
 
-function StationHeart({
+function StationBookmark({
   stationId,
   style,
   size,
@@ -86,11 +64,17 @@ function StationHeart({
   const likes = useStationLikes();
   const liked = likes.some((like) => like.stationId === stationId);
   return (
-    <Heart liked={liked} onPress={() => toggleStationLike(stationId)} style={style} size={size} />
+    <LikeButton
+      kind="bookmark"
+      liked={liked}
+      onPress={() => toggleStationLike(stationId)}
+      style={style}
+      size={size}
+    />
   );
 }
 
-function PodcastEpisodeHeart({
+function PodcastEpisodeBookmark({
   track,
   style,
   size,
@@ -102,7 +86,8 @@ function PodcastEpisodeHeart({
   const likes = usePodcastEpisodeLikes();
   const liked = likes.some((like) => like.episodeId === track.podcastEpisodeId);
   return (
-    <Heart
+    <LikeButton
+      kind="bookmark"
       liked={liked}
       onPress={() => togglePodcastEpisodeLike(track)}
       style={style}

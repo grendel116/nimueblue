@@ -167,26 +167,23 @@ describe("buildFollowedArtists", () => {
 });
 
 describe("buildBookmarks", () => {
-  test("lists liked radio stations and podcast episodes, newest first", () => {
-    const tracks = buildBookmarks({
+  test("lists bookmarked radio stations and podcast shows, newest first", () => {
+    const items = buildBookmarks({
       stationLikes: [{ stationId: "kexp", likedAt: 1000 }],
-      podcastEpisodeLikes: [
+      podcastShows: [
         {
-          episodeId: "ep-42",
           showId: "upstream",
-          title: "Worker Cooperatives in Action",
-          artist: "Upstream Podcast",
-          url: "https://example.com/ep42.mp3",
-          likedAt: 2000,
+          name: "Upstream Podcast",
+          author: "Cooperative Business",
+          artwork: "https://example.com/upstream.jpg",
+          bookmarkedAt: 2000,
         },
       ],
     });
 
-    expect(tracks).toHaveLength(2);
-    expect(tracks[0].podcastEpisodeId).toBe("ep-42");
-    expect(tracks[0].title).toBe("Worker Cooperatives in Action");
-    expect(tracks[0].url).toBe("https://example.com/ep42.mp3");
-    expect(tracks[1].liveStation).toBe("kexp");
-    expect(tracks[1].title).toBe("KEXP 90.3 FM");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ kind: "show", show: { showId: "upstream" } });
+    expect(items[1].kind).toBe("station");
+    expect((items[1] as { track: RNTrack }).track.title).toBe("KEXP 90.3 FM");
   });
 });

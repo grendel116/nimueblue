@@ -30,7 +30,7 @@ import DownloadAlbumButton from "@/components/DownloadAlbumButton";
 import { theme } from "@/constants/theme";
 import TagPill from "@/components/TagPill";
 import { recordHistoryItem } from "@/scripts/historyManager";
-import { SAVED_SOURCE } from "@/scripts/downloadManager";
+import { SAVED_SOURCE, downloadedAlbumMatcher, useDownloads } from "@/scripts/downloadManager";
 import LoadingScreen from "@/components/LoadingScreen";
 
 type DateTimeFormatOptions = Intl.DateTimeFormatOptions;
@@ -116,6 +116,7 @@ export default function AlbumTracks() {
   );
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
+  const downloads = useDownloads();
   const { t } = useTranslation("translation");
   const [showError, setShowError] = useState<boolean>(true);
 
@@ -246,6 +247,7 @@ export default function AlbumTracks() {
 
   const selectedAlbum = data.result;
   const isSavedPage = selectedAlbum.source === SAVED_SOURCE;
+  const onDevice = isSavedPage || downloadedAlbumMatcher(downloads)(selectedAlbum);
   const albumSource =
     selectedAlbum?.source ||
     (selectedAlbum?.tracks?.[0]?.source) ||
@@ -325,11 +327,15 @@ export default function AlbumTracks() {
                 <View style={styles.albumActions}>
                   {!isSavedPage && (
                     <>
-                      <AddAlbumButton
-                        trackGroup={selectedAlbum}
-                        size={36}
-                      />
-                      <DownloadAlbumButton album={selectedAlbum} size={36} />
+                      {!onDevice && (
+                        <>
+                          <AddAlbumButton
+                            trackGroup={selectedAlbum}
+                            size={36}
+                          />
+                          <DownloadAlbumButton album={selectedAlbum} size={36} />
+                        </>
+                      )}
                       <WishlistButton
                         trackGroup={selectedAlbum}
                         displayedTracks={album}

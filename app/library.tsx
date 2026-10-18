@@ -19,14 +19,14 @@ import DownloadsTab from "@/components/DownloadsTab";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
 import {
   DownloadedTrack,
+  downloadedAlbumMatcher,
   groupTracksIntoAlbums,
-  sameAlbum,
   useDownloads,
 } from "@/scripts/downloadManager";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
 import { resolveArtworkUrl } from "@/scripts/utils";
 import { useStationLikes } from "@/scripts/stationLikes";
-import { usePodcastEpisodeLikes, PodcastEpisodeLike } from "@/scripts/podcastLikes";
+import { usePodcastShowBookmarks, PodcastShowBookmark } from "@/scripts/podcastLikes";
 import {
   useFaircampSaves,
   FaircampSaves,
@@ -34,7 +34,6 @@ import {
 } from "@/scripts/faircampSaves";
 import { dragScroll } from "@/scripts/dragScroll";
 import { findStation, liveTrack } from "@/queries/radio";
-import { hashString } from "@/queries/podcast";
 import { FollowedArtist } from "@/queries/listener";
 import { LibraryTab, setLibraryTab, useLibraryTab } from "@/state/libraryTab";
 
@@ -68,18 +67,7 @@ export function albumPageHref(tg: any) {
 export type WishlistAlbum = { trackGroup: AlbumProps; savedAt: number };
 
 // One record, one box: an album moves from Wishlist to Downloads once saved on the device.
-// Downloaded files carry a title and artist, and an album with the same title and artist is
-// that album.
-function downloadedAlbumMatcher(downloads: DownloadedTrack[]) {
-  const saved = groupTracksIntoAlbums(downloads);
-  return (trackGroup: any) =>
-    saved.some((a) =>
-      sameAlbum(
-        { title: a.title, artist: a.artist },
-        { title: trackGroup?.title, artist: trackGroup?.artist?.name },
-      ),
-    );
-}
+// downloadedAlbumMatcher tells which albums are already there.
 
 // Wishlist: albums saved on the device or holding a liked song, newest first.
 // Albums already downloaded move out to Downloads. Each album opens its page.
@@ -108,29 +96,6 @@ export function buildWishlistAlbums({
   return Array.from(albums.values()).sort((a, b) => b.savedAt - a.savedAt);
 }
 
-function episodeTrack(ep: PodcastEpisodeLike): RNTrack {
-  return {
-    id: -(Math.abs(hashString(`ep-${ep.episodeId}`)) || 600000),
-    title: ep.title,
-    artist: ep.artist,
-    artwork: ep.artwork || "",
-    url: ep.url,
-    type: "default",
-    duration: ep.duration,
-    order: 1,
-    queueIndex: 0,
-    allowIndividualSale: false,
-    isPreview: false,
-    audio: {
-      url: ep.url,
-      duration: ep.duration,
-    },
-    trackGroupId: 0,
-    podcastId: ep.showId,
-    podcastEpisodeId: ep.episodeId,
-  } as RNTrack;
-}
-
 // Artists followed on this device
 export function buildFollowedArtists({
   faircampSaves,
@@ -142,22 +107,29 @@ export function buildFollowedArtists({
   }));
 }
 
-// Bookmarks: liked radio stations and podcast episodes, kept on the device, newest first
+export type BookmarkItem =
+  | { kind: "station"; track: RNTrack }
+  | { kind: "show"; show: PodcastShowBookmark };
+
+// Bookmarks: radio stations and podcast shows, kept on the device, newest first
 export function buildBookmarks({
   stationLikes,
-  podcastEpisodeLikes = [],
+  podcastShows = [],
 }: {
   stationLikes: { stationId: string; likedAt: number }[];
-  podcastEpisodeLikes?: PodcastEpisodeLike[];
-}): RNTrack[] {
+  podcastShows?: PodcastShowBookmark[];
+}): BookmarkItem[] {
   const stations = stationLikes.flatMap(({ stationId, likedAt }) => {
     const station = findStation(stationId);
-    return station ? [{ track: liveTrack(station), likedAt }] : [];
+    return station
+      ? [{ item: { kind: "station", track: liveTrack(station) } as BookmarkItem, savedAt: likedAt }]
+      : [];
   });
-  const episodes = podcastEpisodeLikes.map((ep) => ({ track: episodeTrack(ep), likedAt: ep.likedAt }));
-  return [...stations, ...episodes]
-    .sort((a, b) => b.likedAt - a.likedAt)
-    .map(({ track }) => track);
+  const shows = podcastShows.map((show) => ({
+    item: { kind: "show", show } as BookmarkItem,
+    savedAt: show.bookmarkedAt,
+  }));
+  return [...stations, ...shows].sort((a, b) => b.savedAt - a.savedAt).map(({ item }) => item);
 }
 
 export default function LibraryScreen() {
@@ -166,7 +138,7 @@ export default function LibraryScreen() {
   const activeTab = useLibraryTab();
   const downloadedTracks = useDownloads();
   const stationLikes = useStationLikes();
-  const podcastEpisodeLikes = usePodcastEpisodeLikes();
+  const podcastShows = usePodcastShowBookmarks();
   const faircampSaves = useFaircampSaves();
 
   const downloadedAlbums = useMemo(
@@ -187,8 +159,8 @@ export default function LibraryScreen() {
     [faircampSaves],
   );
   const bookmarks = useMemo(
-    () => buildBookmarks({ stationLikes, podcastEpisodeLikes }),
-    [stationLikes, podcastEpisodeLikes],
+    () => buildBookmarks({ stationLikes, podcastShows }),
+    [stationLikes, podcastShows],
   );
 
   const tabs: { id: LibraryTab; label: string; icon: IconName; count: number }[] = [
@@ -306,31 +278,62 @@ export default function LibraryScreen() {
       return renderEmpty(
         "bookmark-outline",
         "No bookmarks yet",
-        "Like a radio station or podcast episode to keep it here.",
+        "Bookmark a radio station or podcast to keep it here.",
       );
     }
+    const stationTracks = bookmarks.flatMap((b) => (b.kind === "station" ? [b.track] : []));
     return (
       <FlatList
         data={bookmarks}
-        keyExtractor={(item) => `bookmark-${item.liveStation ?? item.podcastEpisodeId}`}
+        keyExtractor={(item) =>
+          item.kind === "station" ? `station-${item.track.liveStation}` : `show-${item.show.showId}`
+        }
         initialNumToRender={12}
         maxToRenderPerBatch={10}
         windowSize={5}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
-          const isSelected = Boolean(activeTrack?.url && activeTrack.url === item.url);
+          if (item.kind === "show") {
+            const { show } = item;
+            return (
+              <Pressable
+                android_ripple={{ color: theme.colors.ripple }}
+                onPress={() => router.push({ pathname: "/podcast/[id]", params: { id: show.showId } })}
+                style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              >
+                {show.artwork ? (
+                  <Image source={{ uri: resolveArtworkUrl(show.artwork) }} style={styles.thumb} />
+                ) : (
+                  <View style={[styles.thumb, styles.placeholder]}>
+                    <Ionicons name="mic-outline" size={20} color={theme.colors.primary} />
+                  </View>
+                )}
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {show.name}
+                  </Text>
+                  <Text style={styles.cardArtist} numberOfLines={1}>
+                    {show.author}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+              </Pressable>
+            );
+          }
+          const { track } = item;
+          const isSelected = Boolean(activeTrack?.url && activeTrack.url === track.url);
           return (
             <Pressable
               android_ripple={{ color: theme.colors.ripple }}
-              onPress={() => playTrack(item, bookmarks, "Bookmarks")}
+              onPress={() => playTrack(track, stationTracks, "Bookmarks")}
               style={({ pressed }) => [
                 styles.card,
                 isSelected && styles.selectedCard,
                 pressed && styles.cardPressed,
               ]}
             >
-              {item.artwork ? (
-                <Image source={{ uri: item.artwork }} style={styles.thumb} />
+              {track.artwork ? (
+                <Image source={{ uri: track.artwork }} style={styles.thumb} />
               ) : (
                 <View style={[styles.thumb, styles.placeholder]}>
                   <Ionicons name="radio-outline" size={20} color={theme.colors.primary} />
@@ -344,15 +347,15 @@ export default function LibraryScreen() {
                   ]}
                   numberOfLines={1}
                 >
-                  {item.title}
+                  {track.title}
                 </Text>
                 <Text style={styles.cardArtist} numberOfLines={1}>
-                  {item.artist}
+                  {track.artist}
                 </Text>
               </View>
               <View style={styles.actionRow}>
-                <AddToQueueButton track={item} size={17} />
-                <FavoriteTrackButton track={item} size={17} />
+                <AddToQueueButton track={track} size={17} />
+                <FavoriteTrackButton track={track} size={17} />
               </View>
             </Pressable>
           );
