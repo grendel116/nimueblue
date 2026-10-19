@@ -392,14 +392,15 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         await ensureTrackPlayerInitialized();
         const { activeTrack, playingQueue, activeIndex, isPlaying, shuffled } = latest.current;
 
-        if (
-          isMirloTrack(track) &&
-          track.id &&
-          (trackDisabled(track.id) ||
-            (await isPlaybackLimitReached(track.id, track.trackGroup?.artist?.maxFreePlays)))
-        ) {
-          await TrackPlayer.pause();
-          return;
+        if (isMirloTrack(track) && track.id) {
+          if (trackDisabled(track.id) || isTrackDisabledSync(Number(track.id))) {
+            await TrackPlayer.pause();
+            return;
+          }
+          if (await isPlaybackLimitReached(track.id, track.trackGroup?.artist?.maxFreePlays)) {
+            await TrackPlayer.pause();
+            return;
+          }
         }
 
         const isSameAlbum =

@@ -237,6 +237,144 @@ export function reconcileFaircampReleaseTracks(releaseHtml, pageHtml, releaseUrl
   );
 }
 
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+export function assembleFairplayerAlbum({
+  releaseId,
+  releaseHtml,
+  pageHtml,
+  shopHtml,
+  catalogUrl,
+  releaseUrl,
+}) {
+  const songs = getFairplayerSongElements(releaseHtml);
+  if (!songs.length) return null;
+
+  const h1Match = releaseHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  const albumTitle = h1Match
+    ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+    : getHtmlAttribute(songs[0], "data-release") || releaseId;
+
+  const artistName = getHtmlAttribute(songs[0], "data-artist") || albumTitle;
+  const artwork = getHtmlAttribute(songs[0], "data-image") || "";
+
+  const artistId = hashString(`faircamp:${artistName.toLowerCase()}`);
+  const albumId = hashString(`faircamp:${releaseId.toLowerCase()}`);
+  const siteUrl = releaseUrl || `https://${releaseId.split("@")[1].split(":")[0]}/`;
+
+  const cover = {
+    sizes: {
+      60: artwork,
+      120: artwork,
+      300: artwork,
+      600: artwork,
+      960: artwork,
+      1200: artwork,
+      1500: artwork,
+    },
+  };
+
+  let about = "";
+  if (pageHtml) {
+    const abstractMatch = pageHtml.match(/<div\b[^>]*\bclass=["'][^"']*\babstract\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (abstractMatch) {
+      about = abstractMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    }
+    if (!about) {
+      const ogDescMatch = pageHtml.match(/<meta\b[^>]*\bproperty=["']og:description["'][^>]*\bcontent=["']([^"']*)["']/i);
+      if (ogDescMatch) about = ogDescMatch[1].trim();
+    }
+  }
+
+  const album = {
+    id: albumId,
+    trackGroupId: albumId,
+    title: albumTitle,
+    artistId,
+    artist: {
+      id: artistId,
+      name: artistName,
+      urlSlug: "fairplayer",
+      bio: "",
+      activityPub: false,
+      enabled: true,
+      createdAt: "",
+      trackGroups: [],
+      userId: 0,
+    },
+    urlSlug: `fairplayer-${encodeURIComponent(releaseId)}`,
+    releaseDate: "",
+    about,
+    source: "Faircamp",
+    sourceUrl: siteUrl,
+    cover,
+    tracks: [],
+  };
+
+  const trackGroupSummary = {
+    id: album.id,
+    trackGroupId: album.id,
+    title: album.title,
+    artist: album.artist,
+    artistId: album.artistId,
+    urlSlug: album.urlSlug,
+    cover: album.cover,
+    releaseDate: album.releaseDate,
+    userTrackGroupPurchases: [],
+    source: album.source,
+    sourceUrl: album.sourceUrl,
+  };
+
+  album.tracks = songs.flatMap((song, index) => {
+    const url = getHtmlAttribute(song, "data-url");
+    const trackTitle = getHtmlAttribute(song, "data-title");
+    if (!url || !trackTitle) return [];
+
+    const sourceTrackId = getHtmlAttribute(song, "data-id");
+    const trackIdValue = sourceTrackId || `${releaseId}-${index}`;
+    const numericTrackId = Number(trackIdValue);
+    const trackId = Number.isSafeInteger(numericTrackId)
+      ? numericTrackId
+      : hashString(trackIdValue);
+
+    const durVal = Number(getHtmlAttribute(song, "data-duration"));
+    const duration = Number.isFinite(durVal) && durVal > 0 ? durVal : undefined;
+
+    return [{
+      id: trackId,
+      title: trackTitle,
+      artist: artistName,
+      artwork,
+      url,
+      queueIndex: index,
+      trackGroupId: album.id,
+      order: index + 1,
+      duration,
+      isPreview: true,
+      allowIndividualSale: false,
+      headers: {},
+      type: "default",
+      source: "Faircamp",
+      fairplayerTrackId:
+        sourceTrackId && /^\d+$/.test(sourceTrackId)
+          ? sourceTrackId
+          : `${releaseId}#${index + 1}`,
+      sourceUrl: album.sourceUrl,
+      audio: { url, duration },
+      trackGroup: { ...trackGroupSummary },
+    }];
+  });
+
+  return album;
+}
+
+
 export async function resolveFaircampShare(releaseId, trackNumber) {
   let cleanId = String(releaseId || "").trim();
   try {
@@ -560,8 +698,18 @@ export async function handleFairplayer(request, url, corsHeaders) {
         releaseUrl,
       );
 
+      const album = assembleFairplayerAlbum({
+        releaseId,
+        releaseHtml: reconciledReleaseHtml,
+        pageHtml,
+        shopHtml,
+        catalogUrl,
+        releaseUrl,
+      });
+
       const payload = JSON.stringify({
         releaseId,
+        album,
         releaseHtml: reconciledReleaseHtml,
         catalogUrl,
         releaseUrl,

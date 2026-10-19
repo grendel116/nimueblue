@@ -1,4 +1,3 @@
-import { parse } from "parse5";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { audioTrackType, coverSizes, shuffle } from "@/scripts/utils";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
@@ -160,8 +159,95 @@ function hasClass(node: HtmlNode, className: string): boolean {
   return (getAttribute(node, "class") || "").split(/\s+/).includes(className);
 }
 
+const voidHtmlTags = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+]);
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'");
+}
+
 function parseHtml(html: string): HtmlNode {
-  return parse(html) as unknown as HtmlNode;
+  const root: HtmlNode = { nodeName: "#document", childNodes: [] };
+  const stack: HtmlNode[] = [root];
+  const tagRegex =
+    /<!--[\s\S]*?-->|<(\/?)([a-zA-Z0-9_:-]+)((?:\s+[^=>\s/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^>\s]+))?)*)\s*(\/?)>|([^<]+)/gi;
+  const attrRegex = /([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))?/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(html)) !== null) {
+    const [, isClosing, tagName, attrString, isSelfClosing, text] = match;
+    if (text) {
+      if (text.length > 0) {
+        const textNode: HtmlNode = {
+          nodeName: "#text",
+          value: decodeHtmlEntities(text),
+        };
+        stack[stack.length - 1].childNodes?.push(textNode);
+      }
+      continue;
+    }
+    if (!tagName) continue;
+    const lowerTag = tagName.toLowerCase();
+    if (isClosing) {
+      for (let i = stack.length - 1; i > 0; i--) {
+        if (stack[i].tagName === lowerTag) {
+          stack.length = i;
+          break;
+        }
+      }
+      continue;
+    }
+    const attrs: { name: string; value: string }[] = [];
+    if (attrString) {
+      let attrMatch: RegExpExecArray | null;
+      while ((attrMatch = attrRegex.exec(attrString)) !== null) {
+        const name = attrMatch[1];
+        if (!name) continue;
+        const rawVal =
+          attrMatch[2] !== undefined
+            ? attrMatch[2]
+            : attrMatch[3] !== undefined
+              ? attrMatch[3]
+              : attrMatch[4] !== undefined
+                ? attrMatch[4]
+                : "";
+        attrs.push({
+          name: name.toLowerCase(),
+          value: decodeHtmlEntities(rawVal),
+        });
+      }
+    }
+    const node: HtmlNode = {
+      nodeName: lowerTag,
+      tagName: lowerTag,
+      attrs,
+      childNodes: [],
+    };
+    stack[stack.length - 1].childNodes?.push(node);
+    if (!isSelfClosing && !voidHtmlTags.has(lowerTag)) {
+      stack.push(node);
+    }
+  }
+  return root;
 }
 
 function resolveRelativeUrl(rawHref: string | undefined, baseUrl: string): string {
@@ -1257,6 +1343,7 @@ export type FairplayerAlbumBundle = {
   releaseUrl?: string;
   pageHtml?: string | null;
   shopHtml?: string | null;
+  album?: AlbumProps;
 };
 
 export async function fetchFairplayerAlbum(
@@ -1283,6 +1370,10 @@ export async function fetchFairplayerAlbum(
   }
 
   const bundle = (await response.json()) as FairplayerAlbumBundle;
+  if (bundle.album) {
+    recordKnownAlbum(bundle.album, bundle.catalogUrl);
+    return bundle.album;
+  }
   const album = parseFairplayerRelease(bundle.releaseHtml, releaseSlug);
   if (bundle.releaseUrl) {
     album.sourceUrl = bundle.releaseUrl;
