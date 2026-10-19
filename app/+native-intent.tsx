@@ -40,6 +40,11 @@ export function normalizeAppRoute(route: string): string {
 
   pathOnly = pathOnly.replace(/\/+$/, "") || "/";
 
+  // When loaded via file:///android_asset/web/index.html, route to home
+  if (pathOnly.includes("android_asset") || pathOnly.endsWith("index.html")) {
+    return "/";
+  }
+
   // Match /artist/:artist/album/:album (and normalize any /tracks/:trackId to album-tracks)
   const albumMatch = pathOnly.match(/^\/artist\/([^/]+)\/album\/([^/]+)(?:\/tracks\/[^/]+|\/album-tracks)?$/i);
   if (albumMatch) {

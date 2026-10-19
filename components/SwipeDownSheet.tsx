@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
-import { StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
@@ -98,9 +98,9 @@ export default function SwipeDownSheet({
       const pan = Gesture.Pan()
         .enabled(enabled)
         .activeOffsetY(10)
-        .failOffsetX([-16, 16])
+        .failOffsetX([-45, 45])
         .onStart(() => {
-          startedAtTop.value = !needsTop || scrollOffset.value <= 0;
+          startedAtTop.value = !needsTop || scrollOffset.value <= 10;
         })
         .onUpdate((event) => {
           if (!startedAtTop.value) return;
@@ -119,6 +119,9 @@ export default function SwipeDownSheet({
             },
           );
         });
+      if (Platform.OS === "web") {
+        return pan;
+      }
       return needsTop ? pan.simultaneousWithExternalGesture(scrollGesture) : pan;
     },
     [scrollGesture, scrollOffset, startedAtTop, translateY, heightSv, leave],

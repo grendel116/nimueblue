@@ -3,7 +3,9 @@ import { StyleSheet, View, BackHandler, StatusBar } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-player";
 import * as SplashScreen from "expo-splash-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureTrackPlayerInitialized } from "@/state/player/setup";
+import { chooseMusicFolder, openMusicFolder } from "@/scripts/musicFolder";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
@@ -161,10 +163,58 @@ export default function WebShellView() {
         case "webReady":
           SplashScreen.hideAsync().catch(() => {});
           break;
+        case "pickMusicFolder":
+          try {
+            const success = await chooseMusicFolder();
+            const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
+            const name = folderInfo ? decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music" : "";
+            webViewRef.current?.injectJavaScript(
+              `window.postMessage(${JSON.stringify({
+                type: "musicFolderUpdated",
+                status: success ? "ready" : "none",
+                name,
+              })}, '*'); true;`
+            );
+          } catch (err) {
+            console.warn("pickMusicFolder error:", err);
+          }
+          break;
+        case "openMusicFolder":
+          try {
+            await openMusicFolder();
+            const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
+            const name = folderInfo ? decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music" : "";
+            webViewRef.current?.injectJavaScript(
+              `window.postMessage(${JSON.stringify({
+                type: "musicFolderUpdated",
+                status: folderInfo ? "ready" : "none",
+                name,
+              })}, '*'); true;`
+            );
+          } catch (err) {
+            console.warn("openMusicFolder error:", err);
+          }
+          break;
       }
     } catch (e) {
       console.warn("Failed to process message from WebView:", e);
     }
+  };
+
+  const syncFolderToWeb = async () => {
+    try {
+      const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
+      if (folderInfo) {
+        const name = decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music";
+        webViewRef.current?.injectJavaScript(
+          `window.postMessage(${JSON.stringify({
+            type: "musicFolderUpdated",
+            status: "ready",
+            name,
+          })}, '*'); true;`
+        );
+      }
+    } catch {}
   };
 
   return (
@@ -180,11 +230,13 @@ export default function WebShellView() {
         allowUniversalAccessFromFileURLs={true}
         javaScriptEnabled={true}
         domStorageEnabled={true}
+        mixedContentMode="always"
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback={true}
         onMessage={onMessage}
         onLoadEnd={() => {
           syncStateToWeb();
+          syncFolderToWeb();
           SplashScreen.hideAsync().catch(() => {});
         }}
       />

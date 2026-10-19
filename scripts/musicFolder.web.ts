@@ -24,7 +24,11 @@ import {
 
 export type MusicFolderStatus = "unsupported" | "none" | "needs-permission" | "ready";
 
-const SUPPORTED = typeof window !== "undefined" && "showDirectoryPicker" in window;
+function isWebViewBridge(): boolean {
+  return typeof window !== "undefined" && Boolean((window as any).ReactNativeWebView);
+}
+
+const SUPPORTED = (typeof window !== "undefined" && "showDirectoryPicker" in window) || isWebViewBridge();
 const DB_NAME = "nimueblue";
 const STORE = "handles";
 const HANDLE_KEY = "musicFolder";
@@ -32,6 +36,7 @@ const HANDLE_KEY = "musicFolder";
 const TAG_BYTES = 4 * 1024 * 1024;
 
 let folder: FileSystemDirectoryHandle | null = null;
+let folderName: string = "";
 let status: MusicFolderStatus = SUPPORTED ? "none" : "unsupported";
 const listeners = new Set<() => void>();
 const links: FolderLinks = { audio: new Map(), covers: new Map() };
@@ -39,6 +44,21 @@ const links: FolderLinks = { audio: new Map(), covers: new Map() };
 function setStatus(next: MusicFolderStatus) {
   status = next;
   listeners.forEach((listener) => listener());
+}
+
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("message", (event: any) => {
+    try {
+      let raw = event.data;
+      if (typeof raw === "string") raw = JSON.parse(raw);
+      if (raw?.type === "musicFolderUpdated") {
+        if (raw.status) {
+          folderName = raw.name || folderName;
+          setStatus(raw.status);
+        }
+      }
+    } catch {}
+  });
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -72,12 +92,16 @@ export function useMusicFolder(): { status: MusicFolderStatus; name: string } {
       listeners.delete(listener);
     };
   }, []);
-  return { status, name: folder?.name ?? "" };
+  return { status, name: isWebViewBridge() ? folderName : (folder?.name ?? "") };
 }
 
 // Reopens the folder chosen on an earlier visit. The browser keeps permission for some
 // sessions; otherwise the listener reconnects with a tap
 export async function openMusicFolder(): Promise<void> {
+  if (isWebViewBridge()) {
+    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "openMusicFolder" }));
+    return;
+  }
   if (!SUPPORTED) return;
   folder = (await storeRequest<FileSystemDirectoryHandle | undefined>("readonly", (s) => s.get(HANDLE_KEY))) ?? null;
   if (!folder) return setStatus("none");
@@ -89,6 +113,10 @@ export async function openMusicFolder(): Promise<void> {
 // Asks for a folder and scans it. Call it straight from a tap: the browser shows its picker
 // only for a fresh user gesture
 export async function chooseMusicFolder(): Promise<boolean> {
+  if (isWebViewBridge()) {
+    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "pickMusicFolder" }));
+    return true;
+  }
   let picked: FileSystemDirectoryHandle;
   try {
     picked = await window.showDirectoryPicker({ id: "mirlo-music", mode: "readwrite", startIn: "music" });
@@ -106,6 +134,9 @@ export async function chooseMusicFolder(): Promise<boolean> {
 
 // Asks the browser to let the app back into the folder; also needs a fresh tap
 export async function reconnectMusicFolder(): Promise<boolean> {
+  if (isWebViewBridge()) {
+    return chooseMusicFolder();
+  }
   if (!folder) return chooseMusicFolder();
   if ((await folder.requestPermission({ mode: "readwrite" })) !== "granted") return false;
   await linkFiles();
