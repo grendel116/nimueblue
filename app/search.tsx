@@ -111,7 +111,7 @@ export default function SearchPage() {
         >
           {searchResults.length > 0 ? (
             <View>
-              <Text style={styles.sectionHeader}>Catalog Results</Text>
+              <Text style={styles.sectionHeader}>Results</Text>
               {searchResults.map((item, index) => (
                 <View key={`${index}-${item.id || item.name}`}>
                   {optionDisplay(item, index)}

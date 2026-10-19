@@ -1,6 +1,8 @@
 import { useState, createContext, useContext } from "react";
 import * as api from "../queries/fetch/fetchWrapper";
 import { searchFairplayerAlbums } from "@/queries/fairplayer";
+import { searchRadioStations, RadioStation } from "@/queries/radio";
+import { searchPodcastShows, PodcastShow } from "@/queries/podcast";
 
 // Albums carrying every tag that matches the search, so "disco" also finds releases
 // tagged disco, nu-disco, italo-disco, disco-house and the rest
@@ -46,6 +48,13 @@ export type Result = {
   artistId?: number | string;
   trackGroupId?: number | string;
   artistName?: string;
+  imageUrl?: string;
+  isStation?: boolean;
+  isPodcast?: boolean;
+  isTrack?: boolean;
+  isTrackGroup?: boolean;
+  isArtist?: boolean;
+  firstInCategory?: boolean;
   avatar?: {
     url: string;
     sizes?: { [key: string]: string };
@@ -76,16 +85,25 @@ export const SearchContextProvider: React.FC<{
 
   async function getOptions(searchString: string) {
     const term = searchString.trim();
-    const [artists, trackGroups, tracks, taggedAlbums, fairplayerAlbums] = await Promise.all([
-      api.getMany<Artist>(`/v1/artists`, {}, { name: term }),
-      api.getMany<AlbumProps>(`/v1/trackGroups`, {}, { title: term }),
-      api.getMany<RNTrack>(`/v1/tracks`, {}, { title: term }),
-      fetchTaggedAlbums(term),
-      searchFairplayerAlbums(term).catch((error) => {
-        console.warn("Fairplayer catalog search failed:", error);
-        return [] as AlbumProps[];
-      }),
-    ]);
+    const [artists, trackGroups, tracks, taggedAlbums, fairplayerAlbums, radioStations, podcastShows] =
+      await Promise.all([
+        api.getMany<Artist>(`/v1/artists`, {}, { name: term }),
+        api.getMany<AlbumProps>(`/v1/trackGroups`, {}, { title: term }),
+        api.getMany<RNTrack>(`/v1/tracks`, {}, { title: term }),
+        fetchTaggedAlbums(term),
+        searchFairplayerAlbums(term).catch((error) => {
+          console.warn("Fairplayer catalog search failed:", error);
+          return [] as AlbumProps[];
+        }),
+        searchRadioStations(term).catch((error) => {
+          console.warn("Radio search failed:", error);
+          return [] as RadioStation[];
+        }),
+        searchPodcastShows(term).catch((error) => {
+          console.warn("Podcast search failed:", error);
+          return [] as PodcastShow[];
+        }),
+      ]);
 
     const seenAlbums = new Set<string>();
     const mirloAlbums = [...trackGroups.results, ...taggedAlbums].filter((album) => {
@@ -136,6 +154,24 @@ export const SearchContextProvider: React.FC<{
         trackGroupCover: album.cover,
         name: album.title,
         isTrackGroup: true,
+      })),
+      ...radioStations.map((station, sid) => ({
+        firstInCategory: sid === 0,
+        category: "Radio",
+        id: station.id,
+        name: station.name,
+        artistName: station.location,
+        imageUrl: station.artwork,
+        isStation: true,
+      })),
+      ...podcastShows.map((podcast, pid) => ({
+        firstInCategory: pid === 0,
+        category: "Podcast",
+        id: podcast.id,
+        name: podcast.name,
+        artistName: podcast.author,
+        imageUrl: podcast.artwork,
+        isPodcast: true,
       })),
     ];
 

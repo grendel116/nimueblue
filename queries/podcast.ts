@@ -483,3 +483,72 @@ export function episodeTrack(
     podcastEpisodeId: episode.id,
   } as RNTrack;
 }
+
+export async function searchPodcastShows(
+  term: string,
+  signal?: AbortSignal,
+): Promise<PodcastShow[]> {
+  const query = term.trim().toLowerCase();
+  if (!query) return [];
+
+  const curatedMatches = PODCAST_SHOWS.filter(
+    (s) =>
+      s.name.toLowerCase().includes(query) ||
+      s.author.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query),
+  );
+
+  const cachedMatches = [...DISCOVERED_PODCASTS.values()].filter(
+    (s) =>
+      s.name.toLowerCase().includes(query) ||
+      s.author.toLowerCase().includes(query) ||
+      s.description.toLowerCase().includes(query),
+  );
+
+  let remoteShows: PodcastShow[] = [];
+  try {
+    const endpoint = `https://itunes.apple.com/search?media=podcast&term=${encodeURIComponent(query)}&limit=15`;
+    const res = await fetch(endpoint, { signal });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.results)) {
+        remoteShows = data.results
+          .filter(
+            (item: any) =>
+              item &&
+              typeof item.collectionName === "string" &&
+              typeof item.feedUrl === "string" &&
+              /^https?:\/\//i.test(item.feedUrl) &&
+              isQualityArtwork(item.artworkUrl600 || item.artworkUrl100),
+          )
+          .map((item: any) => {
+            const id = `pod-${item.collectionId}`;
+            const show = createPodcastShow({
+              id,
+              name: item.collectionName,
+              author: item.artistName || item.collectionName,
+              description: item.genres?.join(", ") || "",
+              artwork: item.artworkUrl600 || item.artworkUrl100,
+              feedUrl: item.feedUrl,
+              webUrl: item.collectionViewUrl || item.feedUrl,
+            });
+            DISCOVERED_PODCASTS.set(id, show);
+            return show;
+          });
+      }
+    }
+  } catch {
+    // Return curated and cached matches if remote search fails
+  }
+
+  const seen = new Set<string>();
+  return [...curatedMatches, ...cachedMatches, ...remoteShows].filter((show) => {
+    const key = show.id.toLowerCase();
+    const feedKey = (show.feedUrl || "").toLowerCase();
+    if (seen.has(key) || (feedKey && seen.has(feedKey))) return false;
+    seen.add(key);
+    if (feedKey) seen.add(feedKey);
+    return true;
+  });
+}
+

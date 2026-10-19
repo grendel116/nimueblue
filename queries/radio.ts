@@ -516,3 +516,54 @@ export function liveTrack(station: RadioStation): RNTrack {
     liveStation: station.id,
   } as RNTrack;
 }
+
+export async function searchRadioStations(
+  term: string,
+  signal?: AbortSignal,
+): Promise<RadioStation[]> {
+  const query = term.trim().toLowerCase();
+  if (!query) return [];
+
+  const curatedMatches = RADIO_STATIONS.filter(
+    (s) =>
+      s.name.toLowerCase().includes(query) ||
+      s.liveName.toLowerCase().includes(query) ||
+      s.location.toLowerCase().includes(query) ||
+      s.about.toLowerCase().includes(query),
+  );
+
+  const cachedMatches = [...DISCOVERED_STATIONS.values()].filter(
+    (s) =>
+      s.name.toLowerCase().includes(query) ||
+      s.liveName.toLowerCase().includes(query) ||
+      s.location.toLowerCase().includes(query) ||
+      s.about.toLowerCase().includes(query),
+  );
+
+  let remoteStations: RadioStation[] = [];
+  try {
+    const endpoint = `https://de1.api.radio-browser.info/json/stations/byname/${encodeURIComponent(query)}?order=clickcount&reverse=true&hidebroken=true&limit=15`;
+    const res = await fetch(endpoint, { signal });
+    if (res.ok) {
+      const data: RadioBrowserStation[] = await res.json();
+      if (Array.isArray(data)) {
+        remoteStations = data
+          .filter((rb) => {
+            const stream = (rb.url_resolved || rb.url || "").trim();
+            if (!stream || !rb.name?.trim()) return false;
+            if (!stream.toLowerCase().startsWith("https://")) return false;
+            if (!isQualityArtwork(rb.favicon)) return false;
+            const path = stream.split("?")[0].toLowerCase();
+            if (path.endsWith(".m3u") || path.endsWith(".pls") || path.endsWith(".asx")) return false;
+            return true;
+          })
+          .map(radioBrowserToRadioStation);
+      }
+    }
+  } catch {
+    // Return curated and cached matches if remote search fails
+  }
+
+  return deduplicateRadioStations([...curatedMatches, ...cachedMatches, ...remoteStations]);
+}
+

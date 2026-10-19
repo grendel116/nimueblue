@@ -1,39 +1,25 @@
 import { View, Pressable, Text, Image, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useSearch } from "@/state/SearchContext";
+import { useSearch, Result } from "@/state/SearchContext";
 import { theme } from "@/constants/theme";
 
-type Result = {
-  result: {
-    id: number | string;
-    name: string;
-    category?: string;
-    artistId?: number | string;
-    trackGroupId?: number | string;
-    artistName?: string;
-    avatar?: {
-      url: string;
-      sizes?: { [key: string]: string };
-      updatedAt: string;
-    };
-    trackGroupCover?: {
-      sizes: {
-        60: string;
-        120: string;
-        300: string;
-        600: string;
-        960: string;
-        1200: string;
-        1500: string;
-      };
-    };
-  };
+type SearchItemProps = {
+  result: Result;
   index: number;
 };
 
-export default function SearchItem({ result, index }: Result) {
+export default function SearchItem({ result, index }: SearchItemProps) {
   const router = useRouter();
   const { setSearchResults, setShowSuggestions } = useSearch();
+
+  const imageSource = result.imageUrl
+    ? { uri: result.imageUrl }
+    : result.trackGroupCover?.sizes?.[120]
+      ? { uri: result.trackGroupCover.sizes[120] }
+      : result.avatar?.sizes?.[120]
+        ? { uri: result.avatar.sizes[120] }
+        : require("@/assets/images/nimue-blue-logo.png");
+
   return (
     <View style={styles.container}>
       <Pressable
@@ -41,18 +27,17 @@ export default function SearchItem({ result, index }: Result) {
           setSearchResults([]);
           setShowSuggestions(false);
           router.back();
-          router.navigate(constructUrl(result));
+          const target = constructUrl(result);
+          if (typeof target === "string") {
+            router.navigate(target as any);
+          } else {
+            router.navigate(target);
+          }
         }}
         style={styles.pressable}
       >
         <Image
-          source={
-            result.trackGroupCover?.sizes?.[120]
-              ? { uri: result.trackGroupCover.sizes[120] }
-              : result.avatar?.sizes?.[120]
-                ? { uri: result.avatar.sizes[120] }
-                : require("@/assets/images/nimue-blue-logo.png")
-          }
+          source={imageSource}
           style={styles.image}
         />
         <View style={styles.textContainer}>
@@ -69,7 +54,7 @@ export default function SearchItem({ result, index }: Result) {
               numberOfLines={1}
               style={styles.artistName}
             >
-              by {result.artistName.trim()}
+              {result.isStation ? result.artistName.trim() : `by ${result.artistName.trim()}`}
             </Text>
           )}
           <Text style={styles.category}>{result.category}</Text>
@@ -79,12 +64,16 @@ export default function SearchItem({ result, index }: Result) {
   );
 }
 
-const constructUrl = (r: any) => {
+const constructUrl = (r: Result) => {
   if (!r) {
     return "/";
   }
 
-  if (r.isTrack) {
+  if (r.isStation) {
+    return { pathname: "/station/[id]", params: { id: String(r.id) } } as const;
+  } else if (r.isPodcast) {
+    return { pathname: "/podcast/[id]", params: { id: String(r.id) } } as const;
+  } else if (r.isTrack) {
     return `/artist/${r.artistId}/album/${r.trackGroupId}/tracks/${r.id}` as const;
   } else if (r.isTrackGroup) {
     return `/artist/${r.artistId}/album/${r.trackGroupId}/album-tracks` as const;
