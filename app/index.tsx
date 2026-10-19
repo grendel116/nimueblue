@@ -354,9 +354,9 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                   horizontal
                   data={recentReleases}
                   keyExtractor={(item, index) => String(item.id ?? index)}
-                  initialNumToRender={4}
-                  maxToRenderPerBatch={4}
-                  windowSize={3}
+                  initialNumToRender={CAROUSEL_LIMIT}
+                  maxToRenderPerBatch={CAROUSEL_LIMIT}
+                  windowSize={5}
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.carouselContent}
                   renderItem={({ item }) => {
@@ -371,11 +371,17 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                         style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
                       >
                         <View style={styles.cardImageContainer}>
-                          <Image
-                            source={resolveQualityArtworkSource(coverUri)}
-                            style={styles.cardCoverImage}
-                            resizeMode="cover"
-                          />
+                          {coverUri ? (
+                            <Image
+                              source={resolveQualityArtworkSource(coverUri)}
+                              style={styles.cardCoverImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={[styles.cardCoverImage, styles.placeholderCover]}>
+                              <Ionicons name="musical-notes" size={32} color={theme.colors.textMuted} />
+                            </View>
+                          )}
                           <View style={styles.glassSheen} />
                         </View>
                         <Text style={styles.cardTitle} numberOfLines={1}>
@@ -403,9 +409,9 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                 horizontal
                 data={radioStations}
                 keyExtractor={(station) => station.id}
-                initialNumToRender={4}
-                maxToRenderPerBatch={4}
-                windowSize={3}
+                initialNumToRender={CAROUSEL_LIMIT}
+                maxToRenderPerBatch={CAROUSEL_LIMIT}
+                windowSize={5}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.carouselContent}
                 renderItem={({ item }) => (
@@ -424,9 +430,9 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                 horizontal
                 data={podcastShows}
                 keyExtractor={(show) => show.id}
-                initialNumToRender={4}
-                maxToRenderPerBatch={4}
-                windowSize={3}
+                initialNumToRender={CAROUSEL_LIMIT}
+                maxToRenderPerBatch={CAROUSEL_LIMIT}
+                windowSize={5}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.carouselContent}
                 renderItem={({ item }) => <DiscussionCard show={item} cardWidth={cardWidth} />}
@@ -461,8 +467,7 @@ function StationCard({
   const [failedArtwork, setFailedArtwork] = useState<string>();
   const onAirArtwork = onAir?.artwork;
   const rawImage = isQualityArtwork(onAirArtwork) ? onAirArtwork : station.artwork;
-
-  if (!isQualityArtwork(rawImage) || failedArtwork === rawImage) return null;
+  const hasValidArtwork = isQualityArtwork(rawImage) && failedArtwork !== rawImage;
 
   return (
     <Pressable
@@ -472,12 +477,18 @@ function StationCard({
       style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
     >
       <View style={styles.cardImageContainer}>
-        <Image
-          source={{ uri: resolveArtworkUrl(rawImage) }}
-          style={styles.cardCoverImage}
-          resizeMode="cover"
-          onError={() => setFailedArtwork(rawImage)}
-        />
+        {hasValidArtwork ? (
+          <Image
+            source={{ uri: resolveArtworkUrl(rawImage) }}
+            style={styles.cardCoverImage}
+            resizeMode="cover"
+            onError={() => setFailedArtwork(rawImage)}
+          />
+        ) : (
+          <View style={[styles.cardCoverImage, styles.placeholderCover]}>
+            <Ionicons name="radio" size={32} color={theme.colors.textMuted} />
+          </View>
+        )}
         <View style={styles.glassSheen} />
         <Text style={styles.airtimeBadge}>LIVE</Text>
       </View>
@@ -495,8 +506,7 @@ function StationCard({
 function DiscussionCard({ show, cardWidth }: { show: PodcastShow; cardWidth: number }) {
   const router = useRouter();
   const [failedArtwork, setFailedArtwork] = useState<string>();
-
-  if (!isQualityArtwork(show.artwork) || failedArtwork === show.artwork) return null;
+  const hasValidArtwork = isQualityArtwork(show.artwork) && failedArtwork !== show.artwork;
 
   return (
     <Pressable
@@ -506,12 +516,18 @@ function DiscussionCard({ show, cardWidth }: { show: PodcastShow; cardWidth: num
       style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
     >
       <View style={styles.cardImageContainer}>
-        <Image
-          source={{ uri: resolveArtworkUrl(show.artwork) }}
-          style={styles.cardCoverImage}
-          resizeMode="cover"
-          onError={() => setFailedArtwork(show.artwork)}
-        />
+        {hasValidArtwork ? (
+          <Image
+            source={{ uri: resolveArtworkUrl(show.artwork) }}
+            style={styles.cardCoverImage}
+            resizeMode="cover"
+            onError={() => setFailedArtwork(show.artwork)}
+          />
+        ) : (
+          <View style={[styles.cardCoverImage, styles.placeholderCover]}>
+            <Ionicons name="mic" size={32} color={theme.colors.textMuted} />
+          </View>
+        )}
         <View style={styles.glassSheen} />
         <Text style={styles.airtimeBadge}>TALK</Text>
       </View>
@@ -718,5 +734,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
     borderRadius: theme.radius.sm,
     backgroundColor: theme.colors.surface,
+  },
+  placeholderCover: {
+    backgroundColor: theme.colors.surfaceElevated,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

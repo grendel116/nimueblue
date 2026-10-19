@@ -137,12 +137,51 @@ export default function SwipeDownSheet({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const scroll = useMemo(() => ({ onScroll, scrollGesture }), [onScroll, scrollGesture]);
+  // Direct web touch handlers so swipe down works anywhere across the sheet on web
+  const webTouchStartY = useRef(0);
+  const isWebSwiping = useRef(false);
+
+  const onWebTouchStart = useCallback((e: any) => {
+    if (Platform.OS !== "web") return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    webTouchStartY.current = touch.clientY;
+    isWebSwiping.current = false;
+  }, []);
+
+  const onWebTouchMove = useCallback((e: any) => {
+    if (Platform.OS !== "web") return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const dy = touch.clientY - webTouchStartY.current;
+    if (scrollOffset.value <= 10 && dy > 10) {
+      isWebSwiping.current = true;
+      translateY.value = Math.max(0, dy);
+    }
+  }, [scrollOffset, translateY]);
+
+  const onWebTouchEnd = useCallback(() => {
+    if (Platform.OS !== "web" || !isWebSwiping.current) return;
+    isWebSwiping.current = false;
+    const shouldClose = translateY.value > heightSv.value * 0.22;
+    translateY.value = withTiming(
+      shouldClose ? heightSv.value : 0,
+      { duration: SETTLE_MS },
+      (finished) => {
+        if (finished && shouldClose) runOnJS(leave)();
+      },
+    );
+  }, [heightSv, translateY, leave]);
 
   return (
     <SheetCloseContext.Provider value={close}>
       <SheetScrollContext.Provider value={scroll}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View
+          style={[styles.sheet, sheetStyle]}
+          onTouchStart={onWebTouchStart}
+          onTouchMove={onWebTouchMove}
+          onTouchEnd={onWebTouchEnd}
+        >
           <GestureDetector gesture={bodyGesture}>
             <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
               <GestureDetector gesture={barGesture}>
