@@ -8,6 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "node scripts/buildWeb.js",
+    "build:shell": "node scripts/buildWebShell.js",
     "test": "jest --watchAll",
     "test:ci": "jest --ci --watchAll=false",
     "lint": "expo lint",

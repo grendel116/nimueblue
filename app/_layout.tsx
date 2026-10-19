@@ -20,6 +20,8 @@ import { theme } from "@/constants/theme";
 import { checkForUpdates } from "../scripts/appVersionCheck";
 import { openMusicFolder } from "@/scripts/musicFolder";
 
+import WebShellView from "@/components/WebShellView";
+
 SplashScreen.preventAutoHideAsync();
 
 // Keep the home screen under deep-linked routes: it is what hides the splash
@@ -33,7 +35,7 @@ SplashScreen.setOptions({
 
 TrackPlayer.registerPlaybackService(() => require("../scripts/service"));
 
-export default function RootLayout() {
+function StandardAppLayout() {
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [fontsLoaded, fontError] = useFonts({
     MedievalScroll: require("../assets/fonts/Medieval-Scroll-of-Wisdom.ttf"),
@@ -76,6 +78,13 @@ export default function RootLayout() {
     if ((fontsLoaded || fontError) && isDataLoaded) {
       clearTimeout(fallbackTimer);
       SplashScreen.hide();
+      if (
+        Platform.OS === "web" &&
+        typeof window !== "undefined" &&
+        Boolean((window as any).ReactNativeWebView)
+      ) {
+        (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "webReady" }));
+      }
     }
 
     return () => clearTimeout(fallbackTimer);
@@ -215,3 +224,11 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default function RootLayout() {
+  if (Platform.OS === "android") {
+    return <WebShellView />;
+  }
+  return <StandardAppLayout />;
+}
+
