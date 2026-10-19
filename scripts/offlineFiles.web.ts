@@ -25,13 +25,32 @@ import {
   songFileName,
 } from "./songFiles";
 import { linkFiles, readyMusicFolder, removeFile, writeFile } from "./musicFolder.web";
+import { IN_NATIVE_SHELL, askNative } from "./nativeShell";
 
-// The browser adds your own music through the music folder, so picking files (Add files,
-// Add folder, album covers) stays in the phone app
-export const PICKS_PHONE_FILES = false;
+// The browser adds your own music through the music folder, so picking album covers stays
+// with the phone, which the Android app reaches through its shell
+export const PICKS_PHONE_FILES = IN_NATIVE_SHELL;
 
-// Downloads unpack directly into the listener's music folder on Chromium browsers
-export const CAN_DOWNLOAD = typeof window !== "undefined" && "showDirectoryPicker" in window;
+// Downloads unpack directly into the listener's music folder on Chromium browsers; the
+// Android app hands them to the phone's browser instead
+export const CAN_DOWNLOAD =
+  IN_NATIVE_SHELL || (typeof window !== "undefined" && "showDirectoryPicker" in window);
+
+// In the Android app Mirlo's zip goes to the phone's browser, which saves it to Downloads,
+// as the phone build does
+async function sendZipToPhone(
+  source: MirloSource,
+  id: number,
+  format: DownloadFormat,
+  onStage: (stage: DownloadStage) => void,
+): Promise<void> {
+  onStage("preparing");
+  const url = await mirloZipUrl(source, id, format);
+  // Mirlo's own address needs the listener's login headers, which the browser can't send
+  if (url.startsWith(API_ROOT)) throw new Error("Mirlo didn't give a download link for this one");
+  onStage("downloading");
+  window.open(url, "_blank");
+}
 
 function unzipped(zip: Uint8Array): Promise<Unzipped> {
   return new Promise((resolve, reject) => unzip(zip, (err, files) => (err ? reject(err) : resolve(files))));
@@ -127,9 +146,10 @@ export async function downloadAlbum(
   album: AlbumProps,
   format: DownloadFormat,
   onStage: (stage: DownloadStage) => void,
-): Promise<number> {
+): Promise<void> {
+  if (IN_NATIVE_SHELL) return sendZipToPhone("trackGroups", album.id, format, onStage);
   const tracks = album.tracks ?? [];
-  return downloadIntoFolder(
+  await downloadIntoFolder(
     "trackGroups",
     album.id,
     album,
@@ -147,11 +167,13 @@ export async function downloadTrack(
   format: DownloadFormat,
   onStage: (stage: DownloadStage) => void,
 ): Promise<void> {
+  if (IN_NATIVE_SHELL) return sendZipToPhone("tracks", track.id, format, onStage);
   await downloadIntoFolder("tracks", track.id, album, format, onStage, () => track, () => false);
 }
 
 // Deletes saved songs from the music folder, then the covers no saved song uses any more
 export async function removeDownloads(tracks: DownloadedTrack[]): Promise<void> {
+  if (IN_NATIVE_SHELL) return askNative("removeDownloads", { ids: tracks.map((t) => t.id) });
   for (const t of tracks) if (t.path) await removeFile(t.path);
   await forgetDownloadedTracks(tracks.map((t) => t.id));
 
@@ -162,4 +184,7 @@ export async function removeDownloads(tracks: DownloadedTrack[]): Promise<void> 
   }
 }
 
-export async function chooseAlbumCover(_album: DownloadedAlbum): Promise<void> {}
+// The Android app lets you pick an album's cover from the phone
+export async function chooseAlbumCover(album: DownloadedAlbum): Promise<void> {
+  if (IN_NATIVE_SHELL) return askNative("chooseAlbumCover", { key: album.key });
+}

@@ -69,22 +69,14 @@ describe("queue model", () => {
     expect(s.userQueue).toEqual([]);
   });
 
-  test("a new album replaces Next Up and Discovery but not Your Queue", () => {
+  test("a new album replaces Next Up while retaining Discovery and Your Queue", () => {
     let s = play(emptyQueue, album, 0, "Space Trash");
     s = addToQueue(s, song(9));
     s = addDiscovery(s, [song(20)], s.generation);
     s = play(s, [song(30), song(31)], 0, "Other EP");
     expect(ids(s.userQueue)).toEqual([9]);
     expect(ids(s.nextUp)).toEqual([31]);
-    expect(s.discovery).toEqual([]);
-  });
-
-  test("Discovery that arrives after a new album started is dropped", () => {
-    let s = play(emptyQueue, album, 0, "Space Trash");
-    const oldGeneration = s.generation;
-    s = play(s, [song(30)], 0, "Other EP");
-    s = addDiscovery(s, [song(20)], oldGeneration);
-    expect(s.discovery).toEqual([]);
+    expect(ids(s.discovery)).toEqual([20]);
   });
 
   test("tapping a song further down Your Queue removes the songs above it", () => {

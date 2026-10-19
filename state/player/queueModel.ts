@@ -132,7 +132,7 @@ export function upcoming(state: QueueState): RNTrack[] {
   return [...state.nextUp, ...state.discovery];
 }
 
-// Starts `tracks[startIndex]`; the songs after it become Next Up. Your Queue stays
+// Starts `tracks[startIndex]`; the songs after it become Next Up. Your Queue and Discovery stay
 export function play(
   state: QueueState,
   tracks: RNTrack[],
@@ -143,15 +143,30 @@ export function play(
   const prepared = tracks.map((t) => entry(t));
   const start = Math.min(Math.max(0, startIndex), prepared.length - 1);
   if (start < 0) return state;
+
+  const currentTrack = prepared[start];
+  const nextUp = prepared.slice(start + 1);
+  const nextUpIds = new Set(nextUp.map((t) => t.id).filter((id) => id !== undefined));
+  const nextUpUrls = new Set(nextUp.map((t) => t.url).filter(Boolean));
+  if (currentTrack.id !== undefined) nextUpIds.add(currentTrack.id);
+  if (currentTrack.url) nextUpUrls.add(currentTrack.url);
+
+  // Preserve already-fetched Discovery tracks, filtering out any songs now playing or in Next Up
+  const retainedDiscovery = state.discovery.filter(
+    (t) =>
+      (t.id === undefined || !nextUpIds.has(t.id)) &&
+      (!t.url || !nextUpUrls.has(t.url))
+  );
+
   return {
     ...state,
     history: keepRecent(state.current ? [...state.history, state.current] : state.history),
-    current: { track: prepared[start], from: "nextUp" },
-    nextUp: prepared.slice(start + 1),
-    discovery: [],
+    current: { track: currentTrack, from: "nextUp" },
+    nextUp,
+    discovery: retainedDiscovery,
     source,
     sourceOrder,
-    generation: state.generation + 1,
+    generation: state.generation,
   };
 }
 

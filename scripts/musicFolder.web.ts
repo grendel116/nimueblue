@@ -7,7 +7,9 @@ import {
   getDownloadedTracks,
   saveDownloadedTracks,
   setFolderLinks,
+  showDownloads,
 } from "./downloadManager";
+import { IN_NATIVE_SHELL, askNative, onNative } from "./nativeShell";
 import {
   AUDIO_FILE,
   IMAGE_FILE,
@@ -24,11 +26,7 @@ import {
 
 export type MusicFolderStatus = "unsupported" | "none" | "needs-permission" | "ready";
 
-function isWebViewBridge(): boolean {
-  return typeof window !== "undefined" && Boolean((window as any).ReactNativeWebView);
-}
-
-const SUPPORTED = (typeof window !== "undefined" && "showDirectoryPicker" in window) || isWebViewBridge();
+const SUPPORTED = (typeof window !== "undefined" && "showDirectoryPicker" in window) || IN_NATIVE_SHELL;
 const DB_NAME = "nimueblue";
 const STORE = "handles";
 const HANDLE_KEY = "musicFolder";
@@ -36,7 +34,8 @@ const HANDLE_KEY = "musicFolder";
 const TAG_BYTES = 4 * 1024 * 1024;
 
 let folder: FileSystemDirectoryHandle | null = null;
-let folderName: string = "";
+// In the Android app the phone holds the folder and sends its name
+let shellFolderName = "";
 let status: MusicFolderStatus = SUPPORTED ? "none" : "unsupported";
 const listeners = new Set<() => void>();
 const links: FolderLinks = { audio: new Map(), covers: new Map() };
@@ -46,20 +45,11 @@ function setStatus(next: MusicFolderStatus) {
   listeners.forEach((listener) => listener());
 }
 
-if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("message", (event: any) => {
-    try {
-      let raw = event.data;
-      if (typeof raw === "string") raw = JSON.parse(raw);
-      if (raw?.type === "musicFolderUpdated") {
-        if (raw.status) {
-          folderName = raw.name || folderName;
-          setStatus(raw.status);
-        }
-      }
-    } catch {}
-  });
-}
+onNative("musicFolder", (data) => {
+  shellFolderName = data.name ?? "";
+  setStatus(data.status);
+});
+onNative("downloads", (data) => showDownloads(data.tracks ?? []));
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -92,17 +82,14 @@ export function useMusicFolder(): { status: MusicFolderStatus; name: string } {
       listeners.delete(listener);
     };
   }, []);
-  return { status, name: isWebViewBridge() ? folderName : (folder?.name ?? "") };
+  return { status, name: IN_NATIVE_SHELL ? shellFolderName : (folder?.name ?? "") };
 }
 
 // Reopens the folder chosen on an earlier visit. The browser keeps permission for some
-// sessions; otherwise the listener reconnects with a tap
+// sessions; otherwise the listener reconnects with a tap. In the Android app the phone
+// reopens it and sends the news
 export async function openMusicFolder(): Promise<void> {
-  if (isWebViewBridge()) {
-    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "openMusicFolder" }));
-    return;
-  }
-  if (!SUPPORTED) return;
+  if (IN_NATIVE_SHELL || !SUPPORTED) return;
   folder = (await storeRequest<FileSystemDirectoryHandle | undefined>("readonly", (s) => s.get(HANDLE_KEY))) ?? null;
   if (!folder) return setStatus("none");
   if ((await folder.queryPermission({ mode: "readwrite" })) !== "granted") return setStatus("needs-permission");
@@ -113,10 +100,7 @@ export async function openMusicFolder(): Promise<void> {
 // Asks for a folder and scans it. Call it straight from a tap: the browser shows its picker
 // only for a fresh user gesture
 export async function chooseMusicFolder(): Promise<boolean> {
-  if (isWebViewBridge()) {
-    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "pickMusicFolder" }));
-    return true;
-  }
+  if (IN_NATIVE_SHELL) return askNative<boolean>("pickMusicFolder");
   let picked: FileSystemDirectoryHandle;
   try {
     picked = await window.showDirectoryPicker({ id: "mirlo-music", mode: "readwrite", startIn: "music" });
@@ -134,10 +118,7 @@ export async function chooseMusicFolder(): Promise<boolean> {
 
 // Asks the browser to let the app back into the folder; also needs a fresh tap
 export async function reconnectMusicFolder(): Promise<boolean> {
-  if (isWebViewBridge()) {
-    return chooseMusicFolder();
-  }
-  if (!folder) return chooseMusicFolder();
+  if (IN_NATIVE_SHELL || !folder) return chooseMusicFolder();
   if ((await folder.requestPermission({ mode: "readwrite" })) !== "granted") return false;
   await linkFiles();
   setStatus("ready");
@@ -237,6 +218,7 @@ async function filesUnder(dir: FileSystemDirectoryHandle, prefix: string): Promi
 // Brings Downloads in line with the folder: songs whose files are gone are forgotten, and audio
 // files not saved yet join as your own songs, described by their tags, names and folders
 export async function rescanMusicFolder(): Promise<void> {
+  if (IN_NATIVE_SHELL) return askNative("rescanMusicFolder");
   if (!folder) return;
   const files = await filesUnder(folder, "");
   const audio = files.filter((f) => AUDIO_FILE.test(f.path));

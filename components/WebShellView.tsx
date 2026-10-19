@@ -5,7 +5,9 @@ import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-pla
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureTrackPlayerInitialized } from "@/state/player/setup";
-import { chooseMusicFolder, openMusicFolder } from "@/scripts/musicFolder";
+import { chooseMusicFolder, openMusicFolder, rescanMusicFolder } from "@/scripts/musicFolder";
+import { getDownloadedTracks } from "@/scripts/downloadManager";
+import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
@@ -166,33 +168,60 @@ export default function WebShellView() {
         case "pickMusicFolder":
           try {
             const success = await chooseMusicFolder();
-            const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
-            const name = folderInfo ? decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music" : "";
-            webViewRef.current?.injectJavaScript(
-              `window.postMessage(${JSON.stringify({
-                type: "musicFolderUpdated",
-                status: success ? "ready" : "none",
-                name,
-              })}, '*'); true;`
-            );
-          } catch (err) {
+            await syncFolderToWeb();
+            await syncDownloadsToWeb();
+            replySuccess(data.id, success);
+          } catch (err: any) {
             console.warn("pickMusicFolder error:", err);
+            replyError(data.id, err?.message || "Failed to pick folder");
           }
           break;
         case "openMusicFolder":
           try {
             await openMusicFolder();
-            const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
-            const name = folderInfo ? decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music" : "";
-            webViewRef.current?.injectJavaScript(
-              `window.postMessage(${JSON.stringify({
-                type: "musicFolderUpdated",
-                status: folderInfo ? "ready" : "none",
-                name,
-              })}, '*'); true;`
-            );
-          } catch (err) {
+            await syncFolderToWeb();
+            await syncDownloadsToWeb();
+            replySuccess(data.id, true);
+          } catch (err: any) {
             console.warn("openMusicFolder error:", err);
+            replyError(data.id, err?.message || "Failed to open folder");
+          }
+          break;
+        case "rescanMusicFolder":
+          try {
+            await rescanMusicFolder();
+            await syncDownloadsToWeb();
+            replySuccess(data.id, true);
+          } catch (err: any) {
+            console.warn("rescanMusicFolder error:", err);
+            replyError(data.id, err?.message || "Failed to rescan folder");
+          }
+          break;
+        case "removeDownloads":
+          try {
+            if (Array.isArray(data.ids)) {
+              const tracks = await getDownloadedTracks();
+              const idSet = new Set(data.ids);
+              const toRemove = tracks.filter((t) => idSet.has(t.id));
+              await removeDownloads(toRemove);
+              await syncDownloadsToWeb();
+            }
+            replySuccess(data.id, true);
+          } catch (err: any) {
+            console.warn("removeDownloads error:", err);
+            replyError(data.id, err?.message || "Failed to remove downloads");
+          }
+          break;
+        case "chooseAlbumCover":
+          try {
+            if (data.key) {
+              await chooseAlbumCover({ key: data.key } as any);
+              await syncDownloadsToWeb();
+            }
+            replySuccess(data.id, true);
+          } catch (err: any) {
+            console.warn("chooseAlbumCover error:", err);
+            replyError(data.id, err?.message || "Failed to choose cover");
           }
           break;
       }
@@ -201,20 +230,48 @@ export default function WebShellView() {
     }
   };
 
+  const replySuccess = (id: number | undefined, result: any) => {
+    if (id === undefined) return;
+    webViewRef.current?.injectJavaScript(
+      `window.postMessage(${JSON.stringify({ type: "reply", id, result })}, '*'); true;`
+    );
+  };
+
+  const replyError = (id: number | undefined, error: string) => {
+    if (id === undefined) return;
+    webViewRef.current?.injectJavaScript(
+      `window.postMessage(${JSON.stringify({ type: "reply", id, error })}, '*'); true;`
+    );
+  };
+
   const syncFolderToWeb = async () => {
     try {
       const folderInfo = await AsyncStorage.getItem("mirlo_blue_music_folder_uri");
-      if (folderInfo) {
-        const name = decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music";
-        webViewRef.current?.injectJavaScript(
-          `window.postMessage(${JSON.stringify({
-            type: "musicFolderUpdated",
-            status: "ready",
-            name,
-          })}, '*'); true;`
-        );
-      }
+      const name = folderInfo
+        ? decodeURIComponent(folderInfo).replace(/\/+$/, "").split(/[/:]/).pop() || "Music"
+        : "";
+      webViewRef.current?.injectJavaScript(
+        `window.postMessage(${JSON.stringify({
+          type: "musicFolder",
+          status: folderInfo ? "ready" : "none",
+          name,
+        })}, '*'); true;`
+      );
     } catch {}
+  };
+
+  const syncDownloadsToWeb = async () => {
+    try {
+      const tracks = await getDownloadedTracks();
+      webViewRef.current?.injectJavaScript(
+        `window.postMessage(${JSON.stringify({
+          type: "downloads",
+          tracks,
+        })}, '*'); true;`
+      );
+    } catch (err) {
+      console.warn("Failed to sync downloads to web:", err);
+    }
   };
 
   return (
@@ -233,10 +290,14 @@ export default function WebShellView() {
         mixedContentMode="always"
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback={true}
+        setBuiltInZoomControls={false}
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
         onMessage={onMessage}
         onLoadEnd={() => {
           syncStateToWeb();
           syncFolderToWeb();
+          syncDownloadsToWeb();
           SplashScreen.hideAsync().catch(() => {});
         }}
       />

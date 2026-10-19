@@ -100,6 +100,14 @@ export async function setFolderLinks(links: FolderLinks): Promise<void> {
   await persist(await getDownloadedTracks());
 }
 
+// The Android app's saved songs, shown as the phone sends them. The phone keeps the list, so
+// the page stores nothing of its own
+export function showDownloads(tracks: DownloadedTrack[]): void {
+  downloads = tracks;
+  isLoaded = true;
+  listeners.forEach((listener) => listener(downloads));
+}
+
 // Newest first; a song downloaded again replaces its earlier copy
 export async function saveDownloadedTracks(tracks: DownloadedTrack[]): Promise<void> {
   const current = await getDownloadedTracks();
