@@ -88,12 +88,12 @@ export default function PodcastScreen() {
   const allTracks = episodes.map((ep, idx) => episodeTrack(ep, show, idx));
   const isShowPlaying = activeTrack?.podcastId === show.id;
 
-  const toggleShowPlayback = async () => {
+  const toggleShowPlayback = () => {
     if (allTracks.length === 0) return;
     if (isShowPlaying) {
-      await togglePlayPause();
+      togglePlayPause();
     } else {
-      await playTrack(allTracks[0], allTracks, show.name);
+      playTrack(allTracks[0], allTracks, show.name);
     }
   };
 
@@ -125,11 +125,11 @@ export default function PodcastScreen() {
               episode={item}
               track={track}
               isCurrent={isThisEpisode}
-              onPress={async () => {
+              onPress={() => {
                 if (isThisEpisode) {
-                  await togglePlayPause();
+                  togglePlayPause();
                 } else {
-                  await playTrack(track, allTracks, show.name);
+                  playTrack(track, allTracks, show.name);
                 }
               }}
             />

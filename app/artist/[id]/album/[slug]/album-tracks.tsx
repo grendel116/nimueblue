@@ -49,12 +49,12 @@ function AlbumPlayButton({ playableTracks }: { playableTracks: RNTrack[] }) {
         )),
   );
 
-  const togglePlayback = useCallback(async () => {
+  const togglePlayback = useCallback(() => {
     if (!playableTracks.length) return;
     if (isCurrentAlbum) {
-      await togglePlayPause();
+      togglePlayPause();
     } else {
-      await playTrack(playableTracks[0], playableTracks);
+      playTrack(playableTracks[0], playableTracks);
     }
   }, [isCurrentAlbum, playableTracks, playTrack, togglePlayPause]);
 

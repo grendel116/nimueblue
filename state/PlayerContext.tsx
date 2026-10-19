@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useCallback,
+  startTransition,
 } from "react";
 import { AppState } from "react-native";
 import TrackPlayer, {
@@ -37,6 +38,7 @@ import {
   queuedCount,
   readPlayer,
   toPlayerTrack,
+  toNativeTrack,
 } from "./player/trackUtils";
 
 export type { RepeatSetting, QueueSection, QueueSlot, PlayerContextType };
@@ -117,7 +119,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const refreshQueue = useCallback(async () => {
     const { queue, active } = await readPlayer();
-    setPlayingQueue(queue);
+    startTransition(() => {
+      setPlayingQueue(queue);
+    });
     setActiveIndex(active);
   }, []);
 
@@ -132,8 +136,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         const { queue, active, queued } = await readPlayer();
         const prepared = toPlayerTrack({ ...track, autoplay: undefined, queued: true });
         const insertAt = active + 1 + queued;
-        if (insertAt < queue.length) await TrackPlayer.add(prepared, insertAt);
-        else await TrackPlayer.add(prepared);
+        const nativePrepared = toNativeTrack(prepared);
+        if (insertAt < queue.length) await TrackPlayer.add(nativePrepared, insertAt);
+        else await TrackPlayer.add(nativePrepared);
         await refreshQueue();
       } catch (err) {
         console.error("Add to queue error:", err);
@@ -467,8 +472,11 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         ];
 
         setActiveTrack(ordered[startIndex]);
-        setPlayingQueue(tracksToLoad);
         setActiveIndex(startIndex);
+        setQueueSource(nextSource);
+        startTransition(() => {
+          setPlayingQueue(tracksToLoad);
+        });
         latest.current = {
           ...latest.current,
           activeTrack: ordered[startIndex],
@@ -476,9 +484,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
           activeIndex: startIndex,
         };
         queueGenerationRef.current += 1;
-        setQueueSource(nextSource);
 
-        await TrackPlayer.setQueue(tracksToLoad);
+        const nativeQueue = tracksToLoad.map(toNativeTrack);
+        await TrackPlayer.setQueue(nativeQueue);
         if (startIndex > 0) {
           await TrackPlayer.skip(startIndex);
         }
@@ -548,8 +556,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         const moved = toPlayerTrack({ ...track, autoplay: undefined, queued: to.section === "queue" });
         const queuedLeft = queued - (from.section === "queue" ? 1 : 0);
         const toAt = first + (to.section === "queue" ? 0 : queuedLeft) + to.index;
-        if (toAt < queue.length - 1) await TrackPlayer.add(moved, toAt);
-        else await TrackPlayer.add(moved);
+        const nativeMoved = toNativeTrack(moved);
+        if (toAt < queue.length - 1) await TrackPlayer.add(nativeMoved, toAt);
+        else await TrackPlayer.add(nativeMoved);
         await refreshQueue();
       } catch (err) {
         console.error("Move queue item error:", err);
@@ -588,12 +597,15 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         if (added.length === 0 || generation !== queueGenerationRef.current) return;
 
-        await TrackPlayer.add(added);
+        const nativeAdded = added.map(toNativeTrack);
+        await TrackPlayer.add(nativeAdded);
         latest.current = {
           ...latest.current,
           playingQueue: [...latest.current.playingQueue, ...added],
         };
-        setPlayingQueue((prev) => [...prev, ...added]);
+        startTransition(() => {
+          setPlayingQueue((prev) => [...prev, ...added]);
+        });
       } catch (err) {
         console.error("Autoplay error:", err);
       } finally {
@@ -634,8 +646,11 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
       const upcomingOrder = [...waiting, ...reordered, ...previews];
 
       await TrackPlayer.removeUpcomingTracks();
-      await TrackPlayer.add(upcomingOrder);
-      setPlayingQueue([...played, ...upcomingOrder]);
+      const nativeUpcoming = upcomingOrder.map(toNativeTrack);
+      await TrackPlayer.add(nativeUpcoming);
+      startTransition(() => {
+        setPlayingQueue([...played, ...upcomingOrder]);
+      });
     } catch (err) {
       console.error("Shuffle error:", err);
     }

@@ -80,3 +80,32 @@ export function toPlayerTrack(
     artist,
   };
 }
+
+/**
+ * Strips down a track object to strictly the properties required by native
+ * ExoPlayer / AVPlayer across the React Native bridge. This minimizes JSON serialization
+ * overhead and prevents UI thread starvation when loading large queues.
+ */
+export function toNativeTrack(t: RNTrack) {
+  const duration =
+    typeof t.duration === "number" && !isNaN(t.duration) && t.duration > 0
+      ? t.duration
+      : typeof t.audio?.duration === "number" && !isNaN(t.audio.duration) && t.audio.duration > 0
+        ? t.audio.duration
+        : undefined;
+
+  return {
+    url: t.url,
+    title: t.title || "Track",
+    artist: t.artist || "Unknown Artist",
+    artwork: t.artwork || undefined,
+    duration,
+    album: t.trackGroup?.title || undefined,
+    headers: t.headers,
+    type: t.type,
+    _queueKey: t._queueKey,
+    id: t.id,
+    liveStation: t.liveStation,
+  };
+}
+

@@ -125,9 +125,12 @@ function StationPlayButton({ station }: { station: RadioStation }) {
   const { activeTrack, isPlaying, playTrack, togglePlayPause } = usePlayer("activeTrack", "isPlaying", "playTrack", "togglePlayPause");
   const isCurrent = activeTrack?.liveStation === station.id;
   const onPress = () => {
-    if (isCurrent) return togglePlayPause();
+    if (isCurrent) {
+      togglePlayPause();
+      return;
+    }
     const track = liveTrack(station);
-    return playTrack(track, [track], station.liveName);
+    playTrack(track, [track], station.liveName);
   };
 
   return (
