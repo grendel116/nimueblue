@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from "react";
 import { Platform, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { usePullToClose } from "@/scripts/pullToClose";
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -91,6 +92,25 @@ export default function SwipeDownSheet({
     scrollOffset.value = event.contentOffset.y;
   });
 
+  // Slides the sheet away after a quick flick or a pull past a quarter of the screen,
+  // otherwise back into place
+  const settle = useCallback(
+    (velocityY: number) => {
+      "worklet";
+      const shouldClose =
+        velocityY > FLICK_VELOCITY ||
+        (velocityY > -FLICK_VELOCITY && translateY.value > heightSv.value * 0.25);
+      translateY.value = withTiming(
+        shouldClose ? heightSv.value : 0,
+        { duration: SETTLE_MS },
+        (finished) => {
+          if (finished && shouldClose) runOnJS(leave)();
+        },
+      );
+    },
+    [translateY, heightSv, leave],
+  );
+
   const scrollGesture = useMemo(() => Gesture.Native(), []);
 
   const dragGesture = useCallback(
@@ -108,23 +128,11 @@ export default function SwipeDownSheet({
         })
         .onEnd((event) => {
           if (!startedAtTop.value) return;
-          const shouldClose =
-            event.velocityY > FLICK_VELOCITY ||
-            (event.velocityY > -FLICK_VELOCITY && translateY.value > heightSv.value * 0.25);
-          translateY.value = withTiming(
-            shouldClose ? heightSv.value : 0,
-            { duration: SETTLE_MS },
-            (finished) => {
-              if (finished && shouldClose) runOnJS(leave)();
-            },
-          );
+          settle(event.velocityY);
         });
-      if (Platform.OS === "web") {
-        return pan;
-      }
       return needsTop ? pan.simultaneousWithExternalGesture(scrollGesture) : pan;
     },
-    [scrollGesture, scrollOffset, startedAtTop, translateY, heightSv, leave],
+    [scrollGesture, scrollOffset, startedAtTop, translateY, settle],
   );
 
   const bodyGesture = useMemo(
@@ -133,29 +141,53 @@ export default function SwipeDownSheet({
   );
   const barGesture = useMemo(() => dragGesture(false, true), [dragGesture]);
 
+  const pullRef = useRef<View>(null);
+  usePullToClose(pullRef, true, {
+    onPull: (distance) => {
+      translateY.value = distance;
+    },
+    onRelease: settle,
+  });
+
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
   const scroll = useMemo(() => ({ onScroll, scrollGesture }), [onScroll, scrollGesture]);
 
-  const isWeb = Platform.OS === "web";
-  const content = (
-    <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
-      <GestureDetector gesture={barGesture}>
-        <View>
-          <DismissModalBar onPress={close} />
-        </View>
-      </GestureDetector>
-      {children}
-    </SafeAreaView>
-  );
+  if (Platform.OS === "web") {
+    return (
+      <SheetCloseContext.Provider value={close}>
+        <SheetScrollContext.Provider value={scroll}>
+          <Animated.View style={[styles.sheet, sheetStyle]}>
+            <View ref={dragFromBarOnly ? undefined : pullRef} style={styles.sheet}>
+              <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
+                <View ref={dragFromBarOnly ? pullRef : undefined}>
+                  <DismissModalBar onPress={close} />
+                </View>
+                {children}
+              </SafeAreaView>
+            </View>
+          </Animated.View>
+        </SheetScrollContext.Provider>
+      </SheetCloseContext.Provider>
+    );
+  }
 
   return (
     <SheetCloseContext.Provider value={close}>
       <SheetScrollContext.Provider value={scroll}>
         <Animated.View style={[styles.sheet, sheetStyle]}>
-          {isWeb ? content : <GestureDetector gesture={bodyGesture}>{content}</GestureDetector>}
+          <GestureDetector gesture={bodyGesture}>
+            <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
+              <GestureDetector gesture={barGesture}>
+                <View>
+                  <DismissModalBar onPress={close} />
+                </View>
+              </GestureDetector>
+              {children}
+            </SafeAreaView>
+          </GestureDetector>
         </Animated.View>
       </SheetScrollContext.Provider>
     </SheetCloseContext.Provider>

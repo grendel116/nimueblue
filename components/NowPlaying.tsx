@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BackHandler,
+  Platform,
   Text,
   View,
   Image,
@@ -10,6 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { usePullToClose } from "@/scripts/pullToClose";
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -134,6 +136,25 @@ export default function NowPlaying() {
     scrollOffset.value = event.contentOffset.y;
   });
 
+  // Slides the sheet away after a quick flick or a pull past a quarter of the screen,
+  // otherwise back into place
+  const settle = useCallback(
+    (velocityY: number) => {
+      "worklet";
+      const shouldClose =
+        velocityY > FLICK_VELOCITY ||
+        (velocityY > -FLICK_VELOCITY && translateY.value > heightSv.value * 0.25);
+      translateY.value = withTiming(
+        shouldClose ? heightSv.value : 0,
+        { duration: SETTLE_MS },
+        (finished) => {
+          if (finished && shouldClose) runOnJS(finishClose)();
+        },
+      );
+    },
+    [translateY, heightSv, finishClose],
+  );
+
   const scrollGesture = useMemo(() => Gesture.Native(), []);
 
   // Drag down to close Now Playing when scrolled to the top
@@ -152,48 +173,51 @@ export default function NowPlaying() {
         })
         .onEnd((event) => {
           if (!startedAtTop.value) return;
-          const shouldClose =
-            event.velocityY > FLICK_VELOCITY ||
-            (event.velocityY > -FLICK_VELOCITY && translateY.value > heightSv.value * 0.25);
-          translateY.value = withTiming(
-            shouldClose ? heightSv.value : 0,
-            { duration: SETTLE_MS },
-            (finished) => {
-              if (finished && shouldClose) runOnJS(finishClose)();
-            },
-          );
+          settle(event.velocityY);
         }),
-    [scrollGesture, scrollOffset, startedAtTop, translateY, heightSv, finishClose],
+    [scrollGesture, scrollOffset, startedAtTop, translateY, settle],
   );
+
+  const sheetRef = useRef<View>(null);
+  usePullToClose(sheetRef, visible, {
+    onPull: (distance) => {
+      translateY.value = distance;
+    },
+    onRelease: settle,
+  });
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
     opacity: translateY.value >= heightSv.value ? 0 : 1,
   }));
 
+  const isWeb = Platform.OS === "web";
+  const scroll = (
+    <Animated.ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+      onScroll={scrollHandler}
+      scrollEventThrottle={16}
+    >
+      <NowPlayingBody visible={visible} close={close} />
+    </Animated.ScrollView>
+  );
+  const content = (
+    <View ref={sheetRef} style={styles.container}>
+      <SafeAreaView edges={["top"]} style={styles.container}>
+        <DismissModalBar onPress={close} />
+        {isWeb ? scroll : <GestureDetector gesture={scrollGesture}>{scroll}</GestureDetector>}
+      </SafeAreaView>
+    </View>
+  );
+
   return (
     <Animated.View
       pointerEvents={visible ? "auto" : "none"}
       style={[styles.sheet, { bottom: 60 + Math.max(bottom, 8) }, sheetStyle]}
     >
-      {visible && (
-        <GestureDetector gesture={panGesture}>
-          <SafeAreaView edges={["top"]} style={styles.container}>
-            <DismissModalBar onPress={close} />
-            <GestureDetector gesture={scrollGesture}>
-              <Animated.ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                onScroll={scrollHandler}
-                scrollEventThrottle={16}
-              >
-                <NowPlayingBody visible={visible} close={close} />
-              </Animated.ScrollView>
-            </GestureDetector>
-          </SafeAreaView>
-        </GestureDetector>
-      )}
+      {visible && (isWeb ? content : <GestureDetector gesture={panGesture}>{content}</GestureDetector>)}
     </Animated.View>
   );
 }
