@@ -421,7 +421,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [commit],
   );
 
-  // Discovery draws immediately from the local reservoir and quietly tops itself up when online
+  // Discovery always maintains exactly 12 songs, drawing one as one is played
   useEffect(() => {
     if (!isOnline || looping !== "none" || !queue.current) return;
     if (queue.discovery.length >= DISCOVERY_BUFFER_SIZE || autoplayFillingRef.current) return;
@@ -432,8 +432,8 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const knownIds = new Set(known.map((t) => t.id).filter((id): id is string | number => id !== undefined));
     const knownUrls = new Set(known.map((t) => t.url).filter(Boolean));
 
-    // 1. Instant synchronous draw from the local reservoir in kvStorage (< 0.1ms, zero pop-in)
-    const needed = Math.max(DISCOVERY_BATCH, DISCOVERY_BUFFER_SIZE - queue.discovery.length);
+    // 1. Instant synchronous draw from the local reservoir to maintain exactly 12 songs
+    const needed = DISCOVERY_BUFFER_SIZE - queue.discovery.length;
     const drawn = drawFromReservoir(needed, knownIds, knownUrls);
     if (drawn.length > 0) {
       const next = Q.addDiscovery(
@@ -448,9 +448,10 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     (async () => {
       try {
         const fresh = await replenishDiscoveryReservoir(knownIds, knownUrls);
-        if (queueRef.current.discovery.length < 5 && fresh.length > 0) {
+        if (queueRef.current.discovery.length < DISCOVERY_BUFFER_SIZE && fresh.length > 0) {
+          const directNeeded = DISCOVERY_BUFFER_SIZE - queueRef.current.discovery.length;
           const direct = fresh
-            .slice(0, 5)
+            .slice(0, directNeeded)
             .map((t) => toPlayerTrack(t))
             .filter((t) => !knownIds.has(t.id) && (!t.url || !knownUrls.has(t.url)));
           const next = Q.addDiscovery(queueRef.current, direct, generation);

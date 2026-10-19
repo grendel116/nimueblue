@@ -36,12 +36,12 @@ jest.mock("@/scripts/autoplay", () => {
   };
   return {
     AUTOPLAY_SOURCE: "Discovery",
-    DISCOVERY_BUFFER_SIZE: 5,
+    DISCOVERY_BUFFER_SIZE: 12,
     drawFromReservoir: jest.fn((count: number) =>
-      mockDiscoveryOn ? Array.from({ length: Math.min(count, 5) }, nextTrack) : [],
+      mockDiscoveryOn ? Array.from({ length: count }, nextTrack) : [],
     ),
     replenishDiscoveryReservoir: jest.fn(async () =>
-      mockDiscoveryOn ? Array.from({ length: 5 }, nextTrack) : [],
+      mockDiscoveryOn ? Array.from({ length: 12 }, nextTrack) : [],
     ),
     fetchDiscoveryTracks: jest.fn(async (take: number) =>
       mockDiscoveryOn ? Array.from({ length: take }, nextTrack) : [],
@@ -200,18 +200,18 @@ describe("player queue", () => {
     expect((await playerOrder()).index).toBe(0);
   });
 
-  test("Discovery loads the next batch while songs are still waiting", async () => {
+  test("Discovery maintains exactly 12 songs, adding one as one is played", async () => {
     mockDiscoveryOn = true;
     try {
       await act(() => player.playTrack(album[2], album, "Space Trash (EP)"));
       await settle();
       const discovery = () => player.upcoming.filter((t) => t.autoplay);
-      expect(discovery()).toHaveLength(5);
+      expect(discovery()).toHaveLength(12);
 
       await act(() => player.skipNext());
       await settle();
       expect(player.activeTrack?.autoplay).toBe(true);
-      expect(discovery().length).toBeGreaterThanOrEqual(9);
+      expect(discovery()).toHaveLength(12);
     } finally {
       mockDiscoveryOn = false;
     }

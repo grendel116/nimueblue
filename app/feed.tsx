@@ -94,6 +94,24 @@ const QueueRow = React.memo(function QueueRow({
   const wasDraggingRef = useRef(false);
 
   const yAnim = useRef(new Animated.Value(targetY)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 20,
+        stiffness: 260,
+      }),
+    ]).start();
+  }, [opacityAnim, slideAnim]);
 
   useEffect(() => {
     if (dragging) {
@@ -156,8 +174,9 @@ const QueueRow = React.memo(function QueueRow({
         styles.trackRow,
         dragging && styles.trackRowDragging,
         {
+          opacity: opacityAnim,
           transform: [
-            { translateY: yAnim },
+            { translateY: Animated.add(yAnim, slideAnim) },
             { scale: dragging ? 1.02 : 1 },
           ],
         },

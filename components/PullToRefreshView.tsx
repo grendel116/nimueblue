@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
@@ -19,6 +19,14 @@ interface PullToRefreshViewProps extends ScrollViewProps {
 
 const THRESHOLD = 55;
 const MAX_PULL = 85;
+const DECIDE_PX = 4;
+
+function scrolledToTop(target: EventTarget | null, root: HTMLElement): boolean {
+  for (let node = target as HTMLElement | null; node && node !== root; node = node?.parentElement ?? null) {
+    if (node.scrollTop > 0) return false;
+  }
+  return true;
+}
 
 export default function PullToRefreshView({
   refreshing,
@@ -28,6 +36,7 @@ export default function PullToRefreshView({
   contentContainerStyle,
   ...rest
 }: PullToRefreshViewProps) {
+  const wrapperRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const pullAnim = useRef(new Animated.Value(0)).current;
   const [isPulling, setIsPulling] = useState(false);
@@ -55,64 +64,59 @@ export default function PullToRefreshView({
   useEffect(() => {
     if (Platform.OS !== "web") return;
 
-    const scrollNode = (scrollRef.current as any)?.getScrollableNode?.() || scrollRef.current;
-    const domNode: HTMLElement | null = scrollNode instanceof HTMLElement ? scrollNode : null;
-    if (!domNode) return;
+    const domNode = wrapperRef.current as unknown as HTMLElement | null;
+    if (!domNode?.addEventListener) return;
 
+    let state: "idle" | "undecided" | "pulling" | "scrolling" = "idle";
+    let startX = 0;
     let startY = 0;
-    let pulling = false;
     let distance = 0;
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      if (domNode.scrollTop <= 1) {
-        startY = e.touches[0].clientY;
-        pulling = true;
-        distance = 0;
-      } else {
-        pulling = false;
+      if (e.touches.length !== 1) {
+        state = "idle";
+        return;
       }
+      const touch = e.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      distance = 0;
+      state = scrolledToTop(e.target, domNode) ? "undecided" : "scrolling";
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!pulling || refreshing) return;
-      if (domNode.scrollTop > 1) {
-        pulling = false;
-        pullAnim.setValue(0);
-        return;
+      if (state === "idle" || state === "scrolling" || refreshing) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (state === "undecided") {
+        if (Math.abs(dx) < DECIDE_PX && Math.abs(dy) < DECIDE_PX) return;
+        state = dy > Math.abs(dx) ? "pulling" : "scrolling";
+        if (state === "scrolling") return;
       }
 
-      const currentY = e.touches[0].clientY;
-      const dy = currentY - startY;
-
-      if (dy > 0) {
-        // Resistance curve
-        distance = Math.min(MAX_PULL, dy * 0.45);
+      if (state === "pulling") {
+        if (e.cancelable) e.preventDefault();
+        distance = Math.min(MAX_PULL, Math.max(0, dy * 0.45));
         pullAnim.setValue(distance);
         setIsPulling(true);
-
-        if (e.cancelable && distance > 10) {
-          e.preventDefault();
-        }
-      } else {
-        pulling = false;
-        pullAnim.setValue(0);
       }
     };
 
     const onTouchEnd = () => {
-      if (!pulling && !isPulling) return;
-      pulling = false;
-
-      if (distance >= THRESHOLD && !refreshing) {
-        onRefreshRef.current();
-      } else if (!refreshing) {
-        Animated.timing(pullAnim, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }).start(() => setIsPulling(false));
+      if (state === "pulling") {
+        if (distance >= THRESHOLD && !refreshing) {
+          onRefreshRef.current();
+        } else if (!refreshing) {
+          Animated.timing(pullAnim, {
+            toValue: 0,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => setIsPulling(false));
+        }
       }
+      state = "idle";
     };
 
     domNode.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -126,12 +130,12 @@ export default function PullToRefreshView({
       domNode.removeEventListener("touchend", onTouchEnd);
       domNode.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [refreshing, pullAnim, isPulling]);
+  }, [refreshing, pullAnim]);
 
   const showIndicator = refreshing || isPulling;
 
   return (
-    <View style={styles.wrapper}>
+    <View ref={wrapperRef} style={styles.wrapper}>
       {showIndicator && (
         <Animated.View
           style={[
