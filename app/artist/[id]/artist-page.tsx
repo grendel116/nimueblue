@@ -50,33 +50,18 @@ export default function ArtistPage() {
 
   if (isError) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.topNav}>
-          <Pressable
-            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
-            style={styles.backBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-          >
-            <Ionicons
-              name="chevron-back"
-              size={24}
-              color={theme.colors.textPrimary}
-            />
-          </Pressable>
-        </View>
-        {isNetworkError(error) ? (
-          <OfflineNotice
-            retrying={isFetching}
-            onRetry={refetch}
-            onOpenLibrary={() => openMainTab("library")}
-          />
-        ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.errorText}>Error loading artist: {error.message}</Text>
-          </View>
-        )}
-      </SafeAreaView>
+      <OfflineNotice
+        title={isNetworkError(error) ? "You're Offline" : "Can't Load Artist"}
+        message={
+          isNetworkError(error)
+            ? "Can't reach Mirlo right now. Your downloaded music still plays."
+            : error instanceof Error
+            ? error.message
+            : "Something went wrong loading this artist."
+        }
+        onDismiss={() => (router.canDismiss() ? router.dismiss() : router.back())}
+        onOpenLibrary={() => openMainTab("library")}
+      />
     );
   }
 

@@ -4,21 +4,32 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
 import BrandMark from "@/components/BrandMark";
 
-export default function DismissModalBar({ onPress }: { onPress?: () => void }) {
+export default function DismissModalBar({
+  onPress,
+  locked = false,
+}: {
+  onPress?: () => void;
+  locked?: boolean;
+}) {
   const router = useRouter();
 
   return (
     <View style={styles.bar}>
       <Pressable
-        onPress={onPress ?? (() => (router.canDismiss() ? router.dismiss() : router.replace("/")))}
+        onPress={
+          locked
+            ? undefined
+            : (onPress ?? (() => (router.canDismiss() ? router.dismiss() : router.replace("/"))))
+        }
+        disabled={locked}
         style={styles.pressable}
         accessibilityRole="button"
-        accessibilityLabel="Dismiss modal"
+        accessibilityLabel={locked ? "Locked until phone is online" : "Dismiss modal"}
       >
         <Ionicons
-          name="chevron-down"
-          size={26}
-          color={theme.colors.textSecondary}
+          name={locked ? "lock-closed-outline" : "chevron-down"}
+          size={locked ? 20 : 26}
+          color={locked ? theme.colors.textMuted : theme.colors.textSecondary}
           style={styles.chevron}
         />
         <BrandMark />

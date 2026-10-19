@@ -23,7 +23,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import PlayPauseWrapper from "@/components/PlayPauseWrapper";
 import Markdown from "react-native-markdown-display";
 import WishlistButton from "@/components/WishlistButton";
-import ErrorNotification from "@/components/ErrorNotification";
 import AddAlbumButton from "@/components/AddAlbumButton";
 import DownloadAlbumButton from "@/components/DownloadAlbumButton";
 import { theme } from "@/constants/theme";
@@ -122,7 +121,6 @@ export default function AlbumTracks() {
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
   const downloads = useDownloads();
-  const [showError, setShowError] = useState<boolean>(true);
 
   const savedAlbums = useMemo(() => groupTracksIntoAlbums(downloads), [downloads]);
   const matchedSavedAlbum = useMemo(() => {
@@ -254,37 +252,18 @@ export default function AlbumTracks() {
 
   if (isError && !resolvedAlbum) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <View style={styles.topNav}>
-          <Pressable
-            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
-            style={styles.backBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-          >
-            <Ionicons
-              name="chevron-back"
-              size={24}
-              color={theme.colors.textPrimary}
-            />
-          </Pressable>
-        </View>
-        {isNetworkError(error) ? (
-          <OfflineNotice
-            retrying={isFetching}
-            onRetry={refetch}
-            onOpenLibrary={() => openMainTab("library")}
-          />
-        ) : (
-          <View style={styles.loadingContainer}>
-            <ErrorNotification
-              visible={showError}
-              onDismiss={() => setShowError(false)}
-              error={error}
-            />
-          </View>
-        )}
-      </SafeAreaView>
+      <OfflineNotice
+        title={isNetworkError(error) ? "You're Offline" : "Can't Load Album"}
+        message={
+          isNetworkError(error)
+            ? "Can't reach Mirlo right now. Your downloaded music still plays."
+            : error instanceof Error
+            ? error.message
+            : "Something went wrong loading this album."
+        }
+        onDismiss={() => (router.canDismiss() ? router.dismiss() : router.back())}
+        onOpenLibrary={() => openMainTab("library")}
+      />
     );
   }
 

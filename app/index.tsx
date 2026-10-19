@@ -44,6 +44,7 @@ import {
   queryDiscoveredPodcasts,
 } from "@/queries/podcast";
 import OfflineNotice from "@/components/OfflineNotice";
+import PullToRefreshView from "@/components/PullToRefreshView";
 import BrandMark from "@/components/BrandMark";
 import { dragScroll } from "@/scripts/dragScroll";
 import { useAppIsReadyContext } from "@/state/AppReadyContext";
@@ -63,7 +64,7 @@ const HOME_QUERY = {
   staleTime: Infinity,
   refetchOnWindowFocus: false,
   refetchOnMount: false,
-  refetchOnReconnect: false,
+  refetchOnReconnect: true,
   meta: { home: true },
 };
 
@@ -270,22 +271,15 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         </View>
       </View>
 
-      <ScrollView
+      <PullToRefreshView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, offline && { flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isPullRefreshing}
-            onRefresh={pullToRefresh}
-            tintColor={theme.colors.primary}
-            colors={[theme.colors.primary]}
-            progressBackgroundColor={theme.colors.surfaceElevated}
-          />
-        }
+        refreshing={isPullRefreshing}
+        onRefresh={pullToRefresh}
       >
         {offline ? (
-          <OfflineNotice retrying={isRecentFetching} onRetry={retry} onOpenLibrary={() => openMainTab("library")} />
+          <OfflineNotice onOpenLibrary={() => openMainTab("library")} onDismiss={pullToRefresh} />
         ) : (
           <>
             {/* Viewing History / Quick Access 2-Column Grid */}
@@ -440,7 +434,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
             </View>
           </>
         )}
-      </ScrollView>
+      </PullToRefreshView>
     </SafeAreaView>
   );
 });

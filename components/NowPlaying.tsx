@@ -474,7 +474,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
 
 function ProgressSection({ isLive }: { isLive: boolean }) {
   const { skipNext } = usePlayer("skipNext");
-  const progress = useProgress();
+  const progress = useProgress(200);
   const [slidingValue, setSlidingValue] = useState<number | null>(null);
   const shown = slidingValue ?? (isLive ? getRadioTimerElapsed(progress.position) : progress.position);
 

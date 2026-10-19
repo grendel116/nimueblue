@@ -40,7 +40,7 @@ export const updatePlayerOptions = {
     Capability.SkipToPrevious,
     Capability.SeekTo,
   ],
-  progressUpdateEventInterval: 2,
+  progressUpdateEventInterval: 0.2,
 };
 
 let playerSetupPromise: Promise<void> | null = null;

@@ -13,8 +13,6 @@ import { useRouter } from "expo-router";
 import * as api from "../../queries/fetch/fetchWrapper";
 import TrackGroupItem from "@/components/TrackGroupItem";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import ErrorNotification from "@/components/ErrorNotification";
-import { useState } from "react";
 import { theme } from "@/constants/theme";
 import LoadingScreen from "@/components/LoadingScreen";
 import { albumHref } from "@/scripts/routes";
@@ -24,7 +22,6 @@ import { isNetworkError } from "@/scripts/networkError";
 
 export default function TagsView() {
   const { tag } = useLocalSearchParams();
-  const [showError, setShowError] = useState<boolean>(true);
 
   const {
     isPending,
@@ -63,39 +60,18 @@ export default function TagsView() {
 
   if (isError) {
     return (
-      <View style={[styles.mainWrapper, { paddingTop: top }]}>
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
-            style={styles.backBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-          >
-            <Ionicons
-              name="chevron-back"
-              size={24}
-              color={theme.colors.textPrimary}
-            />
-          </Pressable>
-          <Text style={styles.headerTitle}>#{String(tag)}</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        {isNetworkError(error) ? (
-          <OfflineNotice
-            retrying={isFetching}
-            onRetry={refetch}
-            onOpenLibrary={() => openMainTab("library")}
-          />
-        ) : (
-          <View style={styles.loadingContainer}>
-            <ErrorNotification
-              visible={showError}
-              onDismiss={() => setShowError(false)}
-              error={error}
-            />
-          </View>
-        )}
-      </View>
+      <OfflineNotice
+        title={isNetworkError(error) ? "You're Offline" : `Can't Load #${tag}`}
+        message={
+          isNetworkError(error)
+            ? "Can't reach Mirlo right now. Your downloaded music still plays."
+            : error instanceof Error
+            ? error.message
+            : "Something went wrong loading these releases."
+        }
+        onDismiss={() => (router.canDismiss() ? router.dismiss() : router.back())}
+        onOpenLibrary={() => openMainTab("library")}
+      />
     );
   }
 

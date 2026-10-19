@@ -52,11 +52,15 @@ export default function SwipeDownSheet({
   dragFromBarOnly = false,
   resetKey,
   style,
+  locked = false,
+  onDismiss,
 }: {
   children: React.ReactNode;
   dragFromBarOnly?: boolean;
   resetKey?: string;
   style?: ViewStyle;
+  locked?: boolean;
+  onDismiss?: () => void;
 }) {
   const router = useRouter();
   const { height: windowHeight } = useWindowDimensions();
@@ -76,27 +80,32 @@ export default function SwipeDownSheet({
   }, [resetKey, translateY]);
 
   const leave = useCallback(() => {
-    if (router.canDismiss()) router.dismiss();
+    if (onDismiss) onDismiss();
+    else if (router.canDismiss()) router.dismiss();
     else router.replace("/");
-  }, [router]);
+  }, [router, onDismiss]);
 
   const close = useCallback(() => {
-    if (closing.current) return;
+    if (locked || closing.current) return;
     closing.current = true;
     translateY.value = withTiming(heightSv.value, { duration: SETTLE_MS }, (finished) => {
       if (finished) runOnJS(leave)();
     });
-  }, [translateY, heightSv, leave]);
+  }, [locked, translateY, heightSv, leave]);
 
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollOffset.value = event.contentOffset.y;
   });
 
   // Slides the sheet away after a quick flick or a pull past a quarter of the screen,
-  // otherwise back into place
+  // otherwise back into place (remains in place if locked)
   const settle = useCallback(
     (velocityY: number) => {
       "worklet";
+      if (locked) {
+        translateY.value = withTiming(0, { duration: SETTLE_MS });
+        return;
+      }
       const shouldClose =
         velocityY > FLICK_VELOCITY ||
         (velocityY > -FLICK_VELOCITY && translateY.value > heightSv.value * 0.25);
@@ -108,7 +117,7 @@ export default function SwipeDownSheet({
         },
       );
     },
-    [translateY, heightSv, leave],
+    [locked, translateY, heightSv, leave],
   );
 
   const scrollGesture = useMemo(() => Gesture.Native(), []);
@@ -116,7 +125,7 @@ export default function SwipeDownSheet({
   const dragGesture = useCallback(
     (needsTop: boolean, enabled: boolean) => {
       const pan = Gesture.Pan()
-        .enabled(enabled)
+        .enabled(enabled && !locked)
         .activeOffsetY(10)
         .failOffsetX([-45, 45])
         .onStart(() => {
@@ -132,7 +141,7 @@ export default function SwipeDownSheet({
         });
       return needsTop ? pan.simultaneousWithExternalGesture(scrollGesture) : pan;
     },
-    [scrollGesture, scrollOffset, startedAtTop, translateY, settle],
+    [locked, scrollGesture, scrollOffset, startedAtTop, translateY, settle],
   );
 
   const bodyGesture = useMemo(
@@ -142,7 +151,7 @@ export default function SwipeDownSheet({
   const barGesture = useMemo(() => dragGesture(false, true), [dragGesture]);
 
   const pullRef = useRef<View>(null);
-  usePullToClose(pullRef, true, {
+  usePullToClose(pullRef, !locked, {
     onPull: (distance) => {
       translateY.value = distance;
     },
@@ -163,7 +172,7 @@ export default function SwipeDownSheet({
             <View ref={dragFromBarOnly ? undefined : pullRef} style={styles.sheet}>
               <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
                 <View ref={dragFromBarOnly ? pullRef : undefined}>
-                  <DismissModalBar onPress={close} />
+                  <DismissModalBar onPress={close} locked={locked} />
                 </View>
                 {children}
               </SafeAreaView>
@@ -182,7 +191,7 @@ export default function SwipeDownSheet({
             <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
               <GestureDetector gesture={barGesture}>
                 <View>
-                  <DismissModalBar onPress={close} />
+                  <DismissModalBar onPress={close} locked={locked} />
                 </View>
               </GestureDetector>
               {children}
