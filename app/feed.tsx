@@ -22,6 +22,7 @@ import { useTrackByKey } from "@/state/player/useQueueStore";
 import { openMainTab } from "@/components/Footer";
 import { theme } from "@/constants/theme";
 import { AUTOPLAY_SOURCE } from "@/scripts/autoplay";
+import { useIsOnline } from "@/scripts/useIsOnline";
 import { albumHref } from "@/scripts/routes";
 import ShuffleButton from "@/components/ShuffleButton";
 import LoopButton from "@/components/LoopButton";
@@ -215,6 +216,7 @@ const QueueRow = React.memo(function QueueRow({
 
 export default function QueueScreen() {
   const router = useRouter();
+  const isOnline = useIsOnline();
   const {
     activeTrack,
     queueSource,
@@ -334,10 +336,13 @@ export default function QueueScreen() {
 
   const onPlayRow = useCallback(
     (section: QueueSlot["section"], index: number) => {
+      if (section === "upcoming" && !isOnline && firstAutoplayIndex >= 0 && index >= firstAutoplayIndex) {
+        return;
+      }
       if (section === "queue") playFromUserQueue(index);
       else skipToUpcoming(index);
     },
-    [playFromUserQueue, skipToUpcoming],
+    [playFromUserQueue, skipToUpcoming, isOnline, firstAutoplayIndex],
   );
 
   const onDragStart = useCallback((slot: QueueSlot) => {
@@ -552,9 +557,13 @@ export default function QueueScreen() {
                 { transform: [{ translateY: autoplayDividerAnim }] },
               ]}
             >
-              <Ionicons name="radio-outline" size={14} color={theme.colors.primary} />
-              <Text style={styles.autoplayDividerText}>
-                Then: {AUTOPLAY_SOURCE}
+              <Ionicons
+                name={isOnline ? "radio-outline" : "cloud-offline-outline"}
+                size={14}
+                color={isOnline ? theme.colors.primary : theme.colors.textMuted}
+              />
+              <Text style={[styles.autoplayDividerText, !isOnline && { color: theme.colors.textMuted }]}>
+                Then: {AUTOPLAY_SOURCE}{!isOnline ? " • Paused offline" : ""}
               </Text>
             </Animated.View>
           )}

@@ -113,15 +113,16 @@ function keepRecent(history: Played[]): Played[] {
 }
 
 // The order the audio player holds, and where the song playing sits in it
-export function playOrder(state: QueueState): { tracks: RNTrack[]; index: number } {
+export function playOrder(state: QueueState, options?: { isOnline?: boolean }): { tracks: RNTrack[]; index: number } {
   if (!state.current) return { tracks: [], index: -1 };
+  const discoveryTracks = options?.isOnline === false ? [] : state.discovery;
   return {
     tracks: [
       ...state.history.map((h) => h.track),
       state.current.track,
       ...state.userQueue,
       ...state.nextUp,
-      ...state.discovery,
+      ...discoveryTracks,
     ],
     index: state.history.length,
   };
@@ -185,14 +186,14 @@ export function clearQueue(state: QueueState): QueueState {
 }
 
 // The song after the current one, in play order, with the section it comes from
-function takeNext(state: QueueState): { track: RNTrack; from: Section; rest: QueueState } | undefined {
+function takeNext(state: QueueState, isOnline = true): { track: RNTrack; from: Section; rest: QueueState } | undefined {
   if (state.userQueue.length > 0) {
     return { track: state.userQueue[0], from: "queue", rest: { ...state, userQueue: state.userQueue.slice(1) } };
   }
   if (state.nextUp.length > 0) {
     return { track: state.nextUp[0], from: "nextUp", rest: { ...state, nextUp: state.nextUp.slice(1) } };
   }
-  if (state.discovery.length > 0) {
+  if (isOnline && state.discovery.length > 0) {
     return { track: state.discovery[0], from: "discovery", rest: { ...state, discovery: state.discovery.slice(1) } };
   }
   return undefined;
@@ -201,10 +202,10 @@ function takeNext(state: QueueState): { track: RNTrack; from: Section; rest: Que
 // Moves forward `steps` songs in play order. Songs passed over join the history, so
 // skipping deep into Your Queue removes the songs above it from Your Queue.
 // With nothing playing, the first step starts the top of Your Queue
-export function advance(state: QueueState, steps = 1): QueueState {
+export function advance(state: QueueState, steps = 1, isOnline = true): QueueState {
   let next = state;
   for (let i = 0; i < steps; i++) {
-    const taken = takeNext(next);
+    const taken = takeNext(next, isOnline);
     if (!taken) break;
     next = {
       ...taken.rest,
@@ -231,10 +232,10 @@ export function back(state: QueueState): QueueState {
 }
 
 // Follows the audio player to a new position in the play order
-export function moveTo(state: QueueState, index: number): QueueState {
+export function moveTo(state: QueueState, index: number, isOnline = true): QueueState {
   let next = state;
   while (next.current && next.history.length > index && next.history.length > 0) next = back(next);
-  if (next.current && index > next.history.length) next = advance(next, index - next.history.length);
+  if (next.current && index > next.history.length) next = advance(next, index - next.history.length, isOnline);
   return next;
 }
 

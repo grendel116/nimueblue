@@ -25,17 +25,29 @@ class FakeAudio {
 jest.mock("react-native-track-player", () => require("../shims/react-native-track-player.web"));
 let mockDiscoveryServed = 0;
 let mockDiscoveryOn = false;
-jest.mock("@/scripts/autoplay", () => ({
-  AUTOPLAY_SOURCE: "Discovery",
-  fetchDiscoveryTracks: jest.fn(async (take: number) =>
-    mockDiscoveryOn
-      ? Array.from({ length: take }, () => {
-          mockDiscoveryServed += 1;
-          return { id: `d${mockDiscoveryServed}`, title: `Find ${mockDiscoveryServed}`, url: `https://example.com/d${mockDiscoveryServed}.mp3` };
-        })
-      : [],
-  ),
-}));
+jest.mock("@/scripts/autoplay", () => {
+  const nextTrack = () => {
+    mockDiscoveryServed += 1;
+    return {
+      id: `d${mockDiscoveryServed}`,
+      title: `Find ${mockDiscoveryServed}`,
+      url: `https://example.com/d${mockDiscoveryServed}.mp3`,
+    };
+  };
+  return {
+    AUTOPLAY_SOURCE: "Discovery",
+    DISCOVERY_BUFFER_SIZE: 5,
+    drawFromReservoir: jest.fn((count: number) =>
+      mockDiscoveryOn ? Array.from({ length: Math.min(count, 5) }, nextTrack) : [],
+    ),
+    replenishDiscoveryReservoir: jest.fn(async () =>
+      mockDiscoveryOn ? Array.from({ length: 5 }, nextTrack) : [],
+    ),
+    fetchDiscoveryTracks: jest.fn(async (take: number) =>
+      mockDiscoveryOn ? Array.from({ length: take }, nextTrack) : [],
+    ),
+  };
+});
 
 import React from "react";
 import { act, create } from "react-test-renderer";

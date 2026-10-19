@@ -18,7 +18,12 @@ import TrackPlayer, {
 import { isPlaybackLimitReached, markTrackDisabled, subscribeDisabledTracks, isTrackDisabledSync, recordTrackPlay, getDisabledTrackIds } from "@/scripts/trackPlayUtils";
 import { isMirloTrack, shuffle } from "@/scripts/utils";
 import * as api from "../queries/fetch/fetchWrapper";
-import { fetchDiscoveryTracks } from "@/scripts/autoplay";
+import {
+  drawFromReservoir,
+  replenishDiscoveryReservoir,
+  DISCOVERY_BUFFER_SIZE,
+} from "@/scripts/autoplay";
+import { useIsOnline } from "@/scripts/useIsOnline";
 import { blockFaircampDomain } from "@/queries/fairplayer";
 import { getDownloadedTracks, subscribeDownloads } from "@/scripts/downloadManager";
 import { resetRadioTimer } from "@/scripts/radioTimer";
@@ -40,8 +45,6 @@ import { kvStorage } from "@/scripts/storage/kvStorage";
 export type { RepeatSetting, QueueSection, QueueSlot, PlayerContextType };
 export { ensureTrackPlayerInitialized };
 
-// Discovery fetches songs in batches and starts the next batch whenever fewer than a full
-// batch is waiting, so new songs arrive while the listener still has some to hear
 const DISCOVERY_BATCH = 5;
 
 type PlayerStore = Store<PlayerContextType>;
@@ -57,6 +60,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [shuffled, setShuffled] = useState<boolean>(false);
   const [looping, setLooping] = useState<RepeatSetting>("none");
+  const isOnline = useIsOnline();
+  const isOnlineRef = useRef(isOnline);
+  isOnlineRef.current = isOnline;
   const queue = useQueueStore((s) => s.queue);
   const setQueue = useQueueStore((s) => s.setQueueState);
   const playBackState = usePlaybackState();
@@ -109,7 +115,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const applyToPlayer = useCallback(
     (next: Q.QueueState, start: boolean) =>
       onPlayer(async () => {
-        const { tracks, index } = Q.playOrder(next);
+        const { tracks, index } = Q.playOrder(next, { isOnline: isOnlineRef.current });
         const keys = keysOf(tracks);
         const held = playerRef.current;
         if (held.keys.length === 0 && !start) return;
@@ -141,6 +147,13 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [onPlayer],
   );
 
+  // Synchronize audio player queue whenever network status toggles
+  useEffect(() => {
+    if (queueRef.current.current) {
+      applyToPlayer(queueRef.current, false);
+    }
+  }, [isOnline, applyToPlayer]);
+
   // Every queue change goes through here: screens, the saved copy, and the audio player
   const commit = useCallback(
     (next: Q.QueueState, player: "apply" | "start" | "follow" = "apply") => {
@@ -159,7 +172,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         const index = await TrackPlayer.getActiveTrackIndex();
         if (index === undefined || index === playerRef.current.index) return;
         playerRef.current = { ...playerRef.current, index };
-        const next = Q.moveTo(queueRef.current, index);
+        const next = Q.moveTo(queueRef.current, index, isOnlineRef.current);
         if (next !== queueRef.current) {
           commit(next, "follow");
           incrementedRef.current = false;
@@ -408,36 +421,48 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [commit],
   );
 
-  // Discovery tops itself up after Next Up while nothing repeats
+  // Discovery draws immediately from the local reservoir and quietly tops itself up when online
   useEffect(() => {
-    if (looping !== "none" || !queue.current) return;
-    if (queue.discovery.length >= DISCOVERY_BATCH || autoplayFillingRef.current) return;
+    if (!isOnline || looping !== "none" || !queue.current) return;
+    if (queue.discovery.length >= DISCOVERY_BUFFER_SIZE || autoplayFillingRef.current) return;
 
     autoplayFillingRef.current = true;
     const generation = queue.generation;
     const known = Q.allTracks(queue);
-    const knownIds = new Set(known.map((t) => t.id).filter((id) => id !== undefined));
+    const knownIds = new Set(known.map((t) => t.id).filter((id): id is string | number => id !== undefined));
     const knownUrls = new Set(known.map((t) => t.url).filter(Boolean));
 
+    // 1. Instant synchronous draw from the local reservoir in kvStorage (< 0.1ms, zero pop-in)
+    const needed = Math.max(DISCOVERY_BATCH, DISCOVERY_BUFFER_SIZE - queue.discovery.length);
+    const drawn = drawFromReservoir(needed, knownIds, knownUrls);
+    if (drawn.length > 0) {
+      const next = Q.addDiscovery(
+        queueRef.current,
+        drawn.map((t) => toPlayerTrack(t)),
+        generation,
+      );
+      if (next !== queueRef.current) commit(next);
+    }
+
+    // 2. Quiet background replenishment of reservoir if below target capacity
     (async () => {
       try {
-        let added: RNTrack[] = [];
-        for (let attempt = 0; attempt < 3 && added.length === 0; attempt++) {
-          const batch = await fetchDiscoveryTracks(DISCOVERY_BATCH);
-          if (batch.length === 0) break;
-          added = batch
+        const fresh = await replenishDiscoveryReservoir(knownIds, knownUrls);
+        if (queueRef.current.discovery.length < 5 && fresh.length > 0) {
+          const direct = fresh
+            .slice(0, 5)
             .map((t) => toPlayerTrack(t))
             .filter((t) => !knownIds.has(t.id) && (!t.url || !knownUrls.has(t.url)));
+          const next = Q.addDiscovery(queueRef.current, direct, generation);
+          if (next !== queueRef.current) commit(next);
         }
-        const next = Q.addDiscovery(queueRef.current, added, generation);
-        if (next !== queueRef.current) commit(next);
       } catch (err) {
-        console.error("Autoplay error:", err);
+        console.warn("Autoplay replenishment error:", err);
       } finally {
         autoplayFillingRef.current = false;
       }
     })();
-  }, [queue, looping, commit]);
+  }, [queue, looping, commit, isOnline]);
 
   const toggleShuffle = useCallback(async () => {
     const on = !latest.current.shuffled;
