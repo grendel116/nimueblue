@@ -7,6 +7,8 @@ import TrackPlayer, {
 
 export const setupPlayerOptions = {
   autoHandleInterruptions: true,
+  // ExoPlayer keeps up to 512 MB of streamed audio on disk (Android, in kilobytes)
+  maxCacheSize: 512 * 1024,
   iosCategory: IOSCategory.Playback,
   iosCategoryOptions: [
     IOSCategoryOptions.AllowAirPlay,

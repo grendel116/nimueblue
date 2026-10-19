@@ -7,9 +7,9 @@ import {
   useMemo,
   useRef,
   useCallback,
-  startTransition,
 } from "react";
 import { AppState } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import TrackPlayer, {
   Event,
   usePlaybackState,
@@ -33,49 +33,44 @@ import {
   REPEAT_MODES,
 } from "./player/types";
 import { ensureTrackPlayerInitialized } from "./player/setup";
-import {
-  isSameTrack,
-  queuedCount,
-  readPlayer,
-  toPlayerTrack,
-  toNativeTrack,
-} from "./player/trackUtils";
+import { isSameTrack, toPlayerTrack, toNativeTrack } from "./player/trackUtils";
+import * as Q from "./player/queueModel";
 
 export type { RepeatSetting, QueueSection, QueueSlot, PlayerContextType };
 export { ensureTrackPlayerInitialized };
 
-const AUTOPLAY_THRESHOLD = 2;
-const AUTOPLAY_ALBUMS_PER_BATCH = 5;
+// Discovery fetches songs in batches and starts the next batch whenever fewer than a full
+// batch is waiting, so new songs arrive while the listener still has some to hear
+const DISCOVERY_BATCH = 5;
+const QUEUE_STORAGE_KEY = "nimue.queue";
 
 type PlayerStore = Store<PlayerContextType>;
 
 // Carries a store that never changes identity; components subscribe through usePlayer
 export const PlayerContext = createContext<PlayerStore | null>(null);
 
+const keysOf = (tracks: RNTrack[]) => tracks.map((t) => t._queueKey ?? "");
+const sameKeys = (a: string[], b: string[]) => a.length === b.length && a.every((k, i) => k === b[i]);
+
 export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [shuffled, setShuffled] = useState<boolean>(false);
   const [looping, setLooping] = useState<RepeatSetting>("none");
-  const [playingQueue, setPlayingQueue] = useState<RNTrack[]>([]);
-  const [queueSource, setQueueSource] = useState<string>("");
-  const [activeTrack, setActiveTrack] = useState<RNTrack>();
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [queue, setQueue] = useState<Q.QueueState>(Q.emptyQueue);
   const playBackState = usePlaybackState();
   const incrementedRef = useRef(false);
   const [disabledTrackIds, setDisabledTrackIds] = useState<Set<number>>(new Set());
 
-  // The player's state as of the last render. Actions read it when they run, so each action
-  // keeps one identity and starting a track doesn't redraw every screen holding a button
-  const latest = useRef({
-    activeTrack: undefined as RNTrack | undefined,
-    playingQueue: [] as RNTrack[],
-    activeIndex: -1,
-    isPlaying: false,
-    shuffled: false,
-    looping: "none" as RepeatSetting,
-    disabledTrackIds,
-  });
+  // The queue as of the latest action, read by actions so each keeps one identity
+  const queueRef = useRef<Q.QueueState>(Q.emptyQueue);
+  // What the audio player currently holds, by queue key, and the index it is playing
+  const playerRef = useRef<{ keys: string[]; index: number }>({ keys: [], index: -1 });
+  // Player calls run one at a time, in the order they were asked for
+  const playerChain = useRef<Promise<void>>(Promise.resolve());
+  const autoplayFillingRef = useRef(false);
+
+  const latest = useRef({ isPlaying: false, shuffled: false, looping: "none" as RepeatSetting, disabledTrackIds });
 
   useEffect(() => {
     getDisabledTrackIds().then((ids) => setDisabledTrackIds(new Set(ids)));
@@ -102,159 +97,127 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     if (typeof trackId === "number" && trackId > 0) await markTrackDisabled(trackId);
   };
 
-  const activeTrackIdRef = useRef<number | null>(null);
-  const queueGenerationRef = useRef(0);
-  const autoplayFillingRef = useRef(false);
-  const [autoplayRecheck, setAutoplayRecheck] = useState(0);
-  // The playlist in its own order, so turning shuffle off can put it back
-  const playlistOrderRef = useRef<RNTrack[]>([]);
-
-  // Your Queue lives in the player's own list, right after the song playing, so the next
-  // song is always a queued one: when a song ends, on Next, and from the lock screen
-  const { userQueue, upcoming } = useMemo(() => {
-    const after = activeIndex >= 0 ? playingQueue.slice(activeIndex + 1) : [];
-    const queued = queuedCount(after);
-    return { userQueue: after.slice(0, queued), upcoming: after.slice(queued) };
-  }, [playingQueue, activeIndex]);
-
-  const refreshQueue = useCallback(async () => {
-    const { queue, active } = await readPlayer();
-    startTransition(() => {
-      setPlayingQueue(queue);
-    });
-    setActiveIndex(active);
+  const onPlayer = useCallback((work: () => Promise<void>) => {
+    const run = playerChain.current.then(work).catch((err) => console.error("Player error:", err));
+    playerChain.current = run;
+    return run;
   }, []);
 
-  // Queued songs are the listener's picks, even when they started out as previews
-  const addToQueue = useCallback(
-    async (track: RNTrack) => {
-      try {
+  // Gives the audio player the queue's play order. The song playing is left alone unless
+  // it changed; otherwise only the songs around it are replaced. `start` begins playback
+  const applyToPlayer = useCallback(
+    (next: Q.QueueState, start: boolean) =>
+      onPlayer(async () => {
+        const { tracks, index } = Q.playOrder(next);
+        const keys = keysOf(tracks);
+        const held = playerRef.current;
+        if (held.keys.length === 0 && !start) return;
         await ensureTrackPlayerInitialized();
-        if (track.id && trackDisabled(track.id)) {
-          return;
+
+        if (tracks.length === 0) {
+          await TrackPlayer.reset();
+        } else if (sameKeys(held.keys, keys)) {
+          if (held.index !== index) await TrackPlayer.skip(index);
+          if (start) await TrackPlayer.play();
+        } else if (start || held.keys[held.index] !== keys[index]) {
+          await TrackPlayer.setQueue(tracks.map(toNativeTrack));
+          if (index > 0) await TrackPlayer.skip(index);
+          await TrackPlayer.play();
+        } else if (sameKeys(held.keys.slice(0, held.index + 1), keys.slice(0, index + 1))) {
+          await TrackPlayer.removeUpcomingTracks();
+          const after = tracks.slice(index + 1);
+          if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
+        } else {
+          const others = held.keys.map((_, i) => i).filter((i) => i !== held.index);
+          if (others.length > 0) await TrackPlayer.remove(others);
+          const before = tracks.slice(0, index);
+          if (before.length > 0) await TrackPlayer.add(before.map(toNativeTrack), 0);
+          const after = tracks.slice(index + 1);
+          if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
         }
-        const { queue, active, queued } = await readPlayer();
-        const prepared = toPlayerTrack({ ...track, autoplay: undefined, queued: true });
-        const insertAt = active + 1 + queued;
-        const nativePrepared = toNativeTrack(prepared);
-        if (insertAt < queue.length) await TrackPlayer.add(nativePrepared, insertAt);
-        else await TrackPlayer.add(nativePrepared);
-        await refreshQueue();
-      } catch (err) {
-        console.error("Add to queue error:", err);
-      }
-    },
-    [refreshQueue, trackDisabled],
+        playerRef.current = { keys, index };
+      }),
+    [onPlayer],
   );
 
-  const removeFromUserQueue = useCallback(
-    async (index: number) => {
-      try {
-        const { active, queued } = await readPlayer();
-        if (index < 0 || index >= queued) return;
-        await TrackPlayer.remove(active + 1 + index);
-        await refreshQueue();
-      } catch (err) {
-        console.error("Remove from queue error:", err);
-      }
+  // Every queue change goes through here: screens, the saved copy, and the audio player
+  const commit = useCallback(
+    (next: Q.QueueState, player: "apply" | "start" | "follow" = "apply") => {
+      queueRef.current = next;
+      setQueue(next);
+      AsyncStorage.setItem(QUEUE_STORAGE_KEY, Q.toSaved(next)).catch((err) =>
+        console.error("Queue save error:", err),
+      );
+      if (player !== "follow") applyToPlayer(next, player === "start");
     },
-    [refreshQueue],
+    [applyToPlayer],
   );
 
-  const clearUserQueue = useCallback(async () => {
-    try {
-      const { active, queued } = await readPlayer();
-      if (queued === 0) return;
-      await TrackPlayer.remove(Array.from({ length: queued }, (_, i) => active + 1 + i));
-      await refreshQueue();
-    } catch (err) {
-      console.error("Clear queue error:", err);
-    }
-  }, [refreshQueue]);
-
-  // Plays the song at `target` in the player's list while Your Queue stays next in line
-  const jumpTo = useCallback(
-    async (target: number) => {
-      const { queue, active, queued } = await readPlayer();
-      const first = active + 1;
-      if (target >= first && target < first + queued) {
-        if (target !== first) await TrackPlayer.move(target, first);
-        await TrackPlayer.skip(first);
-      } else {
-        const waiting = queue.slice(first, first + queued);
-        if (queued > 0) await TrackPlayer.remove(waiting.map((_, i) => first + i));
-        await TrackPlayer.skip(target > active ? target - queued : target);
-        if (queued > 0) {
-          const now = (await TrackPlayer.getActiveTrackIndex()) ?? 0;
-          const length = (await TrackPlayer.getQueue()).length;
-          if (now + 1 < length) await TrackPlayer.add(waiting, now + 1);
-          else await TrackPlayer.add(waiting);
+  // Follows the audio player when it moves on by itself: a song ending, the lock screen,
+  // headphone buttons. Reads its position after any queued player calls have finished
+  const followPlayer = useCallback(
+    () =>
+      onPlayer(async () => {
+        const index = await TrackPlayer.getActiveTrackIndex();
+        if (index === undefined || index === playerRef.current.index) return;
+        playerRef.current = { ...playerRef.current, index };
+        const next = Q.moveTo(queueRef.current, index);
+        if (next !== queueRef.current) {
+          commit(next, "follow");
+          incrementedRef.current = false;
+          const track = next.current?.track;
+          if (
+            track &&
+            isMirloTrack(track) &&
+            typeof track.id === "number" &&
+            (await isPlaybackLimitReached(track.id, track.trackGroup?.artist?.maxFreePlays))
+          ) {
+            await stopDisabledTrack(track.id);
+          }
         }
-      }
-      await TrackPlayer.play();
-      await refreshQueue();
-    },
-    [refreshQueue],
+      }),
+    [onPlayer, commit],
   );
 
-  // The native player keeps playing while the app is in the background, and Android can
-  // rebuild the app's screens from scratch. Read the queue, track, and repeat mode back
-  // from the player whenever the app starts or returns to the front
-  const syncFromPlayer = useCallback(async () => {
-    try {
-      await ensureTrackPlayerInitialized();
-      const [queue, track, mode] = await Promise.all([
-        TrackPlayer.getQueue() as Promise<RNTrack[]>,
-        TrackPlayer.getActiveTrack() as Promise<RNTrack | undefined>,
-        TrackPlayer.getRepeatMode(),
-      ]);
-      const activeIdx = (await TrackPlayer.getActiveTrackIndex()) ?? -1;
-      setActiveIndex(activeIdx);
-      if (playlistOrderRef.current.length === 0) playlistOrderRef.current = queue;
-      if (track) {
-        const queueTrack =
-          (activeIdx >= 0 && queue[activeIdx]) ||
-          queue.find((t) => isSameTrack(t, track));
-        const fullTrack = queueTrack
-          ? { ...track, ...queueTrack, url: queueTrack.url || track.url }
-          : track;
-        setActiveTrack(fullTrack);
-        activeTrackIdRef.current = fullTrack.id ?? null;
-      }
-      setLooping(REPEAT_CYCLE.find((setting) => REPEAT_MODES[setting] === mode) ?? "none");
-    } catch (err) {
-      console.error("Track Player sync error:", err);
-    }
-  }, []);
-
+  // Restores the saved queue. If the player is still holding that queue (the app's screens
+  // were rebuilt while music played), pick up where it is
   useEffect(() => {
     getDownloadedTracks();
-    syncFromPlayer();
+    (async () => {
+      const saved = Q.fromSaved(await AsyncStorage.getItem(QUEUE_STORAGE_KEY).catch(() => null));
+      queueRef.current = saved;
+      setQueue(saved);
+      await onPlayer(async () => {
+        await ensureTrackPlayerInitialized();
+        const held = keysOf((await TrackPlayer.getQueue()) as RNTrack[]);
+        if (held.length === 0) return;
+        if (sameKeys(held, keysOf(Q.playOrder(saved).tracks))) {
+          playerRef.current = { keys: held, index: Q.playOrder(saved).index };
+        } else {
+          await TrackPlayer.reset();
+        }
+      });
+      followPlayer();
+    })();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") syncFromPlayer();
+      if (state === "active") followPlayer();
     });
     return () => subscription.remove();
-  }, [syncFromPlayer]);
+  }, [onPlayer, followPlayer]);
 
   // A deleted download leaves the queue, so the player never reaches a missing file
   useEffect(
     () =>
-      subscribeDownloads(async (saved) => {
+      subscribeDownloads((saved) => {
         const urls = new Set(saved.map((d) => d.url));
         const deleted = (t: RNTrack) => !!t.url?.startsWith("file://") && !urls.has(t.url);
-        playlistOrderRef.current = playlistOrderRef.current.filter((t) => !deleted(t));
-        try {
-          const queue = (await TrackPlayer.getQueue()) as RNTrack[];
-          const gone = queue.flatMap((t, index) => (deleted(t) ? [index] : []));
-          if (gone.length === 0) return;
-          await TrackPlayer.remove(gone);
-          await refreshQueue();
-        } catch (err) {
-          console.error("Queue cleanup error:", err);
-        }
+        const next = Q.removeWhere(queueRef.current, deleted);
+        if (Q.allTracks(next).length !== Q.allTracks(queueRef.current).length) commit(next);
       }),
-    [refreshQueue],
+    [commit],
   );
+
+  const activeTrack = queue.current?.track;
 
   useTrackPlayerEvents(
     [
@@ -264,8 +227,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     ],
     async (event) => {
       if (event.type === Event.PlaybackError) {
-        const currentTrack =
-          activeTrack ?? ((await TrackPlayer.getActiveTrack()) as RNTrack | undefined);
+        const currentTrack = queueRef.current.current?.track;
         const isFaircampError = Boolean(
           currentTrack?.fairplayerTrackId ||
             currentTrack?.source === "Faircamp" ||
@@ -280,47 +242,14 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (isFaircampError) blockFaircampDomain(currentTrack?.sourceUrl || currentTrack?.url);
         if (isFaircampError || isPaymentError) {
-          await stopDisabledTrack(activeTrackIdRef.current ?? currentTrack?.id);
+          await stopDisabledTrack(typeof currentTrack?.id === "number" ? currentTrack.id : undefined);
           return;
         }
       }
 
       if (event.type === Event.PlaybackActiveTrackChanged) {
         resetRadioTimer();
-        const rawTrack = ((event as any).track ??
-          (await TrackPlayer.getActiveTrack())) as RNTrack | undefined;
-        if (rawTrack) {
-          const idx = event.index ?? -1;
-          const currentQueue = latest.current.playingQueue;
-          const candidate =
-            typeof idx === "number" && idx >= 0 && idx < currentQueue.length
-              ? currentQueue[idx]
-              : undefined;
-          const queueTrack =
-            (candidate && isSameTrack(candidate, rawTrack))
-              ? candidate
-              : currentQueue.find((t) => isSameTrack(t, rawTrack));
-          const track = queueTrack
-            ? { ...rawTrack, ...queueTrack, url: queueTrack.url || rawTrack.url }
-            : rawTrack;
-          setActiveTrack(track);
-          setActiveIndex(idx);
-          latest.current = {
-            ...latest.current,
-            activeTrack: track,
-            activeIndex: idx,
-          };
-          activeTrackIdRef.current = track.id ?? null;
-          incrementedRef.current = false;
-
-          if (
-            isMirloTrack(track) &&
-            typeof track.id === "number" &&
-            (await isPlaybackLimitReached(track.id, track.trackGroup?.artist?.maxFreePlays))
-          ) {
-            await stopDisabledTrack(track.id);
-          }
-        }
+        followPlayer();
         return;
       }
 
@@ -332,8 +261,8 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (!incrementedRef.current && progressRatio >= 0.5) {
           incrementedRef.current = true;
-          const currentTrack = (await TrackPlayer.getActiveTrack()) as RNTrack | undefined;
-          const targetId = activeTrackIdRef.current ?? currentTrack?.id;
+          const currentTrack = queueRef.current.current?.track;
+          const targetId = currentTrack?.id;
 
           if (
             isMirloTrack(currentTrack) &&
@@ -361,37 +290,27 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     playBackState.state === State.Buffering ||
     playBackState.state === State.Loading;
 
-  latest.current = {
-    activeTrack,
-    playingQueue,
-    activeIndex,
-    isPlaying,
-    shuffled,
-    looping,
-    disabledTrackIds,
-  };
+  latest.current = { isPlaying, shuffled, looping, disabledTrackIds };
 
   const togglePlayPause = useCallback(async () => {
     try {
       await ensureTrackPlayerInitialized();
       if (latest.current.isPlaying) {
         await TrackPlayer.pause();
+      } else if (playerRef.current.keys.length === 0 && queueRef.current.current) {
+        // A queue restored from the last session loads into the player on first play
+        await applyToPlayer(queueRef.current, true);
       } else {
         await TrackPlayer.play();
       }
     } catch (err) {
       console.error("Toggle playback error:", err);
     }
-  }, []);
+  }, [applyToPlayer]);
 
   const playTrack = useCallback(
     async (track: RNTrack, albumTracks?: RNTrack[], source?: string) => {
       try {
-        const nextSource = source || track.trackGroup?.title || "";
-
-        await ensureTrackPlayerInitialized();
-        const { activeTrack, playingQueue, activeIndex, isPlaying, shuffled } = latest.current;
-
         if (isMirloTrack(track) && track.id) {
           if (trackDisabled(track.id) || isTrackDisabledSync(Number(track.id))) {
             await TrackPlayer.pause();
@@ -403,263 +322,133 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
           }
         }
 
-        const isSameAlbum =
-          activeTrack &&
-          Boolean(track.trackGroup?.urlSlug) &&
-          activeTrack.trackGroup?.urlSlug === track.trackGroup?.urlSlug &&
-          playingQueue.length > 0;
+        const state = queueRef.current;
 
-        if (isSameAlbum && (!albumTracks || albumTracks.length === 0)) {
-          const indexInQueue = playingQueue.findIndex(
-            (t) =>
-              (track.id !== undefined && t.id === track.id) ||
-              (track.url && t.url === track.url)
-          );
-          if (indexInQueue !== -1) {
-            await jumpTo(indexInQueue);
+        // A song from the album already in Next Up plays from there
+        if (!albumTracks || albumTracks.length === 0) {
+          const index = state.nextUp.findIndex((t) => isSameTrack(t, track));
+          if (index !== -1) {
+            commit(Q.playFromUpcoming(state, index), "start");
             return;
           }
         }
 
-        const enrichedTrack = toPlayerTrack(track);
-        const resolvedArtwork = enrichedTrack.artwork;
-        const enrichedArtist = enrichedTrack.artist;
+        const enriched = toPlayerTrack(track);
+        const candidates = albumTracks && albumTracks.length > 0 ? albumTracks : [track];
+        const raw = candidates.filter((t) => !(t.id && trackDisabled(t.id)));
+        if (raw.length === 0) return;
 
-        const candidateTracks =
-          albumTracks && albumTracks.length > 0 ? albumTracks : [track];
-        const rawTracks = candidateTracks.filter(
-          (t) => !(t.id && trackDisabled(t.id)),
-        );
-        if (rawTracks.length === 0) return;
-
-        const loaded = playlistOrderRef.current;
-        if (
-          activeTrack &&
-          isSameTrack(activeTrack, track) &&
-          rawTracks.length === loaded.length &&
-          rawTracks.every((t, i) => isSameTrack(t, loaded[i]))
-        ) {
-          if (!isPlaying) await TrackPlayer.play();
-          return;
-        }
-
-        const playlist = rawTracks.map((t) =>
-          toPlayerTrack(t, { artwork: resolvedArtwork, artist: enrichedArtist }),
-        );
-
-        let targetIndex = rawTracks.findIndex(
+        let targetIndex = raw.findIndex(
           (t) =>
             (track.id !== undefined && t.id === track.id) ||
             (track.url && t.url === track.url) ||
-            (track.title && t.title === track.title)
+            (track.title && t.title === track.title),
         );
         if (targetIndex === -1) {
           targetIndex = typeof track.queueIndex === "number" ? track.queueIndex : 0;
         }
-        targetIndex = Math.min(Math.max(0, targetIndex), playlist.length - 1);
+        targetIndex = Math.min(Math.max(0, targetIndex), raw.length - 1);
 
-        playlistOrderRef.current = playlist;
-        const ordered = shuffled
+        const playlist = raw.map((t) =>
+          toPlayerTrack(t, { artwork: enriched.artwork, artist: enriched.artist }),
+        );
+
+        // The same song from the same list is already loaded: carry on playing it
+        const current = state.current?.track;
+        const playingSame =
+          current &&
+          isSameTrack(current, playlist[targetIndex]) &&
+          state.sourceOrder.length === playlist.length &&
+          playlist.every((t, i) => isSameTrack(t, state.sourceOrder[i]));
+        if (playingSame) {
+          if (!latest.current.isPlaying) await togglePlayPause();
+          return;
+        }
+
+        const ordered = latest.current.shuffled
           ? [playlist[targetIndex], ...shuffle(playlist.filter((_, i) => i !== targetIndex))]
           : playlist;
-        const startIndex = shuffled ? 0 : targetIndex;
-
-        const afterLoaded = activeIndex >= 0 ? playingQueue.slice(activeIndex + 1) : [];
-        const waiting = afterLoaded.slice(0, queuedCount(afterLoaded));
-        const tracksToLoad = [
-          ...ordered.slice(0, startIndex + 1),
-          ...waiting,
-          ...ordered.slice(startIndex + 1),
-        ];
-
-        setActiveTrack(ordered[startIndex]);
-        setActiveIndex(startIndex);
-        setQueueSource(nextSource);
-        startTransition(() => {
-          setPlayingQueue(tracksToLoad);
-        });
-        latest.current = {
-          ...latest.current,
-          activeTrack: ordered[startIndex],
-          playingQueue: tracksToLoad,
-          activeIndex: startIndex,
-        };
-        queueGenerationRef.current += 1;
-
-        const nativeQueue = tracksToLoad.map(toNativeTrack);
-        await TrackPlayer.setQueue(nativeQueue);
-        if (startIndex > 0) {
-          await TrackPlayer.skip(startIndex);
-        }
-        await TrackPlayer.play();
+        const startIndex = latest.current.shuffled ? 0 : targetIndex;
+        const nextSource = source || track.trackGroup?.title || "";
+        commit(Q.play(state, ordered, startIndex, nextSource, playlist), "start");
       } catch (err) {
         console.error("Play track error:", err);
       }
     },
-    [jumpTo, trackDisabled],
+    [commit, trackDisabled, togglePlayPause],
   );
 
-  const playFromUserQueue = useCallback(
-    async (index: number) => {
-      try {
-        await ensureTrackPlayerInitialized();
-        const { active } = await readPlayer();
-        await jumpTo(active + 1 + index);
-      } catch (err) {
-        console.error("Play from queue error:", err);
-      }
+  // Queued songs are the listener's picks, even when they started out as previews
+  const addToQueue = useCallback(
+    async (track: RNTrack) => {
+      if (track.id && trackDisabled(track.id)) return;
+      commit(Q.addToQueue(queueRef.current, toPlayerTrack(track)));
     },
-    [jumpTo],
+    [commit, trackDisabled],
+  );
+
+  const removeFromUserQueue = useCallback(
+    async (index: number) => commit(Q.removeFromQueue(queueRef.current, index)),
+    [commit],
+  );
+
+  const clearUserQueue = useCallback(async () => commit(Q.clearQueue(queueRef.current)), [commit]);
+
+  const playFromUserQueue = useCallback(
+    async (index: number) => commit(Q.playFromQueue(queueRef.current, index), "start"),
+    [commit],
   );
 
   const skipToUpcoming = useCallback(
-    async (index: number) => {
-      try {
-        await ensureTrackPlayerInitialized();
-        const { active, queued } = await readPlayer();
-        await jumpTo(active + 1 + queued + index);
-      } catch (err) {
-        console.error("Skip to upcoming error:", err);
-      }
-    },
-    [jumpTo],
+    async (index: number) => commit(Q.playFromUpcoming(queueRef.current, index), "start"),
+    [commit],
   );
 
   const moveQueueItem = useCallback(
-    async (from: QueueSlot, to: QueueSlot) => {
-      if (from.section === to.section && from.index === to.index) return;
-      setPlayingQueue((prev) => {
-        const { activeIndex } = latest.current;
-        if (activeIndex < 0) return prev;
-        const first = activeIndex + 1;
-        const after = prev.slice(first);
-        const queued = queuedCount(after);
-        const fromAt = first + (from.section === "queue" ? 0 : queued) + from.index;
-        const track = prev[fromAt];
-        if (!track) return prev;
-        const next = [...prev];
-        next.splice(fromAt, 1);
-        const moved = toPlayerTrack({ ...track, autoplay: undefined, queued: to.section === "queue" });
-        const queuedLeft = queued - (from.section === "queue" ? 1 : 0);
-        const toAt = first + (to.section === "queue" ? 0 : queuedLeft) + to.index;
-        next.splice(toAt, 0, moved);
-        return next;
-      });
-      try {
-        await ensureTrackPlayerInitialized();
-        const { queue, active, queued } = await readPlayer();
-        const first = active + 1;
-        const fromAt = first + (from.section === "queue" ? 0 : queued) + from.index;
-        const track = queue[fromAt];
-        if (!track) return;
-        await TrackPlayer.remove(fromAt);
-
-        const moved = toPlayerTrack({ ...track, autoplay: undefined, queued: to.section === "queue" });
-        const queuedLeft = queued - (from.section === "queue" ? 1 : 0);
-        const toAt = first + (to.section === "queue" ? 0 : queuedLeft) + to.index;
-        const nativeMoved = toNativeTrack(moved);
-        if (toAt < queue.length - 1) await TrackPlayer.add(nativeMoved, toAt);
-        else await TrackPlayer.add(nativeMoved);
-        await refreshQueue();
-      } catch (err) {
-        console.error("Move queue item error:", err);
-      }
-    },
-    [refreshQueue],
+    async (from: QueueSlot, to: QueueSlot) => commit(Q.moveItem(queueRef.current, from, to)),
+    [commit],
   );
 
+  // Discovery tops itself up after Next Up while nothing repeats
   useEffect(() => {
-    if (looping !== "none" || !activeTrack || playingQueue.length === 0) return;
-    const activeIdx =
-      activeIndex >= 0 &&
-      activeIndex < playingQueue.length &&
-      isSameTrack(playingQueue[activeIndex], activeTrack)
-        ? activeIndex
-        : playingQueue.findIndex((t) => isSameTrack(t, activeTrack));
-    if (activeIdx < 0) return;
-    const upcomingPreviews = playingQueue.slice(activeIdx + 1).filter((t) => t.autoplay).length;
-    if (upcomingPreviews >= AUTOPLAY_THRESHOLD) return;
-    if (autoplayFillingRef.current) return;
+    if (looping !== "none" || !queue.current) return;
+    if (queue.discovery.length >= DISCOVERY_BATCH || autoplayFillingRef.current) return;
 
     autoplayFillingRef.current = true;
-    const generation = queueGenerationRef.current;
-    const knownIds = new Set(playingQueue.map((t) => t.id).filter((id) => id !== undefined));
-    const knownUrls = new Set(playingQueue.map((t) => t.url).filter(Boolean));
+    const generation = queue.generation;
+    const known = Q.allTracks(queue);
+    const knownIds = new Set(known.map((t) => t.id).filter((id) => id !== undefined));
+    const knownUrls = new Set(known.map((t) => t.url).filter(Boolean));
 
     (async () => {
       try {
         let added: RNTrack[] = [];
         for (let attempt = 0; attempt < 3 && added.length === 0; attempt++) {
-          const batch = await fetchDiscoveryTracks(AUTOPLAY_ALBUMS_PER_BATCH);
+          const batch = await fetchDiscoveryTracks(DISCOVERY_BATCH);
           if (batch.length === 0) break;
           added = batch
             .map((t) => toPlayerTrack(t))
             .filter((t) => !knownIds.has(t.id) && (!t.url || !knownUrls.has(t.url)));
         }
-        if (added.length === 0 || generation !== queueGenerationRef.current) return;
-
-        const nativeAdded = added.map(toNativeTrack);
-        await TrackPlayer.add(nativeAdded);
-        latest.current = {
-          ...latest.current,
-          playingQueue: [...latest.current.playingQueue, ...added],
-        };
-        startTransition(() => {
-          setPlayingQueue((prev) => [...prev, ...added]);
-        });
+        const next = Q.addDiscovery(queueRef.current, added, generation);
+        if (next !== queueRef.current) commit(next);
       } catch (err) {
         console.error("Autoplay error:", err);
       } finally {
         autoplayFillingRef.current = false;
-        if (generation !== queueGenerationRef.current) setAutoplayRecheck((n) => n + 1);
       }
     })();
-  }, [activeTrack, playingQueue, activeIndex, looping, autoplayRecheck]);
+  }, [queue, looping, commit]);
 
   const toggleShuffle = useCallback(async () => {
-    try {
-      await ensureTrackPlayerInitialized();
-      const { shuffled, playingQueue } = latest.current;
-      const nextShuffled = !shuffled;
-      setShuffled(nextShuffled);
-
-      const activeIndex = await TrackPlayer.getActiveTrackIndex();
-      if (activeIndex === undefined) return;
-      const played = playingQueue.slice(0, activeIndex + 1);
-      const after = playingQueue.slice(activeIndex + 1);
-      const waiting = after.slice(0, queuedCount(after));
-      const rest = after.slice(waiting.length);
-      const songs = rest.filter((t) => !t.autoplay);
-      const previews = rest.filter((t) => t.autoplay);
-      if (songs.length < 2) return;
-
-      let reordered: RNTrack[];
-      if (nextShuffled) {
-        reordered = shuffle(songs);
-      } else {
-        const order = playlistOrderRef.current;
-        const position = (t: RNTrack) => {
-          const i = order.findIndex((o) => isSameTrack(o, t));
-          return i === -1 ? Number.MAX_SAFE_INTEGER : i;
-        };
-        reordered = [...songs].sort((a, b) => position(a) - position(b));
-      }
-      const upcomingOrder = [...waiting, ...reordered, ...previews];
-
-      await TrackPlayer.removeUpcomingTracks();
-      const nativeUpcoming = upcomingOrder.map(toNativeTrack);
-      await TrackPlayer.add(nativeUpcoming);
-      startTransition(() => {
-        setPlayingQueue([...played, ...upcomingOrder]);
-      });
-    } catch (err) {
-      console.error("Shuffle error:", err);
-    }
-  }, []);
+    const on = !latest.current.shuffled;
+    setShuffled(on);
+    commit(Q.shuffleNextUp(queueRef.current, on, shuffle));
+  }, [commit]);
 
   const cycleRepeat = useCallback(async () => {
-    const { activeTrack, looping, playingQueue } = latest.current;
-    const next: RepeatSetting = activeTrack?.liveStation
+    const { looping } = latest.current;
+    const next: RepeatSetting = queueRef.current.current?.track.liveStation
       ? looping === "track"
         ? "none"
         : "track"
@@ -668,62 +457,32 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
       await ensureTrackPlayerInitialized();
       await TrackPlayer.setRepeatMode(REPEAT_MODES[next]);
       setLooping(next);
-
-      if (next !== "none") {
-        queueGenerationRef.current += 1;
-        const activeIndex = (await TrackPlayer.getActiveTrackIndex()) ?? -1;
-        const previewIndexes = playingQueue
-          .map((t, i) => (i !== activeIndex && t.autoplay ? i : -1))
-          .filter((i) => i >= 0);
-        if (previewIndexes.length > 0) {
-          await TrackPlayer.remove(previewIndexes);
-          await refreshQueue();
-        }
-      }
+      // Repeating loops what you chose, so Discovery steps aside
+      if (next !== "none") commit(Q.clearDiscovery(queueRef.current));
     } catch (err) {
       console.error("Repeat mode error:", err);
     }
-  }, [refreshQueue]);
+  }, [commit]);
 
   const skipNext = useCallback(async () => {
-    try {
-      await ensureTrackPlayerInitialized();
-      const queue = await TrackPlayer.getQueue();
-      const trackIndex = await TrackPlayer.getActiveTrackIndex();
-      if (queue.length === 0 || trackIndex === undefined) return;
-
-      if (trackIndex >= queue.length - 1) {
-        await TrackPlayer.skip(0);
-      } else {
-        await TrackPlayer.skipToNext();
-      }
-    } catch (err) {
-      console.error("Skip next error:", err);
-    }
-  }, []);
+    const next = Q.advance(queueRef.current);
+    if (next !== queueRef.current) commit(next, "start");
+  }, [commit]);
 
   const skipPrevious = useCallback(async () => {
     try {
       await ensureTrackPlayerInitialized();
       const progress = await TrackPlayer.getProgress();
-      if (progress.position > 3) {
+      const state = queueRef.current;
+      if (progress.position > 3 || state.history.length === 0) {
         await TrackPlayer.seekTo(0);
         return;
       }
-
-      const queue = await TrackPlayer.getQueue();
-      const trackIndex = await TrackPlayer.getActiveTrackIndex();
-      if (queue.length === 0 || trackIndex === undefined) return;
-
-      if (trackIndex === 0) {
-        await TrackPlayer.skip(queue.length - 1);
-      } else {
-        await TrackPlayer.skipToPrevious();
-      }
+      commit(Q.back(state), "start");
     } catch (err) {
       console.error("Skip previous error:", err);
     }
-  }, []);
+  }, [commit]);
 
   const seekTo = useCallback(async (position: number) => {
     try {
@@ -734,10 +493,12 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  const userQueue = queue.userQueue;
+  const upcoming = useMemo(() => Q.upcoming(queue), [queue]);
+
   const value: PlayerContextType = useMemo(
     () => ({
-      playingQueue,
-      queueSource,
+      queueSource: queue.source,
       userQueue,
       upcoming,
       addToQueue,
@@ -747,7 +508,6 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
       playFromUserQueue,
       skipToUpcoming,
       activeTrack,
-      setActiveTrack,
       shuffled,
       toggleShuffle,
       isPlaying,
@@ -762,8 +522,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
       isTrackDisabled,
     }),
     [
-      playingQueue,
-      queueSource,
+      queue.source,
       userQueue,
       upcoming,
       addToQueue,

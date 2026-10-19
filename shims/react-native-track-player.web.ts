@@ -242,6 +242,20 @@ const TrackPlayer = {
     return undefined;
   },
   getQueue: async () => [...queue],
+  reset: async () => {
+    queue = [];
+    activeIndex = 0;
+    loadedUrl = "";
+    shouldPlay = false;
+    destroyHls();
+    const audio = getAudio();
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+    }
+    setPlaybackState(State.None);
+    return undefined;
+  },
   getActiveTrack: async () => (queue.length > 0 ? queue[activeIndex] : undefined),
   getActiveTrackIndex: async () => (queue.length > 0 ? activeIndex : undefined),
   getPlaybackState: async (): Promise<PlaybackState> => ({ state: currentState }),

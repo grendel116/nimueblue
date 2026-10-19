@@ -13,10 +13,9 @@ export type QueueSection = "queue" | "upcoming";
 export type QueueSlot = { section: QueueSection; index: number };
 
 export interface PlayerContextType {
-  // Tracks currently loaded in the player, and the name of where they came from
-  playingQueue: RNTrack[];
+  // The name of what Next Up came from
   queueSource: string;
-  // Your Queue, then the rest of what's coming up
+  // Your Queue, then Next Up followed by Discovery (Discovery songs carry `autoplay`)
   userQueue: RNTrack[];
   upcoming: RNTrack[];
   addToQueue: (track: RNTrack) => Promise<void>;
@@ -26,7 +25,6 @@ export interface PlayerContextType {
   playFromUserQueue: (index: number) => Promise<void>;
   skipToUpcoming: (index: number) => Promise<void>;
   activeTrack: RNTrack | undefined;
-  setActiveTrack: (track: RNTrack) => void;
   shuffled: boolean;
   toggleShuffle: () => Promise<void>;
   isPlaying: boolean;

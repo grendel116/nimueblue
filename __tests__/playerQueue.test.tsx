@@ -1,0 +1,203 @@
+// Runs the real player provider against the web player stand-in, checking that the queue
+// screen's sections and the player's play order agree after each listener action
+class FakeAudio {
+  src = "";
+  paused = true;
+  currentTime = 0;
+  duration = 0;
+  addEventListener() {}
+  removeEventListener() {}
+  removeAttribute() {}
+  load() {}
+  pause() {
+    this.paused = true;
+  }
+  play() {
+    this.paused = false;
+    return Promise.resolve();
+  }
+  canPlayType() {
+    return "";
+  }
+}
+(globalThis as any).Audio = FakeAudio;
+
+jest.mock("react-native-track-player", () => require("../shims/react-native-track-player.web"));
+let mockDiscoveryServed = 0;
+let mockDiscoveryOn = false;
+jest.mock("@/scripts/autoplay", () => ({
+  AUTOPLAY_SOURCE: "Discovery",
+  fetchDiscoveryTracks: jest.fn(async (take: number) =>
+    mockDiscoveryOn
+      ? Array.from({ length: take }, () => {
+          mockDiscoveryServed += 1;
+          return { id: `d${mockDiscoveryServed}`, title: `Find ${mockDiscoveryServed}`, url: `https://example.com/d${mockDiscoveryServed}.mp3` };
+        })
+      : [],
+  ),
+}));
+
+import React from "react";
+import { act, create } from "react-test-renderer";
+import TrackPlayer from "react-native-track-player";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { PlayerContextProvider, usePlayer, type PlayerContextType } from "@/state/PlayerContext";
+
+const song = (id: number, title = `Song ${id}`): RNTrack =>
+  ({ id: `s${id}` as any, title, url: `https://example.com/${id}.mp3` }) as RNTrack;
+
+let player: PlayerContextType;
+function Probe() {
+  player = usePlayer(
+    "activeTrack",
+    "userQueue",
+    "upcoming",
+    "queueSource",
+    "addToQueue",
+    "playTrack",
+    "skipNext",
+    "skipPrevious",
+    "playFromUserQueue",
+    "skipToUpcoming",
+  ) as PlayerContextType;
+  return null;
+}
+
+// Lets queued player calls and state updates finish
+async function settle() {
+  for (let i = 0; i < 5; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+}
+
+const titles = (list: RNTrack[]) => list.map((t) => t.title);
+async function playerOrder() {
+  const queue = (await TrackPlayer.getQueue()) as RNTrack[];
+  const index = (await TrackPlayer.getActiveTrackIndex()) ?? -1;
+  return { titles: titles(queue), index };
+}
+
+const album = [song(1, "Sator Arepo"), song(2, "What Cheer Iowa"), song(3, "People on TV")];
+const radio = song(9, "50s 60s RETRO HITS");
+
+describe("player queue", () => {
+  let renderer: ReturnType<typeof create> | undefined;
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    await TrackPlayer.reset();
+    act(() => {
+      renderer = create(
+        <PlayerContextProvider>
+          <Probe />
+        </PlayerContextProvider>,
+      );
+    });
+    await settle();
+  });
+
+  afterEach(async () => {
+    act(() => renderer?.unmount());
+    await settle();
+  });
+
+  test("adding with nothing playing fills Your Queue and leaves the player empty", async () => {
+    await act(() => player.addToQueue(radio));
+    await settle();
+    expect(player.activeTrack).toBeUndefined();
+    expect(titles(player.userQueue)).toEqual([radio.title]);
+    expect((await playerOrder()).titles).toEqual([]);
+  });
+
+  test("the radio stays in Your Queue when an album starts, and plays right after the current song", async () => {
+    await act(() => player.addToQueue(radio));
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+
+    expect(player.activeTrack?.title).toBe("Sator Arepo");
+    expect(titles(player.userQueue)).toEqual([radio.title]);
+    expect(titles(player.upcoming)).toEqual(["What Cheer Iowa", "People on TV"]);
+    expect(player.queueSource).toBe("Space Trash (EP)");
+    expect(await playerOrder()).toEqual({
+      titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV"],
+      index: 0,
+    });
+
+    await act(() => player.skipNext());
+    await settle();
+    expect(player.activeTrack?.title).toBe(radio.title);
+    expect(player.userQueue).toEqual([]);
+    expect((await playerOrder()).index).toBe(1);
+  });
+
+  test("adding during playback goes under Your Queue, not into Next Up", async () => {
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+    await act(() => player.addToQueue(radio));
+    await settle();
+    expect(titles(player.userQueue)).toEqual([radio.title]);
+    expect(titles(player.upcoming)).toEqual(["What Cheer Iowa", "People on TV"]);
+    expect((await playerOrder()).titles).toEqual([
+      "Sator Arepo",
+      radio.title,
+      "What Cheer Iowa",
+      "People on TV",
+    ]);
+  });
+
+  test("the player moving on by itself is followed by the sections", async () => {
+    await act(() => player.addToQueue(radio));
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+    await act(() => TrackPlayer.skip(2));
+    await settle();
+    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
+    expect(player.userQueue).toEqual([]);
+    expect(titles(player.upcoming)).toEqual(["People on TV"]);
+  });
+
+  test("tapping a Next Up song keeps Your Queue next", async () => {
+    await act(() => player.addToQueue(radio));
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+    await act(() => player.skipToUpcoming(1));
+    await settle();
+    expect(player.activeTrack?.title).toBe("People on TV");
+    expect(titles(player.userQueue)).toEqual([radio.title]);
+    const order = await playerOrder();
+    expect(order.titles[order.index]).toBe("People on TV");
+    expect(order.titles[order.index + 1]).toBe(radio.title);
+  });
+
+  test("Previous puts a Your Queue song back on top of Your Queue", async () => {
+    await act(() => player.addToQueue(radio));
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+    await act(() => player.skipNext());
+    await settle();
+    await act(() => player.skipPrevious());
+    await settle();
+    expect(player.activeTrack?.title).toBe("Sator Arepo");
+    expect(titles(player.userQueue)).toEqual([radio.title]);
+    expect((await playerOrder()).index).toBe(0);
+  });
+
+  test("Discovery loads the next batch while songs are still waiting", async () => {
+    mockDiscoveryOn = true;
+    try {
+      await act(() => player.playTrack(album[2], album, "Space Trash (EP)"));
+      await settle();
+      const discovery = () => player.upcoming.filter((t) => t.autoplay);
+      expect(discovery()).toHaveLength(5);
+
+      await act(() => player.skipNext());
+      await settle();
+      expect(player.activeTrack?.autoplay).toBe(true);
+      expect(discovery().length).toBeGreaterThanOrEqual(9);
+    } finally {
+      mockDiscoveryOn = false;
+    }
+  });
+});

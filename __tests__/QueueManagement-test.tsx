@@ -1,7 +1,17 @@
+jest.mock("react-native-track-player", () => ({
+  __esModule: true,
+  default: {
+    getQueue: jest.fn().mockResolvedValue([]),
+    getActiveTrackIndex: jest.fn().mockResolvedValue(0),
+    add: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn().mockResolvedValue(undefined),
+  },
+  TrackType: { HLS: "hls", Default: "default" },
+}));
+
 import { isTrackOwnedOrPreview } from "@/scripts/utils";
 import { createMockRNTrack } from "@/__mocks__/mockRNTrack";
-
-//jest.mock("react-native-track-player");
+import { toNativeTrack } from "@/state/player/trackUtils";
 
 describe("Queue Management", () => {
   test("Includes preview tracks in queue and excludes non-preview tracks", async () => {
@@ -72,6 +82,14 @@ describe("Queue Management", () => {
     const combined = Array.from(trackMap.values());
     expect(combined).toHaveLength(2);
     expect(combined.map((t) => t.id)).toEqual([1, 2]);
+  });
+
+  test("toNativeTrack sends the player a slim track carrying its queue key", () => {
+    const track = createMockRNTrack({ id: 501, title: "Manual Pick", _queueKey: "q-1" });
+    const native = toNativeTrack(track);
+    expect(native._queueKey).toBe("q-1");
+    expect(native.title).toBe("Manual Pick");
+    expect(native).not.toHaveProperty("trackGroup");
   });
 });
 

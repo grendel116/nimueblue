@@ -1,4 +1,4 @@
-import TrackPlayer, { TrackType } from "react-native-track-player";
+import { TrackType } from "react-native-track-player";
 import { audioTrackType, resolveArtworkUrl } from "@/scripts/utils";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
@@ -10,19 +10,6 @@ export function isSameTrack(a: RNTrack, b: RNTrack): boolean {
   if (a.liveStation && b.liveStation) return a.liveStation === b.liveStation;
   if (a.podcastEpisodeId && b.podcastEpisodeId) return a.podcastEpisodeId === b.podcastEpisodeId;
   return Boolean(a.url) && a.url === b.url;
-}
-
-// Your Queue is the run of queued songs right after the one playing
-export function queuedCount(after: RNTrack[]): number {
-  const firstOther = after.findIndex((t) => !t.queued);
-  return firstOther === -1 ? after.length : firstOther;
-}
-
-// The player's list, the song playing, and how many queued songs wait after it
-export async function readPlayer(): Promise<{ queue: RNTrack[]; active: number; queued: number }> {
-  const queue = (await TrackPlayer.getQueue()) as RNTrack[];
-  const active = (await TrackPlayer.getActiveTrackIndex()) ?? -1;
-  return { queue, active, queued: queuedCount(queue.slice(active + 1)) };
 }
 
 export function resolveStreamUrl(rawAudio: string): string {
