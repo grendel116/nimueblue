@@ -2,7 +2,7 @@
   "expo": {
     "name": "NimueBlue",
     "slug": "nimueblue",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/nimue-blue-icon.png",
     "scheme": "nimueblue",
@@ -28,7 +28,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "space.mirlo.blue",
-      "versionCode": 16
+      "versionCode": 17
     },
     "web": {
       "bundler": "metro",
@@ -67,7 +67,8 @@
           ]
         }
       ],
-      "./plugins/withMirloAppLinks"
+      "./plugins/withMirloAppLinks",
+      "./plugins/withWebShellAssets"
     ],
     "assetBundlePatterns": [
       "**/*"
@@ -83,7 +84,7 @@
         "projectId": "e19c3b84-0cb7-47e4-bdae-523492be2929"
       }
     },
-    "runtimeVersion": "1.1.0",
+    "runtimeVersion": "1.1.1",
     "owner": "drhodesw",
     "updates": {
       "url": "https://u.expo.dev/e19c3b84-0cb7-47e4-bdae-523492be2929"
