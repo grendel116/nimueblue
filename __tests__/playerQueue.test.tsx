@@ -42,6 +42,8 @@ import { act, create } from "react-test-renderer";
 import TrackPlayer from "react-native-track-player";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PlayerContextProvider, usePlayer, type PlayerContextType } from "@/state/PlayerContext";
+import { kvStorage } from "@/scripts/storage/kvStorage";
+import { useQueueStore } from "@/state/player/useQueueStore";
 
 const song = (id: number, title = `Song ${id}`): RNTrack =>
   ({ id: `s${id}` as any, title, url: `https://example.com/${id}.mp3` }) as RNTrack;
@@ -86,6 +88,8 @@ describe("player queue", () => {
   let renderer: ReturnType<typeof create> | undefined;
 
   beforeEach(async () => {
+    kvStorage.clearAll();
+    useQueueStore.getState().resetQueue();
     await AsyncStorage.clear();
     await TrackPlayer.reset();
     act(() => {

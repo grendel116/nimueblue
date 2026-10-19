@@ -32,11 +32,80 @@ export const emptyQueue: QueueState = {
   generation: 0,
 };
 
+/**
+ * Strips heavy metadata (full artist bios, 7 cover sizes, circular album tracks)
+ * from track objects before entering the queue. Keeps JSON payloads small and prevents
+ * JS thread choking during queue updates.
+ */
+export function toNormalizedTrack(t: RNTrack): RNTrack {
+  if (!t) return t;
+  const cover = t.trackGroup?.cover as any;
+  const artwork =
+    t.artwork ||
+    cover?.sizes?.[300] ||
+    cover?.sizes?.[600] ||
+    cover?.sizes?.[120] ||
+    (typeof cover === "string" ? cover : cover?.url) ||
+    undefined;
+
+  const artistName =
+    (typeof t.artist === "string" && t.artist) ||
+    (t.artist as any)?.name ||
+    t.trackArtists?.[0]?.artistName ||
+    t.trackGroup?.artist?.name ||
+    "Unknown Artist";
+
+  const cleanGroup = t.trackGroup
+    ? {
+        id: t.trackGroup.id ?? t.trackGroupId ?? 0,
+        title: t.trackGroup.title || "",
+        urlSlug: t.trackGroup.urlSlug || "",
+        releaseDate: t.trackGroup.releaseDate || "",
+        trackGroupId: t.trackGroup.trackGroupId ?? t.trackGroupId ?? 0,
+        artist: {
+          id: t.trackGroup.artist?.id ?? 0,
+          name: artistName,
+          urlSlug: t.trackGroup.artist?.urlSlug || "",
+          bio: "",
+          activityPub: false,
+          userId: t.trackGroup.artist?.userId ?? 0,
+          enabled: true,
+        },
+        cover: {
+          sizes: {
+            60: artwork || "",
+            120: artwork || "",
+            300: artwork || "",
+            600: artwork || "",
+            960: artwork || "",
+            1200: artwork || "",
+            1500: artwork || "",
+          },
+        },
+        source: t.trackGroup.source,
+        sourceUrl: t.trackGroup.sourceUrl,
+      }
+    : undefined;
+
+  return {
+    ...t,
+    artwork,
+    artist: artistName,
+    trackGroup: cleanGroup as any,
+    trackArtists: undefined,
+  };
+}
+
 let nextEntryId = 1;
 
 // A fresh queue entry: its own key so the same song can sit in the queue twice
 function entry(track: RNTrack, autoplay?: true): RNTrack {
-  return { ...track, _queueKey: `q${Date.now().toString(36)}-${nextEntryId++}`, autoplay };
+  const norm = toNormalizedTrack(track);
+  return {
+    ...norm,
+    _queueKey: track._queueKey || `q${Date.now().toString(36)}-${nextEntryId++}`,
+    autoplay: autoplay || norm.autoplay,
+  };
 }
 
 function keepRecent(history: Played[]): Played[] {
@@ -274,11 +343,21 @@ export function fromSaved(raw: string | null): QueueState {
     const saved = JSON.parse(raw) as Partial<QueueState>;
     return {
       ...emptyQueue,
-      history: Array.isArray(saved.history) ? saved.history : [],
-      current: saved.current,
-      userQueue: Array.isArray(saved.userQueue) ? saved.userQueue : [],
-      nextUp: Array.isArray(saved.nextUp) ? saved.nextUp : [],
-      discovery: Array.isArray(saved.discovery) ? saved.discovery : [],
+      history: Array.isArray(saved.history)
+        ? saved.history.map((h) => ({ ...h, track: toNormalizedTrack(h.track) }))
+        : [],
+      current: saved.current
+        ? { ...saved.current, track: toNormalizedTrack(saved.current.track) }
+        : undefined,
+      userQueue: Array.isArray(saved.userQueue)
+        ? saved.userQueue.map((t) => toNormalizedTrack(t))
+        : [],
+      nextUp: Array.isArray(saved.nextUp)
+        ? saved.nextUp.map((t) => toNormalizedTrack(t))
+        : [],
+      discovery: Array.isArray(saved.discovery)
+        ? saved.discovery.map((t) => toNormalizedTrack(t))
+        : [],
       source: typeof saved.source === "string" ? saved.source : "",
     };
   } catch {

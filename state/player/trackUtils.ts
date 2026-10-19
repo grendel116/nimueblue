@@ -68,6 +68,8 @@ export function toPlayerTrack(
   };
 }
 
+export { toNormalizedTrack } from "./queueModel";
+
 /**
  * Strips down a track object to strictly the properties required by native
  * ExoPlayer / AVPlayer across the React Native bridge. This minimizes JSON serialization

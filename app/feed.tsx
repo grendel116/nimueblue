@@ -18,6 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button } from "@/components/ui";
 import { showChoice } from "@/state/choice";
 import { usePlayer, QueueSlot } from "@/state/PlayerContext";
+import { useTrackByKey } from "@/state/player/useQueueStore";
 import { openMainTab } from "@/components/Footer";
 import { theme } from "@/constants/theme";
 import { AUTOPLAY_SOURCE } from "@/scripts/autoplay";
@@ -50,7 +51,8 @@ function trackArtwork(track?: RNTrack): string | undefined {
 }
 
 type QueueRowProps = {
-  track: RNTrack;
+  trackKey: string;
+  fallbackTrack?: RNTrack;
   section: QueueSlot["section"];
   index: number;
   baseY: number;
@@ -65,7 +67,8 @@ type QueueRowProps = {
 };
 
 const QueueRow = React.memo(function QueueRow({
-  track,
+  trackKey,
+  fallbackTrack,
   section,
   index,
   baseY,
@@ -78,6 +81,8 @@ const QueueRow = React.memo(function QueueRow({
   onDragEnd,
   onOptions,
 }: QueueRowProps) {
+  const storeTrack = useTrackByKey(trackKey);
+  const track = storeTrack ?? fallbackTrack;
   const slotRef = useRef<QueueSlot>({ section, index });
   slotRef.current = { section, index };
 
@@ -140,7 +145,9 @@ const QueueRow = React.memo(function QueueRow({
   ).current;
 
   const artwork = trackArtwork(track);
-  const isExplicit = (track as any).isExplicit || (track as any).explicit;
+  const isExplicit = (track as any)?.isExplicit || (track as any)?.explicit;
+
+  if (!track) return null;
 
   return (
     <Animated.View
@@ -562,7 +569,8 @@ export default function QueueScreen() {
             return (
               <QueueRow
                 key={key}
-                track={track}
+                trackKey={track._queueKey || key}
+                fallbackTrack={track}
                 section={section}
                 index={index}
                 baseY={baseY}

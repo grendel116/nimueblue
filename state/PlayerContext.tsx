@@ -9,7 +9,6 @@ import {
   useCallback,
 } from "react";
 import { AppState } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import TrackPlayer, {
   Event,
   usePlaybackState,
@@ -35,6 +34,8 @@ import {
 import { ensureTrackPlayerInitialized } from "./player/setup";
 import { isSameTrack, toPlayerTrack, toNativeTrack } from "./player/trackUtils";
 import * as Q from "./player/queueModel";
+import { useQueueStore } from "./player/useQueueStore";
+import { kvStorage } from "@/scripts/storage/kvStorage";
 
 export type { RepeatSetting, QueueSection, QueueSlot, PlayerContextType };
 export { ensureTrackPlayerInitialized };
@@ -42,7 +43,6 @@ export { ensureTrackPlayerInitialized };
 // Discovery fetches songs in batches and starts the next batch whenever fewer than a full
 // batch is waiting, so new songs arrive while the listener still has some to hear
 const DISCOVERY_BATCH = 5;
-const QUEUE_STORAGE_KEY = "nimue.queue";
 
 type PlayerStore = Store<PlayerContextType>;
 
@@ -57,13 +57,14 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [shuffled, setShuffled] = useState<boolean>(false);
   const [looping, setLooping] = useState<RepeatSetting>("none");
-  const [queue, setQueue] = useState<Q.QueueState>(Q.emptyQueue);
+  const queue = useQueueStore((s) => s.queue);
+  const setQueue = useQueueStore((s) => s.setQueueState);
   const playBackState = usePlaybackState();
   const incrementedRef = useRef(false);
   const [disabledTrackIds, setDisabledTrackIds] = useState<Set<number>>(new Set());
 
   // The queue as of the latest action, read by actions so each keeps one identity
-  const queueRef = useRef<Q.QueueState>(Q.emptyQueue);
+  const queueRef = useRef<Q.QueueState>(useQueueStore.getState().queue);
   // What the audio player currently holds, by queue key, and the index it is playing
   const playerRef = useRef<{ keys: string[]; index: number }>({ keys: [], index: -1 });
   // Player calls run one at a time, in the order they were asked for
@@ -145,12 +146,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     (next: Q.QueueState, player: "apply" | "start" | "follow" = "apply") => {
       queueRef.current = next;
       setQueue(next);
-      AsyncStorage.setItem(QUEUE_STORAGE_KEY, Q.toSaved(next)).catch((err) =>
-        console.error("Queue save error:", err),
-      );
       if (player !== "follow") applyToPlayer(next, player === "start");
     },
-    [applyToPlayer],
+    [applyToPlayer, setQueue],
   );
 
   // Follows the audio player when it moves on by itself: a song ending, the lock screen,
@@ -183,10 +181,11 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   // were rebuilt while music played), pick up where it is
   useEffect(() => {
     getDownloadedTracks();
+    const raw = kvStorage.getString("nimue.queue");
+    const saved = Q.fromSaved(raw ?? null);
+    queueRef.current = saved;
+    setQueue(saved);
     (async () => {
-      const saved = Q.fromSaved(await AsyncStorage.getItem(QUEUE_STORAGE_KEY).catch(() => null));
-      queueRef.current = saved;
-      setQueue(saved);
       await onPlayer(async () => {
         await ensureTrackPlayerInitialized();
         const held = keysOf((await TrackPlayer.getQueue()) as RNTrack[]);
