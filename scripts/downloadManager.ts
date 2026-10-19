@@ -237,7 +237,7 @@ function shortHash(text: string): string {
 export const savedAlbumSlug = (albumKey: string) => SAVED_PREFIX + shortHash(albumKey);
 export const savedArtistSlug = (artist: string) => SAVED_PREFIX + shortHash(nameKey(artist));
 
-function savedAlbumPage(album: DownloadedAlbum): AlbumProps {
+export function savedAlbumPage(album: DownloadedAlbum): AlbumProps {
   const art = album.artwork;
   return {
     id: album.tracks[0]?.id ?? 0,

@@ -65,6 +65,9 @@ async function savedAlbum(albumKey: string): Promise<DownloadedAlbum | undefined
 // or with no match, nothing comes back and the album uses the page made from its files. Each
 // album is matched once; loading the page here also has it ready when it opens
 async function reachableOnlinePage(album: DownloadedAlbum): Promise<AlbumProps | null> {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return null;
+  }
   try {
     const page = await queryClient.fetchQuery({
       queryKey: ["onlineAlbum", nameKey(album.title), nameKey(album.artist)],
@@ -73,7 +76,7 @@ async function reachableOnlinePage(album: DownloadedAlbum): Promise<AlbumProps |
     });
     const href = albumHref(page ?? undefined);
     if (!href) return null;
-    await withTimeout(queryClient.fetchQuery(queryAlbum(href.params)));
+    await withTimeout(queryClient.fetchQuery({ ...queryAlbum(href.params), staleTime: 0 }));
     return page;
   } catch {
     return null;
@@ -103,7 +106,9 @@ export async function openDownloadedArtist(albumKey: string): Promise<void> {
   let id = savedArtistSlug(album.artist);
   if (page) {
     const onlineId = fairplayerReleaseSlug.artistPageRouteId(page);
-    const loads = await withTimeout(queryClient.fetchQuery(queryArtist({ artistSlug: onlineId })))
+    const loads = await withTimeout(
+      queryClient.fetchQuery({ ...queryArtist({ artistSlug: onlineId }), staleTime: 0 }),
+    )
       .then(() => true)
       .catch(() => false);
     if (loads) id = onlineId;

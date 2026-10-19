@@ -18,6 +18,9 @@ import { useState } from "react";
 import { theme } from "@/constants/theme";
 import LoadingScreen from "@/components/LoadingScreen";
 import { albumHref } from "@/scripts/routes";
+import OfflineNotice from "@/components/OfflineNotice";
+import { openMainTab } from "@/components/Footer";
+import { isNetworkError } from "@/scripts/networkError";
 
 export default function TagsView() {
   const { tag } = useLocalSearchParams();
@@ -30,6 +33,8 @@ export default function TagsView() {
     error,
     fetchNextPage,
     isFetchingNextPage,
+    isFetching,
+    refetch,
   } = useInfiniteQuery<{ results: AlbumProps[] }>({
     queryKey: ["infiniteTrackGroups", tag],
     queryFn: ({ pageParam = 0 }) => {
@@ -58,12 +63,38 @@ export default function TagsView() {
 
   if (isError) {
     return (
-      <View style={styles.loadingContainer}>
-        <ErrorNotification
-          visible={showError}
-          onDismiss={() => setShowError(false)}
-          error={error}
-        />
+      <View style={[styles.mainWrapper, { paddingTop: top }]}>
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={theme.colors.textPrimary}
+            />
+          </Pressable>
+          <Text style={styles.headerTitle}>#{String(tag)}</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        {isNetworkError(error) ? (
+          <OfflineNotice
+            retrying={isFetching}
+            onRetry={refetch}
+            onOpenLibrary={() => openMainTab("library")}
+          />
+        ) : (
+          <View style={styles.loadingContainer}>
+            <ErrorNotification
+              visible={showError}
+              onDismiss={() => setShowError(false)}
+              error={error}
+            />
+          </View>
+        )}
       </View>
     );
   }

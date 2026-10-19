@@ -2,7 +2,7 @@
   "expo": {
     "name": "NimueBlue",
     "slug": "nimueblue",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/nimue-blue-icon.png",
     "scheme": "nimueblue",
@@ -28,7 +28,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "space.mirlo.blue",
-      "versionCode": 17
+      "versionCode": 18
     },
     "web": {
       "bundler": "metro",

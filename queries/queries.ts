@@ -170,7 +170,8 @@ export function queryAlbum(opts: {
     enabled: !!opts.slug && !!opts.id,
     // Pages made from saved files follow edits right away and load with no connection
     staleTime: String(opts.slug).startsWith(SAVED_PREFIX) ? 0 : 5 * 60 * 1000,
-    networkMode: String(opts.slug).startsWith(SAVED_PREFIX) ? "always" : "online",
+    networkMode: "always",
+    retry: false,
   });
 }
 
@@ -222,7 +223,7 @@ export function queryArtist(opts: { artistSlug: string }) {
     queryFn: fetchArtist,
     enabled: !!opts.artistSlug,
     staleTime: opts.artistSlug.startsWith(SAVED_PREFIX) ? 0 : 5 * 60 * 1000,
-    networkMode: opts.artistSlug.startsWith(SAVED_PREFIX) ? "always" : "online",
+    networkMode: "always",
     retry: false,
   });
 }

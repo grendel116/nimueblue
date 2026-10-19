@@ -29,8 +29,19 @@ import DownloadAlbumButton from "@/components/DownloadAlbumButton";
 import { theme } from "@/constants/theme";
 import TagPill from "@/components/TagPill";
 import { recordHistoryItem } from "@/scripts/historyManager";
-import { SAVED_SOURCE, downloadedAlbumMatcher, useDownloads } from "@/scripts/downloadManager";
+import {
+  SAVED_SOURCE,
+  downloadedAlbumMatcher,
+  useDownloads,
+  groupTracksIntoAlbums,
+  savedAlbumSlug,
+  savedAlbumPage,
+  nameKey,
+} from "@/scripts/downloadManager";
 import LoadingScreen from "@/components/LoadingScreen";
+import OfflineNotice from "@/components/OfflineNotice";
+import { openMainTab } from "@/components/Footer";
+import { isNetworkError } from "@/scripts/networkError";
 
 type DateTimeFormatOptions = Intl.DateTimeFormatOptions;
 
@@ -105,7 +116,7 @@ function formatUTCDate(utcDate: string | undefined) {
 
 export default function AlbumTracks() {
   const { id, slug } = useLocalSearchParams();
-  const { isPending, isError, data, error } = useQuery(
+  const { isPending, isError, data, error, isFetching, refetch } = useQuery(
     queryAlbum({ slug: slug, id: id }),
   );
   const router = useRouter();
@@ -113,65 +124,80 @@ export default function AlbumTracks() {
   const downloads = useDownloads();
   const [showError, setShowError] = useState<boolean>(true);
 
+  const savedAlbums = useMemo(() => groupTracksIntoAlbums(downloads), [downloads]);
+  const matchedSavedAlbum = useMemo(() => {
+    if (!slug) return undefined;
+    const target = nameKey(String(slug));
+    return savedAlbums.find(
+      (a) =>
+        nameKey(a.title) === target ||
+        savedAlbumSlug(a.key) === slug ||
+        a.tracks.some((t) => String(t.id) === String(slug)),
+    );
+  }, [savedAlbums, slug]);
+
+  const resolvedAlbum: AlbumProps | undefined =
+    data?.result || (matchedSavedAlbum ? savedAlbumPage(matchedSavedAlbum) : undefined);
+
   useEffect(() => {
-    if (!data?.result) return;
+    if (!resolvedAlbum) return;
     const coverUri =
-      data.result.cover?.sizes?.[300] ||
-      data.result.cover?.sizes?.[600] ||
-      data.result.cover?.sizes?.[120];
-    const savedAlbum = (data.result.tracks?.[0] as RNTrack | undefined)?.downloadAlbum;
+      resolvedAlbum.cover?.sizes?.[300] ||
+      resolvedAlbum.cover?.sizes?.[600] ||
+      resolvedAlbum.cover?.sizes?.[120];
+    const savedAlbum = (resolvedAlbum.tracks?.[0] as RNTrack | undefined)?.downloadAlbum;
     recordHistoryItem(
-      data.result.source === SAVED_SOURCE && savedAlbum
+      resolvedAlbum.source === SAVED_SOURCE && savedAlbum
         ? {
             downloadAlbum: savedAlbum,
-            title: data.result.title,
-            artistName: data.result.artist?.name || "",
+            title: resolvedAlbum.title,
+            artistName: resolvedAlbum.artist?.name || "",
             coverUri,
           }
         : {
-            id: data.result.id,
-            artistId: data.result.artistId,
-            urlSlug: data.result.urlSlug,
-            title: data.result.title,
-            artistName: data.result.artist?.name || "",
+            id: resolvedAlbum.id,
+            artistId: resolvedAlbum.artistId,
+            urlSlug: resolvedAlbum.urlSlug,
+            title: resolvedAlbum.title,
+            artistName: resolvedAlbum.artist?.name || "",
             coverUri,
           },
     );
-  }, [data?.result]);
+  }, [resolvedAlbum]);
 
   const { allTracks: album, playableTracks } = useMemo(() => {
     const tracksToPlay: RNTrack[] = [];
     const allTracks: RNTrack[] = [];
     let playableIndex = 0;
 
-    if (data?.result) {
+    if (resolvedAlbum) {
       const fallbackAlbumSource =
-        data.result.source ||
+        resolvedAlbum.source ||
         resolveFeedSourceName(
-          data.result.tracks?.[0]?.url || data.result.tracks?.[0]?.audio?.url,
+          resolvedAlbum.tracks?.[0]?.url || resolvedAlbum.tracks?.[0]?.audio?.url,
         );
-      data.result.source = fallbackAlbumSource;
+      resolvedAlbum.source = fallbackAlbumSource;
 
-      const resolvedAlbumId = data.result.id || data.result.trackGroupId;
+      const resolvedAlbumId = resolvedAlbum.id || resolvedAlbum.trackGroupId;
 
-      data.result.tracks?.forEach((track) => {
+      resolvedAlbum.tracks?.forEach((track) => {
         const rawAudioUrl = track.audio?.url || track.url || "";
         const streamUrl = /^(https?|file):\/\//.test(rawAudioUrl)
           ? rawAudioUrl
           : `${API_ROOT}${rawAudioUrl.startsWith("/") ? "" : "/"}${rawAudioUrl}`;
         const trackSource =
           track.source ||
-          data.result.source ||
+          resolvedAlbum.source ||
           (streamUrl.startsWith("http")
             ? resolveFeedSourceName(streamUrl)
             : "Mirlo Space");
-        const trackSourceUrl = track.sourceUrl || data.result.sourceUrl;
+        const trackSourceUrl = track.sourceUrl || resolvedAlbum.sourceUrl;
         const trackAlbumId = resolvedAlbumId || track.trackGroupId;
 
         const newTrack: RNTrack = {
           title: track.title,
-          artist: data.result.artist.name,
-          artwork: data.result.cover.sizes[600],
+          artist: resolvedAlbum.artist?.name || "",
+          artwork: resolvedAlbum.cover?.sizes?.[600] || resolvedAlbum.cover?.sizes?.[300],
           url: streamUrl,
           allowIndividualSale: track.allowIndividualSale,
           id: track.id,
@@ -179,18 +205,18 @@ export default function AlbumTracks() {
           queueIndex: track.order,
           trackGroupId: trackAlbumId,
           trackGroup: {
-            userTrackGroupPurchases: data.result.userTrackGroupPurchases,
-            artistId: data.result.artistId,
-            urlSlug: data.result.urlSlug,
-            cover: data.result.cover,
-            title: data.result.title,
-            artist: data.result.artist,
-            id: data.result.id,
-            releaseDate: data.result.releaseDate,
+            userTrackGroupPurchases: resolvedAlbum.userTrackGroupPurchases,
+            artistId: resolvedAlbum.artistId,
+            urlSlug: resolvedAlbum.urlSlug,
+            cover: resolvedAlbum.cover,
+            title: resolvedAlbum.title,
+            artist: resolvedAlbum.artist,
+            id: resolvedAlbum.id,
+            releaseDate: resolvedAlbum.releaseDate,
             trackGroupId: trackAlbumId,
             source: trackSource,
             sourceUrl: trackSourceUrl,
-            purchaseLinks: data.result.purchaseLinks,
+            purchaseLinks: resolvedAlbum.purchaseLinks,
           },
           audio: {
             url: streamUrl,
@@ -209,7 +235,7 @@ export default function AlbumTracks() {
 
         allTracks.push(newTrack);
 
-        if (isTrackOwnedOrPreview(newTrack, null, data.result, disabledTrackIds)) {
+        if (isTrackOwnedOrPreview(newTrack, null, resolvedAlbum, disabledTrackIds)) {
           newTrack.queueIndex = playableIndex;
           playableIndex++;
           tracksToPlay.push(newTrack);
@@ -218,27 +244,55 @@ export default function AlbumTracks() {
     }
 
     return { allTracks, playableTracks: tracksToPlay };
-  }, [data, disabledTrackIds]);
+  }, [resolvedAlbum, disabledTrackIds]);
 
-  if (isPending) {
+  if (isPending && !resolvedAlbum) {
     return (
       <LoadingScreen />
     );
   }
 
-  if (isError) {
+  if (isError && !resolvedAlbum) {
     return (
-      <View style={styles.loadingContainer}>
-        <ErrorNotification
-          visible={showError}
-          onDismiss={() => setShowError(false)}
-          error={error}
-        />
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.topNav}>
+          <Pressable
+            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={theme.colors.textPrimary}
+            />
+          </Pressable>
+        </View>
+        {isNetworkError(error) ? (
+          <OfflineNotice
+            retrying={isFetching}
+            onRetry={refetch}
+            onOpenLibrary={() => openMainTab("library")}
+          />
+        ) : (
+          <View style={styles.loadingContainer}>
+            <ErrorNotification
+              visible={showError}
+              onDismiss={() => setShowError(false)}
+              error={error}
+            />
+          </View>
+        )}
+      </SafeAreaView>
     );
   }
 
-  const selectedAlbum = data.result;
+  if (!resolvedAlbum) {
+    return <LoadingScreen />;
+  }
+
+  const selectedAlbum = resolvedAlbum;
   const isSavedPage = selectedAlbum.source === SAVED_SOURCE;
   const onDevice = isSavedPage || downloadedAlbumMatcher(downloads)(selectedAlbum);
   const albumSource =

@@ -23,11 +23,14 @@ import ArtistActions from "@/components/artist/ArtistActions";
 import ArtistLinks from "@/components/artist/ArtistLinks";
 import CatalogueCard from "@/components/artist/CatalogueCard";
 import ArtistPosts from "@/components/artist/ArtistPosts";
+import OfflineNotice from "@/components/OfflineNotice";
+import { openMainTab } from "@/components/Footer";
+import { isNetworkError } from "@/scripts/networkError";
 
 export default function ArtistPage() {
   const { id } = useLocalSearchParams();
   const routeId = String(id ?? "");
-  const { data, isError, isPending, error } = useQuery(
+  const { data, isError, isPending, error, isFetching, refetch } = useQuery(
     queryArtist({ artistSlug: routeId }),
   );
   const router = useRouter();
@@ -47,9 +50,33 @@ export default function ArtistPage() {
 
   if (isError) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Error loading artist: {error.message}</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.topNav}>
+          <Pressable
+            onPress={() => (router.canDismiss() ? router.dismiss() : router.back())}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={theme.colors.textPrimary}
+            />
+          </Pressable>
+        </View>
+        {isNetworkError(error) ? (
+          <OfflineNotice
+            retrying={isFetching}
+            onRetry={refetch}
+            onOpenLibrary={() => openMainTab("library")}
+          />
+        ) : (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.errorText}>Error loading artist: {error.message}</Text>
+          </View>
+        )}
+      </SafeAreaView>
     );
   }
 
