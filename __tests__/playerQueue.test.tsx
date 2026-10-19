@@ -200,7 +200,7 @@ describe("player queue", () => {
     expect((await playerOrder()).index).toBe(0);
   });
 
-  test("Discovery maintains exactly 12 songs, adding one as one is played", async () => {
+  test("Discovery maintains exactly 12 songs, adding one whenever a song is taken from discovery", async () => {
     mockDiscoveryOn = true;
     try {
       await act(() => player.playTrack(album[2], album, "Space Trash (EP)"));
@@ -208,9 +208,15 @@ describe("player queue", () => {
       const discovery = () => player.upcoming.filter((t) => t.autoplay);
       expect(discovery()).toHaveLength(12);
 
+      // Skipping advances playback into discovery, taking 1 song from the discovery queue
       await act(() => player.skipNext());
       await settle();
       expect(player.activeTrack?.autoplay).toBe(true);
+      expect(discovery()).toHaveLength(12);
+
+      // Tapping a discovery song directly takes it from the discovery queue
+      await act(() => player.skipToUpcoming(1));
+      await settle();
       expect(discovery()).toHaveLength(12);
     } finally {
       mockDiscoveryOn = false;

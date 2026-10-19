@@ -75,7 +75,6 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const playerRef = useRef<{ keys: string[]; index: number }>({ keys: [], index: -1 });
   // Player calls run one at a time, in the order they were asked for
   const playerChain = useRef<Promise<void>>(Promise.resolve());
-  const autoplayFillingRef = useRef(false);
 
   const latest = useRef({ isPlaying: false, shuffled: false, looping: "none" as RepeatSetting, disabledTrackIds });
 
@@ -421,12 +420,11 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [commit],
   );
 
-  // Discovery always maintains exactly 12 songs, drawing one as one is played
+  // Discovery maintains 12 songs: whenever a song is taken from the discovery queue, one is added
   useEffect(() => {
     if (!isOnline || looping !== "none" || !queue.current) return;
-    if (queue.discovery.length >= DISCOVERY_BUFFER_SIZE || autoplayFillingRef.current) return;
+    if (queue.discovery.length >= DISCOVERY_BUFFER_SIZE) return;
 
-    autoplayFillingRef.current = true;
     const generation = queue.generation;
     const known = Q.allTracks(queue);
     const knownIds = new Set(known.map((t) => t.id).filter((id): id is string | number => id !== undefined));
@@ -459,8 +457,6 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (err) {
         console.warn("Autoplay replenishment error:", err);
-      } finally {
-        autoplayFillingRef.current = false;
       }
     })();
   }, [queue, looping, commit, isOnline]);
