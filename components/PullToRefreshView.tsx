@@ -47,7 +47,7 @@ export default function PullToRefreshView({
   useEffect(() => {
     if (refreshing) {
       Animated.spring(pullAnim, {
-        toValue: 56,
+        toValue: 64,
         useNativeDriver: true,
         bounciness: 6,
       }).start();
@@ -145,7 +145,7 @@ export default function PullToRefreshView({
                 {
                   translateY: pullAnim.interpolate({
                     inputRange: [0, MAX_PULL],
-                    outputRange: [-48, 16],
+                    outputRange: [-64, 40],
                     extrapolate: "clamp",
                   }),
                 },
@@ -177,6 +177,7 @@ export default function PullToRefreshView({
               tintColor={theme.colors.primary}
               colors={[theme.colors.primary]}
               progressBackgroundColor={theme.colors.surfaceElevated}
+              progressViewOffset={24}
             />
           ) : undefined
         }
@@ -196,7 +197,7 @@ const styles = StyleSheet.create({
   },
   indicatorContainer: {
     position: "absolute",
-    top: 0,
+    top: 14,
     left: 0,
     right: 0,
     alignItems: "center",
