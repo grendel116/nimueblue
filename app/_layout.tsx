@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SearchContextProvider } from "@/state/SearchContext";
 import { PlayerContextProvider } from "@/state/PlayerContext";
@@ -36,6 +36,7 @@ SplashScreen.setOptions({
 TrackPlayer.registerPlaybackService(() => require("../scripts/service"));
 
 function StandardAppLayout() {
+  const router = useRouter();
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [fontsLoaded, fontError] = useFonts({
     MedievalScroll: require("../assets/fonts/Medieval-Scroll-of-Wisdom.ttf"),
@@ -43,6 +44,41 @@ function StandardAppLayout() {
     ...Ionicons.font,
     ...FontAwesome6.font,
   });
+
+  // Handle deep link navigation requested by the native shell
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+
+    const navigateTo = (route: string) => {
+      if (!route) return;
+      try {
+        router.navigate(route as any);
+      } catch {
+        try {
+          router.push(route as any);
+        } catch (err) {
+          console.warn("Failed to navigate to route:", route, err);
+        }
+      }
+    };
+
+    (window as any).__nimueNavigate = navigateTo;
+
+    const onMessage = (event: MessageEvent) => {
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data?.type === "navigate" && typeof data.route === "string") {
+          navigateTo(data.route);
+        }
+      } catch {}
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => {
+      delete (window as any).__nimueNavigate;
+      window.removeEventListener("message", onMessage);
+    };
+  }, [router]);
 
   useEffect(() => {
     checkForUpdates();

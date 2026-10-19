@@ -123,6 +123,12 @@ describe("redirectSystemPath", () => {
     expect(
       await redirect("nimueblue://artist/arod"),
     ).toBe("/artist/arod/artist-page");
+    expect(
+      await redirect("intent://artist/arod/album/single#Intent;scheme=nimueblue;package=space.mirlo.blue;end"),
+    ).toBe("/artist/arod/album/single/album-tracks");
+    expect(await redirect("intent://station/wfmu#Intent;scheme=nimueblue;package=space.mirlo.blue;end")).toBe(
+      "/station/wfmu",
+    );
   });
 
   test("extracts app route parameter from grendel116.github.io listen hub URL", async () => {

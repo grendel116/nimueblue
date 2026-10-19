@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, BackHandler, StatusBar } from "react-native";
+import { StyleSheet, View, BackHandler, StatusBar, Linking } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-player";
 import * as SplashScreen from "expo-splash-screen";
@@ -8,14 +8,57 @@ import { ensureTrackPlayerInitialized } from "@/state/player/setup";
 import { chooseMusicFolder, openMusicFolder, rescanMusicFolder } from "@/scripts/musicFolder";
 import { getDownloadedTracks } from "@/scripts/downloadManager";
 import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
+import { redirectSystemPath } from "@/app/+native-intent";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
+  const isWebReadyRef = useRef<boolean>(false);
+  const pendingRouteRef = useRef<string | null>(null);
+
+  const navigateWebToRoute = (route: string) => {
+    if (!route || route === "/") return;
+    if (isWebReadyRef.current && webViewRef.current) {
+      const js = `(function() {
+        if (typeof window.__nimueNavigate === 'function') {
+          window.__nimueNavigate(${JSON.stringify(route)});
+        } else {
+          window.postMessage(${JSON.stringify({ type: "navigate", route })}, '*');
+        }
+      })(); true;`;
+      webViewRef.current.injectJavaScript(js);
+    } else {
+      pendingRouteRef.current = route;
+    }
+  };
 
   useEffect(() => {
     ensureTrackPlayerInitialized().catch((err) => {
       console.warn("Failed to initialize native TrackPlayer in WebShellView:", err);
     });
+
+    const handleUrl = async (url: string | null, initial: boolean) => {
+      if (!url) return;
+      try {
+        const route = await redirectSystemPath({ path: url, initial });
+        if (route && route !== "/") {
+          navigateWebToRoute(route);
+        }
+      } catch (err) {
+        console.warn("Failed to resolve incoming URL in WebShellView:", url, err);
+      }
+    };
+
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl(url, true);
+    });
+
+    const subscription = Linking.addEventListener("url", (event) => {
+      handleUrl(event.url, false);
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   // Handle hardware back button on Android: go back in web history if possible
@@ -163,7 +206,13 @@ export default function WebShellView() {
           }
           break;
         case "webReady":
+          isWebReadyRef.current = true;
           SplashScreen.hideAsync().catch(() => {});
+          if (pendingRouteRef.current) {
+            const pending = pendingRouteRef.current;
+            pendingRouteRef.current = null;
+            navigateWebToRoute(pending);
+          }
           break;
         case "pickMusicFolder":
           try {
