@@ -31,7 +31,7 @@ export const useSheetClose = () => useContext(SheetCloseContext);
 // list is at its top
 export function SheetScrollView(props: React.ComponentProps<typeof Animated.ScrollView>) {
   const sheet = useContext(SheetScrollContext);
-  if (!sheet) return <Animated.ScrollView {...props} />;
+  if (!sheet || Platform.OS === "web") return <Animated.ScrollView {...props} />;
   return (
     <GestureDetector gesture={sheet.scrollGesture}>
       <Animated.ScrollView
@@ -139,20 +139,23 @@ export default function SwipeDownSheet({
 
   const scroll = useMemo(() => ({ onScroll, scrollGesture }), [onScroll, scrollGesture]);
 
+  const isWeb = Platform.OS === "web";
+  const content = (
+    <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
+      <GestureDetector gesture={barGesture}>
+        <View>
+          <DismissModalBar onPress={close} />
+        </View>
+      </GestureDetector>
+      {children}
+    </SafeAreaView>
+  );
+
   return (
     <SheetCloseContext.Provider value={close}>
       <SheetScrollContext.Provider value={scroll}>
         <Animated.View style={[styles.sheet, sheetStyle]}>
-          <GestureDetector gesture={bodyGesture}>
-            <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
-              <GestureDetector gesture={barGesture}>
-                <View>
-                  <DismissModalBar onPress={close} />
-                </View>
-              </GestureDetector>
-              {children}
-            </SafeAreaView>
-          </GestureDetector>
+          {isWeb ? content : <GestureDetector gesture={bodyGesture}>{content}</GestureDetector>}
         </Animated.View>
       </SheetScrollContext.Provider>
     </SheetCloseContext.Provider>

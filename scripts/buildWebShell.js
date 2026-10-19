@@ -31,24 +31,9 @@ if (fs.existsSync(htmlPath)) {
       '<head>\n    <base href="./">\n    <script>if (window.location.protocol === "file:" && window.location.pathname.includes("android_asset")) { try { window.history.replaceState(null, "", "index.html"); } catch (e) {} }</script>'
     );
   }
-  // Inject global CSS to prevent horizontal page movement and hide scrollbars without breaking touch gestures
+  // Inject minimal CSS to hide scrollbars cleanly without interfering with layout or touch events
   const shellCss = `
     <style id="web-shell-lock">
-      html, body {
-        width: 100%;
-        height: 100%;
-        overflow-x: hidden;
-        overscroll-behavior: none;
-        overscroll-behavior-y: none;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      input, textarea {
-        user-select: auto;
-        -webkit-user-select: auto;
-      }
       * {
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
