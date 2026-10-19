@@ -40,11 +40,14 @@ if (fs.existsSync(htmlPath)) {
         width: 100% !important;
         height: 100% !important;
         touch-action: pan-y !important;
-        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: none !important;
+        overscroll-behavior-y: none !important;
+        -webkit-overflow-scrolling: auto;
       }
       * {
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
+        overscroll-behavior: none !important;
       }
       *::-webkit-scrollbar {
         display: none !important;

@@ -293,6 +293,8 @@ export default function WebShellView() {
         setBuiltInZoomControls={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
+        overScrollMode="never"
+        bounces={false}
         onMessage={onMessage}
         onLoadEnd={() => {
           syncStateToWeb();
