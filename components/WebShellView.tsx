@@ -291,6 +291,8 @@ export default function WebShellView() {
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback={true}
         setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
+        scalesPageToFit={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
         overScrollMode="never"

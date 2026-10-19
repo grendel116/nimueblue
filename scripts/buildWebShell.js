@@ -23,7 +23,7 @@ if (fs.existsSync(htmlPath)) {
   // Disable user zooming / scaling
   html = html.replace(
     /<meta name="viewport"[^>]*>/i,
-    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no">'
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover">'
   );
   if (!html.includes('<base href="./">')) {
     html = html.replace(
@@ -31,23 +31,27 @@ if (fs.existsSync(htmlPath)) {
       '<head>\n    <base href="./">\n    <script>if (window.location.protocol === "file:" && window.location.pathname.includes("android_asset")) { try { window.history.replaceState(null, "", "index.html"); } catch (e) {} }</script>'
     );
   }
-  // Inject global CSS to completely disable horizontal page movement and hide scrollbars
+  // Inject global CSS to prevent horizontal page movement and hide scrollbars without breaking touch gestures
   const shellCss = `
     <style id="web-shell-lock">
       html, body {
-        overflow-x: hidden !important;
-        position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
-        touch-action: pan-y !important;
-        overscroll-behavior: none !important;
-        overscroll-behavior-y: none !important;
-        -webkit-overflow-scrolling: auto;
+        width: 100%;
+        height: 100%;
+        overflow-x: hidden;
+        overscroll-behavior: none;
+        overscroll-behavior-y: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      input, textarea {
+        user-select: auto;
+        -webkit-user-select: auto;
       }
       * {
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
-        overscroll-behavior: none !important;
       }
       *::-webkit-scrollbar {
         display: none !important;
@@ -56,7 +60,9 @@ if (fs.existsSync(htmlPath)) {
       }
     </style>
   `;
-  if (!html.includes('id="web-shell-lock"')) {
+  if (html.includes('id="web-shell-lock"')) {
+    html = html.replace(/<style id="web-shell-lock">[\s\S]*?<\/style>/, shellCss.trim());
+  } else {
     html = html.replace("</head>", `${shellCss}\n</head>`);
   }
   fs.writeFileSync(htmlPath, html, "utf8");
