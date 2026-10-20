@@ -60,6 +60,7 @@
     "expo-splash-screen": "^55.0.19",
     "expo-status-bar": "~55.0.4",
     "expo-system-ui": "~55.0.9",
+    "expo-updates": "^55.0.26",
     "expo-web-browser": "~55.0.9",
     "hls.js": "^1.7.3",
     "react": "19.2.0",
