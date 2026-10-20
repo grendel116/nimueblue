@@ -9,7 +9,11 @@ async function skipToNextTrack() {
   if (queue.length === 0 || trackIndex === undefined) return;
 
   if (trackIndex >= queue.length - 1) {
-    await TrackPlayer.skip(0);
+    const repeatMode = await TrackPlayer.getRepeatMode();
+    if (repeatMode === RepeatMode.Queue) {
+      await TrackPlayer.skip(0);
+    }
+    return;
   } else {
     await TrackPlayer.skipToNext();
   }
@@ -70,7 +74,12 @@ module.exports = async function () {
       if (queue.length === 0 || trackIndex === undefined) return;
 
       if (trackIndex === 0) {
-        await TrackPlayer.skip(queue.length - 1);
+        const repeatMode = await TrackPlayer.getRepeatMode();
+        if (repeatMode === RepeatMode.Queue) {
+          await TrackPlayer.skip(queue.length - 1);
+        } else {
+          await TrackPlayer.seekTo(0);
+        }
       } else {
         await TrackPlayer.skipToPrevious();
       }

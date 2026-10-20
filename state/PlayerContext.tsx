@@ -67,6 +67,8 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const setQueue = useQueueStore((s) => s.setQueueState);
   const playBackState = usePlaybackState();
   const incrementedRef = useRef(false);
+  const isApplyingRef = useRef(false);
+  const isReplenishingRef = useRef(false);
   const [disabledTrackIds, setDisabledTrackIds] = useState<Set<number>>(new Set());
 
   // The queue as of the latest action, read by actions so each keeps one identity
@@ -114,34 +116,35 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const applyToPlayer = useCallback(
     (next: Q.QueueState, start: boolean) =>
       onPlayer(async () => {
-        const { tracks, index } = Q.playOrder(next, { isOnline: isOnlineRef.current });
-        const keys = keysOf(tracks);
-        const held = playerRef.current;
-        if (held.keys.length === 0 && !start) return;
-        await ensureTrackPlayerInitialized();
+        isApplyingRef.current = true;
+        try {
+          const { tracks, index } = Q.playOrder(next, { isOnline: isOnlineRef.current });
+          const keys = keysOf(tracks);
+          const held = playerRef.current;
+          if (held.keys.length === 0 && !start) return;
+          await ensureTrackPlayerInitialized();
 
-        if (tracks.length === 0) {
-          await TrackPlayer.reset();
-        } else if (sameKeys(held.keys, keys)) {
-          if (held.index !== index) await TrackPlayer.skip(index);
-          if (start) await TrackPlayer.play();
-        } else if (start || held.keys[held.index] !== keys[index]) {
-          await TrackPlayer.setQueue(tracks.map(toNativeTrack));
-          if (index > 0) await TrackPlayer.skip(index);
-          await TrackPlayer.play();
-        } else if (sameKeys(held.keys.slice(0, held.index + 1), keys.slice(0, index + 1))) {
-          await TrackPlayer.removeUpcomingTracks();
-          const after = tracks.slice(index + 1);
-          if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
-        } else {
-          const others = held.keys.map((_, i) => i).filter((i) => i !== held.index);
-          if (others.length > 0) await TrackPlayer.remove(others);
-          const before = tracks.slice(0, index);
-          if (before.length > 0) await TrackPlayer.add(before.map(toNativeTrack), 0);
-          const after = tracks.slice(index + 1);
-          if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
+          if (tracks.length === 0) {
+            await TrackPlayer.reset();
+          } else if (sameKeys(held.keys, keys)) {
+            if (held.index !== index) await TrackPlayer.skip(index);
+            if (start) await TrackPlayer.play();
+          } else if (start || held.keys[held.index] !== keys[index]) {
+            await TrackPlayer.setQueue(tracks.map(toNativeTrack));
+            if (index > 0) await TrackPlayer.skip(index);
+            await TrackPlayer.play();
+          } else if (sameKeys(held.keys.slice(0, held.index + 1), keys.slice(0, index + 1))) {
+            await TrackPlayer.removeUpcomingTracks();
+            const after = tracks.slice(index + 1);
+            if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
+          } else {
+            await TrackPlayer.setQueue(tracks.map(toNativeTrack));
+            if (index > 0) await TrackPlayer.skip(index);
+          }
+          playerRef.current = { keys, index };
+        } finally {
+          isApplyingRef.current = false;
         }
-        playerRef.current = { keys, index };
       }),
     [onPlayer],
   );
@@ -168,6 +171,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const followPlayer = useCallback(
     () =>
       onPlayer(async () => {
+        if (isApplyingRef.current) return;
         const index = await TrackPlayer.getActiveTrackIndex();
         if (index === undefined || index === playerRef.current.index) return;
         playerRef.current = { ...playerRef.current, index };
@@ -260,7 +264,9 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (event.type === Event.PlaybackActiveTrackChanged) {
         resetRadioTimer();
-        followPlayer();
+        if (!isApplyingRef.current) {
+          followPlayer();
+        }
         return;
       }
 
@@ -443,10 +449,16 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     // 2. Quiet background replenishment of reservoir if below target capacity
+    if (isReplenishingRef.current) return;
+    isReplenishingRef.current = true;
     (async () => {
       try {
         const fresh = await replenishDiscoveryReservoir(knownIds, knownUrls);
-        if (queueRef.current.discovery.length < DISCOVERY_BUFFER_SIZE && fresh.length > 0) {
+        if (
+          generation === queueRef.current.generation &&
+          queueRef.current.discovery.length < DISCOVERY_BUFFER_SIZE &&
+          fresh.length > 0
+        ) {
           const directNeeded = DISCOVERY_BUFFER_SIZE - queueRef.current.discovery.length;
           const direct = fresh
             .slice(0, directNeeded)
@@ -457,6 +469,8 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       } catch (err) {
         console.warn("Autoplay replenishment error:", err);
+      } finally {
+        isReplenishingRef.current = false;
       }
     })();
   }, [queue, looping, commit, isOnline]);

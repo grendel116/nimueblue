@@ -168,7 +168,7 @@ export function play(
     discovery: retainedDiscovery,
     source,
     sourceOrder,
-    generation: state.generation,
+    generation: state.generation + 1,
   };
 }
 
@@ -305,7 +305,14 @@ export function moveItem(state: QueueState, from: Slot, to: Slot): QueueState {
 // Adds Discovery songs after Next Up, unless a newer source has started since they were asked for
 export function addDiscovery(state: QueueState, tracks: RNTrack[], generation: number): QueueState {
   if (generation !== state.generation || tracks.length === 0) return state;
-  return { ...state, discovery: [...state.discovery, ...tracks.map((t) => entry(t, true))] };
+  const known = allTracks(state);
+  const knownIds = new Set(known.map((t) => t.id).filter((id) => id !== undefined));
+  const knownUrls = new Set(known.map((t) => t.url).filter(Boolean));
+  const novel = tracks.filter(
+    (t) => (t.id === undefined || !knownIds.has(t.id)) && (!t.url || !knownUrls.has(t.url)),
+  );
+  if (novel.length === 0) return state;
+  return { ...state, discovery: [...state.discovery, ...novel.map((t) => entry(t, true))] };
 }
 
 export function clearDiscovery(state: QueueState): QueueState {

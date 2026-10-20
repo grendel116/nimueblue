@@ -212,4 +212,32 @@ describe("queue model", () => {
     expect(restored.source).toBe("Space Trash");
     expect(fromSaved("not json")).toEqual(emptyQueue);
   });
+
+  test("play increments generation and addDiscovery rejects stale generation results", () => {
+    let s = play(emptyQueue, album, 0, "Source A");
+    const initialGen = s.generation;
+    s = addDiscovery(s, [song(50)], initialGen);
+    expect(ids(s.discovery)).toEqual([50]);
+
+    // Switching to Source B retains existing discovery but bumps generation
+    s = play(s, [song(60), song(61)], 0, "Source B");
+    expect(s.generation).toBe(initialGen + 1);
+    expect(ids(s.discovery)).toEqual([50]);
+
+    // Late in-flight discovery result from Source A is dropped
+    s = addDiscovery(s, [song(51)], initialGen);
+    expect(ids(s.discovery)).toEqual([50]);
+
+    // Fresh discovery result matching Source B's generation is accepted
+    s = addDiscovery(s, [song(52)], s.generation);
+    expect(ids(s.discovery)).toEqual([50, 52]);
+  });
+
+  test("addDiscovery drops tracks already in queue or nextUp", () => {
+    let s = play(emptyQueue, album, 0, "Space Trash");
+    s = addToQueue(s, song(9));
+    // Try adding song 9 (in userQueue) and song 2 (in nextUp) to discovery
+    s = addDiscovery(s, [song(9), song(2), song(99)], s.generation);
+    expect(ids(s.discovery)).toEqual([99]);
+  });
 });
