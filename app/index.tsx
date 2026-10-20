@@ -128,6 +128,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
   // Query releases from the configured Mirlo Chorus catalog
   const {
     data: chorusAlbums,
+    isFetching: isChorusFetching,
     refetch: refetchChorus,
   } = useQuery({
     ...queryFederatedChorusAlbums({ take: 40 }),
@@ -135,7 +136,11 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     retry: false,
   });
 
-  const { data: fairplayerAlbums, refetch: refetchFairplayer } = useQuery({
+  const {
+    data: fairplayerAlbums,
+    isFetching: isFairplayerFetching,
+    refetch: refetchFairplayer,
+  } = useQuery({
     ...queryFairplayerAlbums(40),
     ...HOME_QUERY,
     retry: false,
@@ -185,17 +190,22 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     retry().finally(() => setIsPullRefreshing(false));
   };
 
-  // Shuffled blend of Mirlo, Chorus, and Faircamp releases with fair artist representation
-  const recentReleases = useMemo(
-    () =>
+  // Shuffled blend of Mirlo, Chorus, and Faircamp releases with fair artist representation.
+  // Each catalog answers on its own, so the blend is made once all three have answered (or
+  // failed): the carousel fills in a single shuffle on load and on each pull to refresh
+  const [recentReleases, setRecentReleases] = useState<AlbumProps[]>();
+  const releaseSourcesSettled = !isRecentFetching && !isChorusFetching && !isFairplayerFetching;
+  useEffect(() => {
+    if (!releaseSourcesSettled) return;
+    setRecentReleases(
       blendCarouselReleases(
         recentData?.results || [],
         chorusAlbums || [],
         fairplayerAlbums || [],
         CAROUSEL_LIMIT,
       ).slice(0, CAROUSEL_LIMIT),
-    [recentData?.results, chorusAlbums, fairplayerAlbums, shuffleSeed],
-  );
+    );
+  }, [releaseSourcesSettled, recentData?.results, chorusAlbums, fairplayerAlbums]);
 
   // Shuffled curated and discovered radio stations
   const radioStations = useMemo(() => {
@@ -327,7 +337,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                 <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
               </View>
 
-              {isRecentPending ? (
+              {!recentReleases ? (
                 <ScrollView
                   horizontal
                   scrollEnabled={false}
