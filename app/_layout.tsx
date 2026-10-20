@@ -17,10 +17,7 @@ import Footer from "@/components/Footer";
 import NowPlaying from "@/components/NowPlaying";
 import ChoiceSheet from "@/components/ChoiceSheet";
 import { theme } from "@/constants/theme";
-import { checkForUpdates } from "../scripts/appVersionCheck";
 import { openMusicFolder } from "@/scripts/musicFolder";
-
-import WebShellView from "@/components/WebShellView";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,7 +32,7 @@ SplashScreen.setOptions({
 
 TrackPlayer.registerPlaybackService(() => require("../scripts/service"));
 
-function StandardAppLayout() {
+export default function RootLayout() {
   const router = useRouter();
   const [isDataLoaded, setIsDataLoaded] = useState<boolean>(false);
   const [fontsLoaded, fontError] = useFonts({
@@ -81,7 +78,6 @@ function StandardAppLayout() {
   }, [router]);
 
   useEffect(() => {
-    checkForUpdates();
     openMusicFolder().catch((err) => console.warn("Couldn't reopen the music folder:", err));
     if (Platform.OS === "web" && typeof document !== "undefined") {
       const styleId = "medieval-scroll-font-face";
@@ -103,16 +99,11 @@ function StandardAppLayout() {
   }, []);
 
   useEffect(() => {
-    // Hide the splash screen only when fonts are ready and Home has loaded its first content.
-    // A 4-second safety timer guarantees the splash screen will never get stuck offline.
-    const fallbackTimer = setTimeout(() => {
-      if (fontsLoaded || fontError) {
-        SplashScreen.hide();
-      }
-    }, 4000);
+    // Reveal the app once fonts are ready and Home has loaded its first content.
+    // After 4 seconds the app is revealed anyway so an offline start never stays on the splash.
+    if (!fontsLoaded && !fontError) return;
 
-    if ((fontsLoaded || fontError) && isDataLoaded) {
-      clearTimeout(fallbackTimer);
+    const reveal = () => {
       SplashScreen.hide();
       if (
         Platform.OS === "web" &&
@@ -121,8 +112,13 @@ function StandardAppLayout() {
       ) {
         (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: "webReady" }));
       }
-    }
+    };
 
+    if (isDataLoaded) {
+      reveal();
+      return;
+    }
+    const fallbackTimer = setTimeout(reveal, 4000);
     return () => clearTimeout(fallbackTimer);
   }, [fontsLoaded, fontError, isDataLoaded]);
 
@@ -249,12 +245,5 @@ function StandardAppLayout() {
     </AppReadyContextProvider>
     </GestureHandlerRootView>
   );
-}
-
-export default function RootLayout() {
-  if (Platform.OS === "android") {
-    return <WebShellView />;
-  }
-  return <StandardAppLayout />;
 }
 

@@ -125,17 +125,9 @@ export async function reconnectMusicFolder(): Promise<boolean> {
   return true;
 }
 
-// The open folder, asking for one first when needed. Downloads call this before anything else
-// so the tap that started them still counts as the gesture the browser asks for
-export async function readyMusicFolder(): Promise<FileSystemDirectoryHandle> {
-  const ready = status === "ready" || (status === "needs-permission" ? await reconnectMusicFolder() : await chooseMusicFolder());
-  if (!ready || !folder) throw new Error("Choose a music folder to download into");
-  return folder;
-}
-
-async function directoryAt(path: string[], create = false): Promise<FileSystemDirectoryHandle> {
+async function directoryAt(path: string[]): Promise<FileSystemDirectoryHandle> {
   let dir = folder!;
-  for (const name of path) dir = await dir.getDirectoryHandle(name, { create });
+  for (const name of path) dir = await dir.getDirectoryHandle(name);
   return dir;
 }
 
@@ -147,14 +139,6 @@ function split(path: string): { dirs: string[]; name: string } {
 export async function readFile(path: string): Promise<File> {
   const { dirs, name } = split(path);
   return (await (await directoryAt(dirs)).getFileHandle(name)).getFile();
-}
-
-export async function writeFile(path: string, bytes: Uint8Array): Promise<void> {
-  const { dirs, name } = split(path);
-  const handle = await (await directoryAt(dirs, true)).getFileHandle(name, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(bytes as unknown as BufferSource);
-  await writable.close();
 }
 
 // Deletes a file, then each folder above it that it leaves empty

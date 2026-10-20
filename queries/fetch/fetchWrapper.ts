@@ -124,13 +124,6 @@ export function get<R>(endpoint: string, init: RequestInit): Promise<R> {
   });
 }
 
-export function del<R>(endpoint: string, init: RequestInit = {}): Promise<R> {
-  return fetchWrapper(endpoint, {
-    method: "DELETE",
-    ...init,
-  });
-}
-
 export function put<T, R>(endpoint: string, body: T): Promise<R> {
   return fetchWrapper(endpoint, {
     method: "PUT",

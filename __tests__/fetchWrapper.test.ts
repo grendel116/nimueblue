@@ -154,45 +154,6 @@ describe("fetchWrapper.post", () => {
   });
 });
 
-describe("fetchWrapper.del", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockedGetItem.mockResolvedValue(null);
-    global.fetch = jest.fn();
-  });
-
-  test("sets method DELETE and forwards auth headers", async () => {
-    mockedGetItem
-      .mockResolvedValueOnce("jwt-token-value")
-      .mockResolvedValueOnce("refresh-token-value");
-    (global.fetch as jest.Mock).mockResolvedValueOnce(okJson({ ok: true }));
-
-    await api.del("/v1/users/4");
-
-    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
-    expect(url).toBe("https://test.api/v1/users/4");
-    expect(init.method).toBe("DELETE");
-    const headers = init.headers as Headers;
-    expect(headers.get("mirlo-api-key")).toBe("test-api-key");
-    expect(headers.get("Cookie")).toContain("jwt=jwt-token-value");
-  });
-
-  test("propagates 401 as MirloFetchError", async () => {
-    mockedGetItem.mockResolvedValue(null);
-    (global.fetch as jest.Mock).mockResolvedValueOnce(
-      errorJson(401, { error: "Unauthenticated" }),
-    );
-
-    try {
-      await api.del("/v1/users/4");
-      fail("expected throw");
-    } catch (e) {
-      expect(e).toBeInstanceOf(MirloFetchError);
-      expect((e as MirloFetchError).status).toBe(401);
-    }
-  });
-});
-
 describe("fetchWrapper timeout", () => {
   beforeEach(() => {
     jest.clearAllMocks();

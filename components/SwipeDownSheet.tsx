@@ -23,10 +23,6 @@ type SheetScroll = {
 };
 
 const SheetScrollContext = createContext<SheetScroll | null>(null);
-const SheetCloseContext = createContext<() => void>(() => {});
-
-// Closes the sheet the way the down arrow does: it slides away, then the route leaves
-export const useSheetClose = () => useContext(SheetCloseContext);
 
 // A scrolling list inside a SwipeDownSheet. The sheet only follows a downward drag while the
 // list is at its top
@@ -166,40 +162,36 @@ export default function SwipeDownSheet({
 
   if (Platform.OS === "web") {
     return (
-      <SheetCloseContext.Provider value={close}>
-        <SheetScrollContext.Provider value={scroll}>
-          <Animated.View style={[styles.sheet, sheetStyle]}>
-            <View ref={dragFromBarOnly ? undefined : pullRef} style={styles.sheet}>
-              <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
-                <View ref={dragFromBarOnly ? pullRef : undefined}>
-                  <DismissModalBar onPress={close} locked={locked} />
-                </View>
-                {children}
-              </SafeAreaView>
-            </View>
-          </Animated.View>
-        </SheetScrollContext.Provider>
-      </SheetCloseContext.Provider>
+      <SheetScrollContext.Provider value={scroll}>
+        <Animated.View style={[styles.sheet, sheetStyle]}>
+          <View ref={dragFromBarOnly ? undefined : pullRef} style={styles.sheet}>
+            <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
+              <View ref={dragFromBarOnly ? pullRef : undefined}>
+                <DismissModalBar onPress={close} locked={locked} />
+              </View>
+              {children}
+            </SafeAreaView>
+          </View>
+        </Animated.View>
+      </SheetScrollContext.Provider>
     );
   }
 
   return (
-    <SheetCloseContext.Provider value={close}>
-      <SheetScrollContext.Provider value={scroll}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
-          <GestureDetector gesture={bodyGesture}>
-            <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
-              <GestureDetector gesture={barGesture}>
-                <View>
-                  <DismissModalBar onPress={close} locked={locked} />
-                </View>
-              </GestureDetector>
-              {children}
-            </SafeAreaView>
-          </GestureDetector>
-        </Animated.View>
-      </SheetScrollContext.Provider>
-    </SheetCloseContext.Provider>
+    <SheetScrollContext.Provider value={scroll}>
+      <Animated.View style={[styles.sheet, sheetStyle]}>
+        <GestureDetector gesture={bodyGesture}>
+          <SafeAreaView edges={["top"]} style={[styles.sheet, style]}>
+            <GestureDetector gesture={barGesture}>
+              <View>
+                <DismissModalBar onPress={close} locked={locked} />
+              </View>
+            </GestureDetector>
+            {children}
+          </SafeAreaView>
+        </GestureDetector>
+      </Animated.View>
+    </SheetScrollContext.Provider>
   );
 }
 

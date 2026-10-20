@@ -1,4 +1,3 @@
-import { debounce } from "lodash";
 import SearchHeader from "@/components/SearchHeader";
 import DropletSpinner from "@/components/DropletSpinner";
 import {
@@ -8,7 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useSearch } from "@/state/SearchContext";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { queryTags } from "@/queries/queries";
@@ -38,12 +37,12 @@ export default function SearchPage() {
     ));
   }, [tags]);
 
-  const searchCallbackRef = useRef(
-    debounce(async (searchString) => {
-      if (searchString && searchString.length > 1) {
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchValue && searchValue.length > 1) {
         setShowSuggestions(true);
         setIsSearching(true);
-        const results = await getOptions(searchString);
+        const results = await getOptions(searchValue);
 
         setSearchResults(results ?? []);
         setIsSearching(false);
@@ -51,11 +50,8 @@ export default function SearchPage() {
         setSearchResults([]);
         setShowSuggestions(false);
       }
-    }, 500),
-  ).current;
-
-  useEffect(() => {
-    searchCallbackRef(searchValue);
+    }, 500);
+    return () => clearTimeout(timer);
   }, [searchValue]);
 
   if (isPending) {

@@ -1,6 +1,5 @@
-// EAS Update's manifest schema rejects pathAdvancedPattern, so these app links
-// can't live in app.json's expo.android.intentFilters and are written straight
-// into AndroidManifest.xml here instead
+// app.json's expo.android.intentFilters can't express pathAdvancedPattern, so these app links
+// are written straight into AndroidManifest.xml here instead
 const { withAndroidManifest, AndroidConfig } = require("expo/config-plugins");
 
 const { getMainActivityOrThrow } = AndroidConfig.Manifest;

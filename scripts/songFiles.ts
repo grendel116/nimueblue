@@ -99,12 +99,3 @@ export function songDetails(
     order: tags.track ?? named.track ?? index + 1,
   };
 }
-
-// Mirlo's cover CDN serves every size as JPEG too, the cover format every music app reads
-export async function fetchCoverJpeg(album: AlbumProps): Promise<Uint8Array | undefined> {
-  const url = album.cover?.sizes?.[600]?.replace(/\.webp(?=\?|$)/, ".jpg");
-  if (!url) return undefined;
-  const response = await fetch(url);
-  if (!response.ok) return undefined;
-  return new Uint8Array(await response.arrayBuffer());
-}

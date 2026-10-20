@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { StyleSheet, View, BackHandler, StatusBar, Linking } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { checkForUpdates } from "@/scripts/appVersionCheck";
 import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-player";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,7 +11,6 @@ import { getDownloadedTracks } from "@/scripts/downloadManager";
 import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
 import { redirectSystemPath } from "@/app/+native-intent";
 import { openInBrowser } from "@/scripts/openInBrowser";
-import { checkForUpdates } from "@/scripts/appVersionCheck";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
@@ -354,11 +354,11 @@ export default function WebShellView() {
         // Pages the web app opens in a new window (checkouts, stores, downloads) go to a browser
         // tab named by package, so mirlo.space links don't loop back into this app
         onOpenWindow={(event) => openInBrowser(event.nativeEvent.targetUrl)}
+        onError={() => SplashScreen.hideAsync().catch(() => {})}
         onLoadEnd={() => {
           syncStateToWeb();
           syncFolderToWeb();
           syncDownloadsToWeb();
-          SplashScreen.hideAsync().catch(() => {});
         }}
       />
     </View>
