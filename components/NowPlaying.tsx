@@ -32,15 +32,14 @@ import { useQuery } from "@tanstack/react-query";
 import { queryRadioPlays, findStation } from "@/queries/radio";
 import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 import { findPodcastShow } from "@/queries/podcast";
-import { queryArtist } from "@/queries/queries";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
 import ShareTrackButton from "@/components/ShareTrackButton";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
-import { openPurchase, type PurchaseTarget } from "@/scripts/openPurchase";
+import { releaseSupportUrl } from "@/scripts/hostLinks";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { getRadioTimerElapsed, setRadioTimerElapsed } from "@/scripts/radioTimer";
-import { albumArtistRouteId, albumHref } from "@/scripts/routes";
+import { albumHref } from "@/scripts/routes";
 import {
   formatTime,
   isQualityArtwork,
@@ -466,7 +465,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
           </Text>
         </Pressable>
       ) : activeTrack ? (
-        <SupportArtistButton track={activeTrack} onOpen={close} />
+        <SupportArtistButton track={activeTrack} />
       ) : null}
     </>
   );
@@ -511,67 +510,24 @@ function ProgressSection({ isLive }: { isLive: boolean }) {
   );
 }
 
-// Opens the purchase sheet: Mirlo artists get their tiers and tips, releases from other
-// sources show their own store links.
-// onOpen slides the sheet away so the purchase sheet opens on top
-function SupportArtistButton({ track, onOpen }: { track: RNTrack; onOpen: () => void }) {
-  const router = useRouter();
-  const artistId = track.trackGroup?.artistId;
+// Opens the artist's support page on the host the song comes from
+function SupportArtistButton({ track }: { track: RNTrack }) {
   const albumSlug = track.trackGroup?.urlSlug;
   const isFaircamp = Boolean(
-    track.fairplayerTrackId ||
-      fairplayerReleaseSlug.decode(String(albumSlug || "")),
+    track.fairplayerTrackId || fairplayerReleaseSlug.decode(String(albumSlug || "")),
   );
-  const isChorusExternal = Boolean(track.url?.includes("/stream/external/"));
-  const source = track.source || track.trackGroup?.source || (isFaircamp ? "Faircamp" : undefined);
-  const sourceUrl =
-    track.trackGroup?.sourceUrl ||
-    track.sourceUrl ||
-    fairplayerReleaseSlug.siteUrl(albumSlug);
-  const isExternalSource = Boolean(
-    isFaircamp ||
-      (source && source !== "Mirlo Space" && !sourceUrl?.includes("mirlo.space")),
-  );
-  const knownArtistSlug =
-    track.trackGroup?.artist?.urlSlug &&
-    track.trackGroup.artist.urlSlug !== "fairplayer"
-      ? track.trackGroup.artist.urlSlug
-      : undefined;
-  const mirloArtistLookup =
-    !isExternalSource && !isChorusExternal
-      ? knownArtistSlug || (artistId ? String(artistId) : "")
-      : "";
-  const { data: artist } = useQuery(
-    queryArtist({
-      artistSlug: mirloArtistLookup,
-    }),
-  );
+  const url = releaseSupportUrl({
+    ...track.trackGroup,
+    source: track.source || track.trackGroup?.source || (isFaircamp ? "Faircamp" : undefined),
+    sourceUrl: track.trackGroup?.sourceUrl || track.sourceUrl || fairplayerReleaseSlug.siteUrl(albumSlug),
+  });
+  const artistName = track.trackGroup?.artist?.name ?? track.artist;
 
-  const artistName =
-    artist?.name ?? track.trackGroup?.artist?.name ?? track.artist;
-
-  const target: PurchaseTarget | undefined = mirloArtistLookup
-    ? { kind: "support", artist: mirloArtistLookup, slug: albumSlug ? String(albumSlug) : undefined }
-    : albumSlug
-      ? {
-          kind: "album",
-          artist: albumArtistRouteId(track.trackGroup) ?? albumSlug,
-          slug: albumSlug,
-        }
-      : undefined;
-
-  if (!target) {
-    return null;
-  }
-
-  const handlePress = () => {
-    onOpen();
-    openPurchase(router, target);
-  };
+  if (!url) return null;
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={() => openInBrowser(url)}
       style={styles.donateButton}
       accessibilityRole="button"
       accessibilityLabel={`Support ${artistName}`}
@@ -583,7 +539,6 @@ function SupportArtistButton({ track, onOpen }: { track: RNTrack; onOpen: () => 
     </Pressable>
   );
 }
-
 const styles = StyleSheet.create({
   sheet: {
     ...StyleSheet.absoluteFillObject,

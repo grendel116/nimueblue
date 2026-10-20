@@ -21,8 +21,6 @@ import { theme } from "@/constants/theme";
 import LoadingScreen from "@/components/LoadingScreen";
 import ArtistActions from "@/components/artist/ArtistActions";
 import ArtistLinks from "@/components/artist/ArtistLinks";
-import CatalogueCard from "@/components/artist/CatalogueCard";
-import ArtistPosts from "@/components/artist/ArtistPosts";
 import OfflineNotice from "@/components/OfflineNotice";
 import { openMainTab } from "@/components/Footer";
 import { isNetworkError } from "@/scripts/networkError";
@@ -191,11 +189,8 @@ export default function ArtistPage() {
                 ) : null}
               </View>
             </View>
-            <ArtistActions artist={artistInfo} routeId={routeId} />
+            <ArtistActions artist={artistInfo} />
             <ArtistLinks artist={artistInfo} />
-            {artistInfo.onMirlo ? (
-              <CatalogueCard artist={artistInfo} routeId={routeId} />
-            ) : null}
             <Text style={styles.releasesHeader}>Discography</Text>
           </View>
         }
@@ -222,16 +217,11 @@ export default function ArtistPage() {
               </Markdown>
             ) : (
               <Text style={styles.bioFallback}>
-                {artistInfo.onMirlo
-                  ? `${artistInfo.name} is an artist on Mirlo.`
-                  : routeId.startsWith("saved-")
-                    ? `${artistInfo.name} — music on this device.`
-                    : `${artistInfo.name} is an artist on Faircamp.`}
+                {routeId.startsWith("saved-")
+                  ? `${artistInfo.name} — music on this device.`
+                  : `${artistInfo.name} hasn't written a bio yet.`}
               </Text>
             )}
-            {artistInfo.onMirlo ? (
-              <ArtistPosts artist={artistInfo} routeId={routeId} />
-            ) : null}
           </View>
         }
       />

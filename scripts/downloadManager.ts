@@ -49,16 +49,6 @@ export function linkedTrack(track: DownloadedTrack, links: FolderLinks): Downloa
 
 const DOWNLOADS_STORAGE_KEY = "mirlo_blue_downloads_v2";
 
-// Formats offered for Mirlo downloads; Mirlo also has WAV, ALAC, Opus, and smaller MP3s
-export type DownloadFormat = "320.mp3" | "flac";
-export const DOWNLOAD_FORMATS: { id: DownloadFormat; label: string }[] = [
-  { id: "320.mp3", label: "MP3 320" },
-  { id: "flac", label: "FLAC" },
-];
-
-// Mirlo builds the zip, the phone downloads it, then unpacks it
-export type DownloadStage = "preparing" | "downloading" | "unpacking";
-
 type DownloadListener = (tracks: DownloadedTrack[]) => void;
 const listeners = new Set<DownloadListener>();
 

@@ -310,14 +310,6 @@ function normalizeParagraphLines(text: string): string {
     .trim();
 }
 
-export type FaircampStoreLink = { label: string; url: string };
-
-// Where a release's download button leads: a Faircamp page (free, purchase or unlock) or a
-// list of external stores. Releases with downloads turned off have no button
-export type FaircampDownloadAccess =
-  | { kind: "page"; url: string }
-  | { kind: "external"; links: FaircampStoreLink[] };
-
 export type FaircampPageTrack = {
   order: number;
   title: string;
@@ -329,7 +321,6 @@ export type FaircampPageDetails = {
   aboutMarkdown: string;
   bannerUrl: string;
   links: ArtistLink[];
-  downloadAccess?: FaircampDownloadAccess;
   tracks?: FaircampPageTrack[];
 };
 
@@ -497,31 +488,8 @@ export function parseFaircampPageDetails(
     aboutMarkdown,
     bannerUrl,
     links,
-    downloadAccess: findFaircampDownloadAccess(root, pageUrl),
     tracks: pageTracks,
   };
-}
-
-// Faircamp names its free, purchase and unlock pages in the site's language and puts each
-// under a hash: "{name}/{11-character hash}/" (or ".../index.html" without clean urls)
-const FAIRCAMP_ACCESS_HREF = /^(?:[^/:#?]+\/)*[^/:#?]+\/[A-Za-z0-9_-]{11}\/(?:index\.html)?$/;
-
-// The release page's download button: a link to one of those pages, or a list of
-// external stores shown in the page's "#external_downloads" panel
-function findFaircampDownloadAccess(root: HtmlNode, pageUrl: string): FaircampDownloadAccess | undefined {
-  const anchors = findElements(root, (node) => node.tagName === "a");
-  if (anchors.some((a) => getAttribute(a, "href") === "#external_downloads")) {
-    const panel = findElements(root, (node) => getAttribute(node, "id") === "external_downloads")[0];
-    const links = (panel ? findElements(panel, (n) => n.tagName === "a" && hasClass(n, "emphasized")) : [])
-      .map((a) => ({
-        label: getText(findElements(a, (n) => n.tagName === "span")[0] ?? a),
-        url: resolveRelativeUrl(getAttribute(a, "href"), pageUrl),
-      }))
-      .filter((link) => link.url.startsWith("https://"));
-    return links.length > 0 ? { kind: "external", links } : undefined;
-  }
-  const button = anchors.find((a) => FAIRCAMP_ACCESS_HREF.test(getAttribute(a, "href") || ""));
-  return button ? { kind: "page", url: resolveRelativeUrl(getAttribute(button, "href"), pageUrl) } : undefined;
 }
 
 export function combineFaircampAbout(
@@ -577,102 +545,6 @@ async function fetchFaircampPageDetails(
   } catch {
     return undefined;
   }
-}
-
-export type FaircampDownloadFormat = {
-  label: string;
-  url: string;
-};
-
-// The zips a Faircamp downloads page offers (Opus, MP3, FLAC, WAV...), labelled with their size
-export async function fetchFaircampDownloadFormats(
-  downloadsUrl: string,
-  signal?: AbortSignal,
-): Promise<FaircampDownloadFormat[]> {
-  const root = parseHtml(await fetchFaircampHtml(downloadsUrl, signal));
-  return findElements(root, (node) => hasClass(node, "download_entry")).flatMap((entry) => {
-    const link = findElements(entry, (n) => n.tagName === "a" && getAttribute(n, "download") !== undefined)[0];
-    if (!link) return [];
-    const name = getText(link);
-    const size = findElements(entry, (n) => n.tagName === "span" && !hasClass(n, "download_underline"))
-      .map(getText)
-      .find(Boolean);
-    return [{
-      label: size ? `${name} (${size})` : name,
-      url: resolveRelativeUrl(getAttribute(link, "href"), downloadsUrl),
-    }];
-  });
-}
-
-// A Faircamp price in major units. Faircamp prices are "X or more" (no maximum), a range,
-// "up to X" (minimum 0), or set (minimum equals maximum)
-export type FaircampPrice = { currency: string; minimum: number; maximum?: number };
-
-// How a Faircamp release offers its downloads, read from the page its download button leads to.
-// Info is the artist's own Markdown: payment details for purchases, a message for codes.
-// A code unlocks `${codePrefix}${code}${codeSuffix}`
-export type FaircampShop =
-  | { mode: "free"; downloadsUrl: string }
-  | { mode: "paycurtain"; price: FaircampPrice; info: string; downloadsUrl: string }
-  | { mode: "code"; info: string; codePrefix: string; codeSuffix: string }
-  | { mode: "external"; links: FaircampStoreLink[] };
-
-function markdownOf(node: HtmlNode | undefined, baseUrl: string, skip: string[] = []): string {
-  if (!node) return "";
-  return normalizeParagraphLines(
-    htmlChildren(node)
-      .filter((child) => !skip.includes(child.tagName || ""))
-      .map((child) => serializeHtmlNodeToMarkdown(child, baseUrl))
-      .join(""),
-  );
-}
-
-function readFaircampPrice(confirm: HtmlNode): FaircampPrice {
-  const priceText = getText(findElements(confirm, (n) => hasClass(n, "non_interactive"))[0] ?? confirm);
-  const currency = priceText.match(/\b[A-Z]{3}\b/g)?.pop() ?? "USD";
-  const input = findElements(confirm, (n) => n.tagName === "input" && getAttribute(n, "id") === "price")[0];
-  if (input) {
-    const max = getAttribute(input, "data-max");
-    return { currency, minimum: Number(getAttribute(input, "data-min") ?? 0), maximum: max ? Number(max) : undefined };
-  }
-  // A set price shows as text, e.g. "Price £5 GBP"
-  const amount = Number(/(\d+(?:\.\d+)?)\s*[A-Z]{3}/.exec(priceText)?.[1] ?? 0);
-  return { currency, minimum: amount, maximum: amount };
-}
-
-export function parseFaircampShopPage(html: string, pageUrl: string): FaircampShop | undefined {
-  const root = parseHtml(html);
-  const byId = (id: string) => findElements(root, (n) => getAttribute(n, "id") === id)[0];
-
-  const confirm = byId("confirm_price");
-  if (confirm) {
-    const form = findElements(confirm, (n) => n.tagName === "form")[0];
-    const payment = findElements(root, (n) => hasClass(n, "payment"))[0];
-    return {
-      mode: "paycurtain",
-      price: readFaircampPrice(confirm),
-      info: markdownOf(payment && findElements(payment, (n) => hasClass(n, "text"))[0], pageUrl),
-      downloadsUrl: resolveRelativeUrl(getAttribute(form, "action"), pageUrl),
-    };
-  }
-
-  if (byId("unlock")) {
-    // The unlock script names the downloads page in the site's language: `../../{name}/${code}/`
-    const script = findElements(root, (n) => n.tagName === "script").map(getText).find((t) => t.includes("${code}"));
-    const template = script && /`([^`]*)\$\{code\}([^`]*)`/.exec(script);
-    if (!template) return undefined;
-    return {
-      mode: "code",
-      info: markdownOf(findElements(root, (n) => hasClass(n, "unlock_scripted"))[0], pageUrl, ["form", "script"]),
-      codePrefix: resolveRelativeUrl(template[1], pageUrl),
-      codeSuffix: template[2],
-    };
-  }
-
-  if (findElements(root, (n) => hasClass(n, "download_entry")).length > 0) {
-    return { mode: "free", downloadsUrl: pageUrl };
-  }
-  return undefined;
 }
 
 function getFaircampReleaseId(urlOrPath: string): string | undefined {
@@ -1342,7 +1214,6 @@ export type FairplayerAlbumBundle = {
   catalogUrl?: string;
   releaseUrl?: string;
   pageHtml?: string | null;
-  shopHtml?: string | null;
   album?: AlbumProps;
 };
 
@@ -1370,11 +1241,8 @@ export async function fetchFairplayerAlbum(
   }
 
   const bundle = (await response.json()) as FairplayerAlbumBundle;
-  if (bundle.album) {
-    recordKnownAlbum(bundle.album, bundle.catalogUrl);
-    return bundle.album;
-  }
-  const album = parseFairplayerRelease(bundle.releaseHtml, releaseSlug);
+  // The worker's album carries the songs; the release page below adds the full about text
+  const album = bundle.album ?? parseFairplayerRelease(bundle.releaseHtml, releaseSlug);
   if (bundle.releaseUrl) {
     album.sourceUrl = bundle.releaseUrl;
   } else if (bundle.catalogUrl) {
@@ -1394,17 +1262,7 @@ export async function fetchFairplayerAlbum(
       if (richAbout) {
         album.about = richAbout;
       }
-      if (bundle.shopHtml && pageDetails.downloadAccess?.kind === "page") {
-        album.faircampShop = parseFaircampShopPage(
-          bundle.shopHtml,
-          pageDetails.downloadAccess.url,
-        );
-      } else if (pageDetails.downloadAccess?.kind === "external") {
-        album.faircampShop = {
-          mode: "external",
-          links: pageDetails.downloadAccess.links,
-        };
-      }
+
       if (pageDetails.tracks && pageDetails.tracks.length > 0 && album.tracks) {
         album.tracks.forEach((track) => {
           const trackTitle = (track.title || "").trim().toLowerCase();
@@ -1609,6 +1467,7 @@ export async function fetchFairplayerArtist(
           }
         : undefined,
     linksJson: pageDetails?.links?.length ? pageDetails.links : undefined,
+    supportUrl: catalogUrl,
     activityPub: false,
     enabled: true,
     createdAt: "",

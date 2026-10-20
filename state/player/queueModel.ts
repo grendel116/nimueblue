@@ -62,6 +62,7 @@ export function toNormalizedTrack(t: RNTrack): RNTrack {
         urlSlug: t.trackGroup.urlSlug || "",
         releaseDate: t.trackGroup.releaseDate || "",
         trackGroupId: t.trackGroup.trackGroupId ?? t.trackGroupId ?? 0,
+        artistId: t.trackGroup.artistId ?? t.trackGroup.artist?.id ?? 0,
         artist: {
           id: t.trackGroup.artist?.id ?? 0,
           name: artistName,

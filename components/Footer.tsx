@@ -107,8 +107,7 @@ export default function Footer({ style }: ViewProps) {
   const isTrackScreen =
     isNowPlayingOpen ||
     pathname.includes("/tracks/") ||
-    pathname.endsWith("/tracks") ||
-    pathname === "/purchaseModal";
+    pathname.endsWith("/tracks");
   const isLiveSet = Boolean(activeTrack?.liveStation && looping !== "track");
 
   const activeTab: MainTab | null =

@@ -1,11 +1,8 @@
-import { useRouter } from "expo-router";
 import { Pressable, ViewStyle } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
-import { useCallback } from "react";
-import { albumArtistRouteId } from "@/scripts/routes";
-import { openPurchase } from "@/scripts/openPurchase";
-import { faircampAction } from "@/components/purchase/helpers";
+import { openInBrowser } from "@/scripts/openInBrowser";
+import { releasePageUrl } from "@/scripts/hostLinks";
 
 type AddAlbumButtonProps = {
   trackGroup: AlbumProps;
@@ -13,25 +10,17 @@ type AddAlbumButtonProps = {
   size?: number;
 };
 
-// Opens the purchase sheet for this release
+// Opens the release's page on its host, where the listener buys or downloads it
 export default function AddAlbumButton({ style, size = 32, trackGroup }: AddAlbumButtonProps) {
-  const router = useRouter();
-  const faircamp = faircampAction(trackGroup);
+  const url = releasePageUrl(trackGroup);
+  if (!url) return null;
 
-  const onPress = useCallback(() => {
-    openPurchase(router, {
-      kind: "album",
-      artist: albumArtistRouteId(trackGroup) ?? "",
-      slug: trackGroup.urlSlug,
-    });
-  }, [trackGroup, router]);
-
-  return faircamp === "download" || faircamp === "none" ? null : (
+  return (
     <Pressable
-      onPress={onPress}
+      onPress={() => openInBrowser(url)}
       style={style}
       accessibilityRole="button"
-      accessibilityLabel="Purchase album"
+      accessibilityLabel="Buy or download"
     >
       <Ionicons name="bag-handle-outline" size={size} color={theme.colors.iconIdle} />
     </Pressable>

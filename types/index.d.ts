@@ -39,11 +39,11 @@ interface AlbumProps {
   currency?: string;
   // False when the release comes only with a subscription
   isGettable?: boolean;
+  // The Mirlo user paid for this release when it isn't the artist's own account
+  paymentToUserId?: number | null;
   source?: string;
   sourceUrl?: string;
   purchaseLinks?: { label: string; url: string }[];
-  // Faircamp releases: how the release offers downloads; absent when downloads are off
-  faircampShop?: import("@/queries/fairplayer").FaircampShop;
 }
 
 interface RNTrack {
@@ -130,9 +130,8 @@ interface Artist {
   name: string;
   bio: string;
   activityPub: boolean;
-  // Set by fetchArtist for artists loaded from Mirlo's API: following, support and
-  // checkout work for these artists
-  onMirlo?: boolean;
+  // The artist's support page on their host, set by each host's artist loader
+  supportUrl?: string;
   urlSlug?: string;
   userId: number;
   id: number;

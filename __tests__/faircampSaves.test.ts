@@ -124,7 +124,6 @@ describe("device-only Faircamp saves", () => {
       enabled: true,
       createdAt: "",
       trackGroups: [],
-      onMirlo: false,
     };
 
     await toggleFaircampArtistFollow(artist);

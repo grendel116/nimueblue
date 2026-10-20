@@ -148,7 +148,6 @@ describe("buildFollowedArtists", () => {
       id: 99,
       name: "Sockpuppet",
       urlSlug: "fairplayer-artist-Sockpuppet",
-      onMirlo: false,
     });
 
     const followed = buildFollowedArtists({

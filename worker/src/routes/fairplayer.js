@@ -155,21 +155,6 @@ export function deriveReleaseUrlFromAudioUrl(audioUrl) {
   return undefined;
 }
 
-const FAIRCAMP_ACCESS_HREF = /^(?:[^/:#?]+\/)*[^/:#?]+\/[A-Za-z0-9_-]{11}\/(?:index\.html)?$/;
-
-export function findFaircampDownloadAccessUrl(html, pageUrl) {
-  const anchors = html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi);
-  for (const [, attributes] of anchors) {
-    const href = getHtmlAttribute(attributes, "href");
-    if (FAIRCAMP_ACCESS_HREF.test(href)) {
-      try {
-        return new URL(href, pageUrl).href;
-      } catch {}
-    }
-  }
-  return null;
-}
-
 export function parseFaircampPageTracks(pageHtml, releaseUrl) {
   if (!pageHtml || !releaseUrl) return [];
   const tracks = [];
@@ -249,7 +234,6 @@ export function assembleFairplayerAlbum({
   releaseId,
   releaseHtml,
   pageHtml,
-  shopHtml,
   catalogUrl,
   releaseUrl,
 }) {
@@ -671,27 +655,6 @@ export async function handleFairplayer(request, url, corsHeaders) {
         }
       }
 
-      let shopHtml = null;
-      if (pageHtml) {
-        const shopUrl = findFaircampDownloadAccessUrl(pageHtml, releaseUrl);
-        if (shopUrl) {
-          try {
-            const shopResponse = await fetch(shopUrl, {
-              headers: {
-                Accept: "text/html,application/xhtml+xml",
-                "User-Agent": "NimueBlueSocialBot/1.0",
-              },
-              cf: { cacheTtl: 1800, cacheEverything: true },
-            });
-            if (shopResponse.ok) {
-              shopHtml = await shopResponse.text();
-            }
-          } catch (shopErr) {
-            console.warn("Could not fetch Faircamp shop page:", shopErr);
-          }
-        }
-      }
-
       const reconciledReleaseHtml = reconcileFaircampReleaseTracks(
         releaseHtml,
         pageHtml,
@@ -702,7 +665,6 @@ export async function handleFairplayer(request, url, corsHeaders) {
         releaseId,
         releaseHtml: reconciledReleaseHtml,
         pageHtml,
-        shopHtml,
         catalogUrl,
         releaseUrl,
       });
@@ -714,7 +676,6 @@ export async function handleFairplayer(request, url, corsHeaders) {
         catalogUrl,
         releaseUrl,
         pageHtml,
-        shopHtml,
       });
 
       const headers = new Headers(corsHeaders);

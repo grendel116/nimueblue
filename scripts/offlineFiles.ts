@@ -1,14 +1,8 @@
-import { Linking } from "react-native";
 import { Directory, File, Paths } from "expo-file-system";
 import * as DocumentPicker from "expo-document-picker";
-import { MirloSource, mirloZipUrl } from "./mirloZip";
-import { MirloTrack } from "./songFiles";
-import { API_ROOT } from "@/constants/api-root";
 import {
   DownloadedAlbum,
   DownloadedTrack,
-  DownloadFormat,
-  DownloadStage,
   forgetDownloadedTracks,
   getDownloadedTracks,
   updateAlbum,
@@ -23,41 +17,6 @@ function downloadsFolder(name: string): Directory {
   const folder = new Directory(Paths.document, "downloads", name);
   folder.create({ intermediates: true, idempotent: true });
   return folder;
-}
-
-// Mirlo builds a zip and the phone's browser saves it to the Downloads folder. Unpacking it
-// into the music folder, and managing the files there, happens outside the app
-async function sendZip(
-  source: MirloSource,
-  id: number,
-  format: DownloadFormat,
-  onStage: (stage: DownloadStage) => void,
-): Promise<void> {
-  onStage("preparing");
-  const url = await mirloZipUrl(source, id, format);
-  // Mirlo's own address needs the listener's login headers, which the browser can't send
-  if (url.startsWith(API_ROOT)) throw new Error("Mirlo didn't give a download link for this one");
-  onStage("downloading");
-  await Linking.openURL(url);
-}
-
-// Downloads an album you own as a zip
-export async function downloadAlbum(
-  album: AlbumProps,
-  format: DownloadFormat,
-  onStage: (stage: DownloadStage) => void,
-): Promise<void> {
-  await sendZip("trackGroups", album.id, format, onStage);
-}
-
-// Downloads one song of an album you own as a zip
-export async function downloadTrack(
-  _album: AlbumProps,
-  track: MirloTrack,
-  format: DownloadFormat,
-  onStage: (stage: DownloadStage) => void,
-): Promise<void> {
-  await sendZip("tracks", track.id, format, onStage);
 }
 
 // Moves a file the picker handed us into app storage, so no copy is left in the cache

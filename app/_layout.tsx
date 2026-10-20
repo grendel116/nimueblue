@@ -218,16 +218,6 @@ function StandardAppLayout() {
                   />
 
                   <Stack.Screen
-                    name="purchaseModal"
-                    options={{
-                      headerShown: false,
-                      presentation: "transparentModal",
-                      animation: "slide_from_bottom",
-                      animationDuration: 200,
-                      contentStyle: { backgroundColor: "transparent" },
-                    }}
-                  />
-                  <Stack.Screen
                     name="aboutModal"
                     options={{
                       headerShown: false,

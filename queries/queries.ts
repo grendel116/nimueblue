@@ -12,6 +12,7 @@ import {
   isKnownFairplayerArtistId,
 } from "./fairplayer";
 import { SAVED_PREFIX, findSavedAlbumPage, findSavedArtistPage } from "@/scripts/downloadManager";
+import { mirloSupportUrl } from "@/scripts/hostLinks";
 
 const fetchTrackGroups: QueryFunction<
   { results: AlbumProps[] },
@@ -189,7 +190,8 @@ const fetchArtist: QueryFunction<
     const response = await api.get<{ result: Artist }>(`/v1/artists/${artistSlug}`, {
       signal,
     });
-    return { ...response.result, onMirlo: true };
+    const artist = response.result;
+    return { ...artist, supportUrl: mirloSupportUrl(artist.urlSlug || String(artist.id)) };
   } catch (err) {
     const numericId = /^\d+$/.test(artistSlug) ? Number(artistSlug) : undefined;
     if (numericId !== undefined && isKnownFairplayerArtistId(numericId)) {

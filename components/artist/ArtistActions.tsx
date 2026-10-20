@@ -1,20 +1,16 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useRouter } from "expo-router";
 import FollowArtistButton from "@/components/FollowArtistButton";
 import PillButton from "@/components/artist/PillButton";
-import { openPurchase } from "@/scripts/openPurchase";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { artistShareUrl, shareMessage } from "@/scripts/share";
-import { MIRLO_WEB } from "@/queries/listener";
 
-// Follow, Support, Share and Contact for an artist. `routeId` is the id in the
-// artist page's route, the same id the purchase sheet takes
-export default function ArtistActions({ artist, routeId }: { artist: Artist; routeId: string }) {
-  const router = useRouter();
+// Follow, Support and Share, the same for an artist on any host. Support opens the artist's
+// support page on their host
+export default function ArtistActions({ artist }: { artist: Artist }) {
   const [copied, setCopied] = useState(false);
   const slug = artist.urlSlug || String(artist.id);
-  const isMirlo = Boolean(artist.onMirlo);
+  const supportUrl = artist.supportUrl;
 
   const share = async () => {
     const wasCopied = await shareMessage(artistShareUrl(slug), artist.name);
@@ -27,11 +23,11 @@ export default function ArtistActions({ artist, routeId }: { artist: Artist; rou
   return (
     <View style={styles.row}>
       <FollowArtistButton artist={artist} />
-      {isMirlo ? (
+      {supportUrl ? (
         <PillButton
           icon="cash-outline"
           label="Support"
-          onPress={() => openPurchase(router, { kind: "support", artist: routeId })}
+          onPress={() => openInBrowser(supportUrl)}
           accessibilityLabel={`Support ${artist.name}`}
         />
       ) : null}
@@ -41,16 +37,6 @@ export default function ArtistActions({ artist, routeId }: { artist: Artist; rou
         onPress={share}
         accessibilityLabel={`Share ${artist.name}`}
       />
-      {isMirlo && artist.allowDirectMessages !== false ? (
-        // Mirlo's contact form asks for a Cloudflare Turnstile check, so messages are
-        // written on the artist's Mirlo page
-        <PillButton
-          icon="mail-outline"
-          label="Contact"
-          onPress={() => openInBrowser(`${MIRLO_WEB}/${slug}`)}
-          accessibilityLabel={`Contact ${artist.name} on Mirlo`}
-        />
-      ) : null}
     </View>
   );
 }

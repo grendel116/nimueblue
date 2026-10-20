@@ -464,7 +464,6 @@ describe("Fairplayer Faircamp catalog integration", () => {
               catalogUrl: "https://sockpuppet.band/music",
               releaseUrl: "https://sockpuppet.band/music/sjX/",
               pageHtml: faircampArtistHtml,
-              shopHtml: null,
             }),
         } as Response);
       }
@@ -545,7 +544,6 @@ describe("Fairplayer Faircamp catalog integration", () => {
               catalogUrl: "https://sockpuppet.band/music",
               releaseUrl: "https://sockpuppet.band/music/sjX/",
               pageHtml: null,
-              shopHtml: null,
             }),
         } as Response);
       }
@@ -651,7 +649,7 @@ describe("Fairplayer Faircamp catalog integration", () => {
     expect(isSafeExternalUrl("https://quarantined-node.example")).toBe(false);
   });
 
-  test("fetches album bundle in a single pass with tracks, rich about, and shop details", async () => {
+  test("fetches album bundle in a single pass with tracks and rich about", async () => {
     const originalFetch = global.fetch;
     const releaseHtml = `
       <h1>sjX</h1>
@@ -676,20 +674,6 @@ describe("Fairplayer Faircamp catalog integration", () => {
         </body>
       </html>
     `;
-    const shopHtml = `
-      <html>
-        <body>
-          <div id="confirm_price">
-            <div class="interactive">
-              <form action="../../downloads/HaShHaShHaS/"><input data-min="5" id="price" type="text"><button>Confirm</button></form>
-            </div>
-            <div class="non_interactive"><div>£ 5 or more GBP</div></div>
-          </div>
-          <div class="payment"><div class="text"><p>Pay via <a href="https://ko-fi.com/x">ko-fi</a></p></div></div>
-        </body>
-      </html>
-    `;
-
     global.fetch = jest.fn((input: RequestInfo | URL) => {
       const url = String(input);
       expect(url).toContain("/fairplayer/album?releaseId=sjX%40sockpuppet.band");
@@ -704,7 +688,6 @@ describe("Fairplayer Faircamp catalog integration", () => {
             catalogUrl: "https://sockpuppet.band/music",
             releaseUrl: "https://sockpuppet.band/sjx/",
             pageHtml,
-            shopHtml,
           }),
       } as Response);
     });
@@ -719,12 +702,6 @@ describe("Fairplayer Faircamp catalog integration", () => {
       expect(album.tracks).toHaveLength(1);
       expect(album.tracks?.[0].title).toBe("The War Machine");
       expect(album.about).toContain("Album liner notes and story.");
-      expect(album.faircampShop).toEqual({
-        mode: "paycurtain",
-        price: { currency: "GBP", minimum: 5, maximum: undefined },
-        info: "Pay via [ko-fi](https://ko-fi.com/x)",
-        downloadsUrl: "https://sockpuppet.band/sjx/downloads/HaShHaShHaS/",
-      });
     } finally {
       global.fetch = originalFetch;
     }

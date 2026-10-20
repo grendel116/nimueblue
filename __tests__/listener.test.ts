@@ -6,9 +6,6 @@ jest.mock("@preeternal/react-native-cookie-manager", () => ({
 import {
   artistRelation,
   followedArtists,
-  formatMoney,
-  isCheckoutCompleteUrl,
-  toCents,
 } from "@/queries/listener";
 
 const artist = (id: number, name: string) => ({ id, name }) as Artist;
@@ -48,28 +45,5 @@ describe("followedArtists", () => {
       ["B", "Supporter"],
       ["A", undefined],
     ]);
-  });
-});
-
-describe("money", () => {
-  it("turns typed amounts into cents", () => {
-    expect(toCents("4.5")).toBe(450);
-    expect(toCents("4,50")).toBe(450);
-    expect(toCents("10")).toBe(1000);
-    expect(toCents("abc")).toBeNaN();
-  });
-
-  it("formats cents in the release currency", () => {
-    expect(formatMoney(450, "usd")).toContain("4.50");
-  });
-});
-
-describe("isCheckoutCompleteUrl", () => {
-  it("matches Mirlo's checkout-complete page only", () => {
-    expect(
-      isCheckoutCompleteUrl("https://mirlo.space/mowukis/checkout-complete?purchaseType=tip"),
-    ).toBe(true);
-    expect(isCheckoutCompleteUrl("https://mirlo.space/checkout?checkoutId=1")).toBe(false);
-    expect(isCheckoutCompleteUrl("https://evil.example/checkout-complete")).toBe(false);
   });
 });

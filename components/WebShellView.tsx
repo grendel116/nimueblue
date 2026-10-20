@@ -9,6 +9,7 @@ import { chooseMusicFolder, openMusicFolder, rescanMusicFolder } from "@/scripts
 import { getDownloadedTracks } from "@/scripts/downloadManager";
 import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
 import { redirectSystemPath } from "@/app/+native-intent";
+import { openInBrowser } from "@/scripts/openInBrowser";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
@@ -347,6 +348,9 @@ export default function WebShellView() {
         overScrollMode="never"
         bounces={false}
         onMessage={onMessage}
+        // Pages the web app opens in a new window (checkouts, stores, downloads) go to a browser
+        // tab named by package, so mirlo.space links don't loop back into this app
+        onOpenWindow={(event) => openInBrowser(event.nativeEvent.targetUrl)}
         onLoadEnd={() => {
           syncStateToWeb();
           syncFolderToWeb();

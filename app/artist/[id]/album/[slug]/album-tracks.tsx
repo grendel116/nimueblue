@@ -24,7 +24,6 @@ import PlayPauseWrapper from "@/components/PlayPauseWrapper";
 import Markdown from "react-native-markdown-display";
 import WishlistButton from "@/components/WishlistButton";
 import AddAlbumButton from "@/components/AddAlbumButton";
-import DownloadAlbumButton from "@/components/DownloadAlbumButton";
 import { theme } from "@/constants/theme";
 import TagPill from "@/components/TagPill";
 import { recordHistoryItem } from "@/scripts/historyManager";
@@ -351,15 +350,7 @@ export default function AlbumTracks() {
                 <View style={styles.albumActions}>
                   {!isSavedPage && (
                     <>
-                      {!onDevice && (
-                        <>
-                          <AddAlbumButton
-                            trackGroup={selectedAlbum}
-                            size={36}
-                          />
-                          <DownloadAlbumButton album={selectedAlbum} size={36} />
-                        </>
-                      )}
+                      {!onDevice && <AddAlbumButton trackGroup={selectedAlbum} size={36} />}
                       <WishlistButton
                         trackGroup={selectedAlbum}
                         displayedTracks={album}
