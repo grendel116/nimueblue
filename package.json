@@ -12,7 +12,7 @@
     "test": "jest --watchAll",
     "test:ci": "jest --ci --watchAll=false",
     "lint": "expo lint",
-    "push": "node scripts/push.js",
+
     "postinstall": "patch-package",
     "start:local": "EXPO_PUBLIC_API_ROOT=http://10.0.2.2:3000 EXPO_PUBLIC_API_KEY=testabc expo start --clear",
     "ios:local": "EXPO_PUBLIC_API_ROOT=http://localhost:3000 EXPO_PUBLIC_API_KEY=testabc expo run:ios",
