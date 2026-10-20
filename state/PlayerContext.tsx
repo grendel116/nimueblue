@@ -25,7 +25,7 @@ import {
 } from "@/scripts/autoplay";
 import { useIsOnline } from "@/scripts/useIsOnline";
 import { blockFaircampDomain } from "@/queries/fairplayer";
-import { getDownloadedTracks, subscribeDownloads } from "@/scripts/downloadManager";
+import { getDownloadedTracks, subscribeDownloads, findDownload } from "@/scripts/downloadManager";
 import { resetRadioTimer } from "@/scripts/radioTimer";
 import { createStore, type Store } from "./store";
 import {
@@ -180,7 +180,14 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
           commit(next, "follow");
           incrementedRef.current = false;
           const track = next.current?.track;
+          const isDownloaded = Boolean(
+            track &&
+              (track.url?.startsWith("file://") ||
+                track.url?.startsWith("content://") ||
+                findDownload(track)),
+          );
           if (
+            !isDownloaded &&
             track &&
             isMirloTrack(track) &&
             typeof track.id === "number" &&
@@ -243,6 +250,13 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     async (event) => {
       if (event.type === Event.PlaybackError) {
         const currentTrack = queueRef.current.current?.track;
+        const isDownloaded = Boolean(
+          currentTrack &&
+            (currentTrack.url?.startsWith("file://") ||
+              currentTrack.url?.startsWith("content://") ||
+              findDownload(currentTrack)),
+        );
+
         const isFaircampError = Boolean(
           currentTrack?.fairplayerTrackId ||
             currentTrack?.source === "Faircamp" ||
@@ -256,7 +270,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
           (event as any).code === 402;
 
         if (isFaircampError) blockFaircampDomain(currentTrack?.sourceUrl || currentTrack?.url);
-        if (isFaircampError || isPaymentError) {
+        if (!isDownloaded && (isFaircampError || isPaymentError)) {
           await stopDisabledTrack(typeof currentTrack?.id === "number" ? currentTrack.id : undefined);
           return;
         }
@@ -280,8 +294,15 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
           incrementedRef.current = true;
           const currentTrack = queueRef.current.current?.track;
           const targetId = currentTrack?.id;
+          const isDownloaded = Boolean(
+            currentTrack &&
+              (currentTrack.url?.startsWith("file://") ||
+                currentTrack.url?.startsWith("content://") ||
+                findDownload(currentTrack)),
+          );
 
           if (
+            !isDownloaded &&
             isMirloTrack(currentTrack) &&
             typeof targetId === "number" &&
             Number.isInteger(targetId) &&
@@ -328,7 +349,13 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const playTrack = useCallback(
     async (track: RNTrack, albumTracks?: RNTrack[], source?: string) => {
       try {
-        if (isMirloTrack(track) && track.id) {
+        const isTrackLocal = Boolean(
+          track.url?.startsWith("file://") ||
+            track.url?.startsWith("content://") ||
+            findDownload(track),
+        );
+
+        if (!isTrackLocal && isMirloTrack(track) && track.id) {
           if (trackDisabled(track.id) || isTrackDisabledSync(Number(track.id))) {
             await TrackPlayer.pause();
             return;
@@ -352,7 +379,16 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
         const enriched = toPlayerTrack(track);
         const candidates = albumTracks && albumTracks.length > 0 ? albumTracks : [track];
-        const raw = candidates.filter((t) => !(t.id && trackDisabled(t.id)));
+        const raw = candidates.filter((t) => {
+          if (
+            t.url?.startsWith("file://") ||
+            t.url?.startsWith("content://") ||
+            findDownload(t)
+          ) {
+            return true;
+          }
+          return !(t.id && trackDisabled(t.id));
+        });
         if (raw.length === 0) return;
 
         let targetIndex = raw.findIndex(
@@ -398,7 +434,12 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
   // Queued songs are the listener's picks, even when they started out as previews
   const addToQueue = useCallback(
     async (track: RNTrack) => {
-      if (track.id && trackDisabled(track.id)) return;
+      const isTrackLocal = Boolean(
+        track.url?.startsWith("file://") ||
+          track.url?.startsWith("content://") ||
+          findDownload(track),
+      );
+      if (!isTrackLocal && track.id && trackDisabled(track.id)) return;
       commit(Q.addToQueue(queueRef.current, toPlayerTrack(track)));
     },
     [commit, trackDisabled],

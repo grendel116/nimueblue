@@ -75,4 +75,25 @@ describe("Track play limit and HTTP 402 root-cause handling", () => {
     // Purchased tracks remain fully playable with no preview limits
     expect(isTrackOwnedOrPreview(track, user, album, disabledSet)).toBe(true);
   });
+
+  test("isTrackOwnedOrPreview allows playback for downloaded tracks even if preview disabled", async () => {
+    const { saveDownloadedTracks } = require("@/scripts/downloadManager");
+    const dlTrack = {
+      id: 7777,
+      title: "Offline Song",
+      artist: "Local Artist",
+      albumTitle: "Local Album",
+      url: "file:///files/7777.mp3",
+      downloadedAt: 1,
+      source: "mirlo" as const,
+    };
+    await saveDownloadedTracks([dlTrack]);
+
+    const track = createMockRNTrack({ id: 7777, isPreview: true, title: "Offline Song" });
+    const album = createMockAlbum();
+    const disabledSet = new Set<number>([7777]);
+
+    // Downloaded tracks bypass preview restrictions and disabled sets
+    expect(isTrackOwnedOrPreview(track, null, album, disabledSet)).toBe(true);
+  });
 });
