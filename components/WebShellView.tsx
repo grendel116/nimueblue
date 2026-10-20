@@ -10,6 +10,7 @@ import { getDownloadedTracks } from "@/scripts/downloadManager";
 import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
 import { redirectSystemPath } from "@/app/+native-intent";
 import { openInBrowser } from "@/scripts/openInBrowser";
+import { checkForUpdates } from "@/scripts/appVersionCheck";
 
 export default function WebShellView() {
   const webViewRef = useRef<WebView>(null);
@@ -33,6 +34,8 @@ export default function WebShellView() {
   };
 
   useEffect(() => {
+    checkForUpdates().catch((err) => console.warn("Update check failed:", err));
+
     ensureTrackPlayerInitialized().catch((err) => {
       console.warn("Failed to initialize native TrackPlayer in WebShellView:", err);
     });

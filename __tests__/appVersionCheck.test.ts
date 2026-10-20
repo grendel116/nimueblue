@@ -1,7 +1,10 @@
+import * as Application from "expo-application";
+import { Alert, Platform } from "react-native";
 import {
   checkAndroidVersion,
   compareVersions,
   isVersionGreater,
+  checkForUpdates,
 } from "@/scripts/appVersionCheck";
 
 describe("compareVersions", () => {
@@ -87,5 +90,89 @@ describe("checkAndroidVersion", () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+});
+
+describe("checkForUpdates", () => {
+  test("prompts for update on Android when GitHub release is newer", async () => {
+    const origPlatform = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "android", configurable: true });
+    (Application as any).nativeApplicationVersion = "1.1.2";
+
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            tag_name: "v1.1.3",
+            assets: [
+              {
+                name: "NimueBlue-v1.1.3.apk",
+                browser_download_url:
+                  "https://github.com/grendel116/nimueblue/releases/download/v1.1.3/NimueBlue-v1.1.3.apk",
+              },
+            ],
+          }),
+      } as Response),
+    );
+
+    try {
+      const updated = await checkForUpdates();
+      expect(updated).toBe(true);
+      expect(alertSpy).toHaveBeenCalledWith(
+        "Update Available",
+        expect.stringContaining("NimueBlue 1.1.3 is ready to install (you have 1.1.2)"),
+        expect.any(Array),
+      );
+    } finally {
+      global.fetch = originalFetch;
+      alertSpy.mockRestore();
+      Object.defineProperty(Platform, "OS", { value: origPlatform, configurable: true });
+    }
+  });
+
+  test("does nothing when app version matches latest release", async () => {
+    const origPlatform = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "android", configurable: true });
+    (Application as any).nativeApplicationVersion = "1.1.3";
+
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            tag_name: "v1.1.3",
+            assets: [{ name: "NimueBlue-v1.1.3.apk", browser_download_url: "url" }],
+          }),
+      } as Response),
+    );
+
+    try {
+      const updated = await checkForUpdates();
+      expect(updated).toBe(false);
+      expect(alertSpy).not.toHaveBeenCalled();
+    } finally {
+      global.fetch = originalFetch;
+      alertSpy.mockRestore();
+      Object.defineProperty(Platform, "OS", { value: origPlatform, configurable: true });
+    }
+  });
+
+  test("skips check on non-Android platforms", async () => {
+    const origPlatform = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
+
+    const updated = await checkForUpdates();
+    expect(updated).toBe(false);
+
+    Object.defineProperty(Platform, "OS", { value: origPlatform, configurable: true });
   });
 });

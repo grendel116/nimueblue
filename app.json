@@ -84,10 +84,6 @@
         "projectId": "e19c3b84-0cb7-47e4-bdae-523492be2929"
       }
     },
-    "runtimeVersion": "1.1.3",
-    "owner": "drhodesw",
-    "updates": {
-      "url": "https://u.expo.dev/e19c3b84-0cb7-47e4-bdae-523492be2929"
-    }
+    "owner": "drhodesw"
   }
 }
