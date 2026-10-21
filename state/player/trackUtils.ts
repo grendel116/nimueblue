@@ -12,6 +12,12 @@ export function isSameTrack(a: RNTrack, b: RNTrack): boolean {
   return Boolean(a.url) && a.url === b.url;
 }
 
+export function isSameTrackOrKey(a?: RNTrack, b?: RNTrack): boolean {
+  if (!a || !b) return false;
+  if (a._queueKey && b._queueKey && a._queueKey === b._queueKey) return true;
+  return isSameTrack(a, b);
+}
+
 export function resolveStreamUrl(rawAudio: string): string {
   if (!rawAudio) return "";
   if (/^(https?|file):\/\//.test(rawAudio)) return rawAudio;

@@ -20,6 +20,19 @@ export interface QueueState {
   generation: number;
 }
 
+export function isSameTrack(a: RNTrack, b: RNTrack): boolean {
+  if (a.id !== undefined && b.id !== undefined) return a.id === b.id;
+  if (a.liveStation && b.liveStation) return a.liveStation === b.liveStation;
+  if (a.podcastEpisodeId && b.podcastEpisodeId) return a.podcastEpisodeId === b.podcastEpisodeId;
+  return Boolean(a.url) && a.url === b.url;
+}
+
+export function isSameTrackOrKey(a?: RNTrack, b?: RNTrack): boolean {
+  if (!a || !b) return false;
+  if (a._queueKey && b._queueKey && a._queueKey === b._queueKey) return true;
+  return isSameTrack(a, b);
+}
+
 export const HISTORY_LIMIT = 50;
 
 export const emptyQueue: QueueState = {
@@ -233,7 +246,18 @@ export function back(state: QueueState): QueueState {
 }
 
 // Follows the audio player to a new position in the play order
-export function moveTo(state: QueueState, index: number, isOnline = true): QueueState {
+export function moveTo(state: QueueState, target: number | RNTrack, isOnline = true): QueueState {
+  if (!state.current) return state;
+  let index: number;
+  if (typeof target === "number") {
+    index = target;
+  } else {
+    if (isSameTrackOrKey(state.current.track, target)) return state;
+    const { tracks } = playOrder(state, { isOnline });
+    const foundIndex = tracks.findIndex((t) => isSameTrackOrKey(t, target));
+    if (foundIndex === -1) return state;
+    index = foundIndex;
+  }
   let next = state;
   while (next.current && next.history.length > index && next.history.length > 0) next = back(next);
   if (next.current && index > next.history.length) next = advance(next, index - next.history.length, isOnline);

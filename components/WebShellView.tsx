@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, BackHandler, StatusBar, Linking } from "react-native";
+import { StyleSheet, View, BackHandler, StatusBar, Linking, AppState } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { checkForUpdates } from "@/scripts/appVersionCheck";
 import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-player";
@@ -114,13 +114,24 @@ export default function WebShellView() {
     }
   );
 
+  // Resync player state when returning to foreground / unlocking screen
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        syncStateToWeb();
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   const syncStateToWeb = async () => {
     try {
-      const [stateObj, activeIndex, activeTrack, progress] = await Promise.all([
+      const [stateObj, activeIndex, activeTrack, progress, queue] = await Promise.all([
         TrackPlayer.getPlaybackState().catch(() => ({ state: undefined })),
         TrackPlayer.getActiveTrackIndex().catch(() => undefined),
         TrackPlayer.getActiveTrack().catch(() => undefined),
         TrackPlayer.getProgress().catch(() => undefined),
+        TrackPlayer.getQueue().catch(() => []),
       ]);
       const payload = {
         type: "sync",
@@ -128,6 +139,7 @@ export default function WebShellView() {
         activeIndex,
         activeTrack,
         progress,
+        queue,
       };
       webViewRef.current?.injectJavaScript(
         `window.postMessage(${JSON.stringify(payload)}, '*'); true;`
@@ -149,6 +161,14 @@ export default function WebShellView() {
         case "updateOptions":
           if (data.options) {
             await TrackPlayer.updateOptions(data.options);
+          }
+          break;
+        case "getQueue":
+          try {
+            const q = await TrackPlayer.getQueue();
+            replySuccess(data.id, q);
+          } catch (err: any) {
+            replyError(data.id, err?.message || "Failed to get queue");
           }
           break;
         case "setQueue":

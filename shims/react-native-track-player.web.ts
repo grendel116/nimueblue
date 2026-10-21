@@ -145,11 +145,16 @@ if (typeof window !== "undefined") {
             currentState = raw.state;
             emit(Event.PlaybackState, { state: raw.state });
           }
+          if (Array.isArray(raw.queue)) {
+            queue = [...raw.queue];
+          }
           if (typeof raw.activeIndex === "number") {
             activeIndex = raw.activeIndex;
           }
           if (raw.activeTrack) {
-            queue[activeIndex] = raw.activeTrack;
+            if (queue.length > activeIndex) {
+              queue[activeIndex] = raw.activeTrack;
+            }
             emit(Event.PlaybackActiveTrackChanged, {
               track: raw.activeTrack,
               index: activeIndex,
@@ -330,6 +335,7 @@ const TrackPlayer = {
     }
     return undefined;
   },
+  emit,
   registerPlaybackService: () => {},
   addEventListener: (event: Event, listener: (data: any) => void) => {
     listeners.add(listener);
@@ -340,9 +346,6 @@ const TrackPlayer = {
     activeIndex = 0;
     if (isWebViewBridge()) {
       postToNative("setQueue", { queue: newQueue });
-      if (queue.length > 0) {
-        emit(Event.PlaybackActiveTrackChanged, { track: queue[0], index: 0 });
-      }
       return undefined;
     }
     loadedUrl = "";
@@ -357,7 +360,18 @@ const TrackPlayer = {
     }
     return undefined;
   },
-  getQueue: async () => [...queue],
+  getQueue: async () => {
+    if (queue.length === 0 && isWebViewBridge()) {
+      try {
+        const { askNative } = require("@/scripts/nativeShell");
+        const nativeQueue = await (askNative as any)("getQueue");
+        if (Array.isArray(nativeQueue) && nativeQueue.length > 0) {
+          queue = [...nativeQueue];
+        }
+      } catch {}
+    }
+    return [...queue];
+  },
   reset: async () => {
     queue = [];
     activeIndex = 0;

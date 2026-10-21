@@ -37,7 +37,7 @@ import {
   REPEAT_MODES,
 } from "./player/types";
 import { ensureTrackPlayerInitialized } from "./player/setup";
-import { isSameTrack, toPlayerTrack, toNativeTrack } from "./player/trackUtils";
+import { isSameTrack, isSameTrackOrKey, toPlayerTrack, toNativeTrack } from "./player/trackUtils";
 import * as Q from "./player/queueModel";
 import { useQueueStore } from "./player/useQueueStore";
 import { kvStorage } from "@/scripts/storage/kvStorage";
@@ -172,10 +172,22 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     () =>
       onPlayer(async () => {
         if (isApplyingRef.current) return;
-        const index = await TrackPlayer.getActiveTrackIndex();
-        if (index === undefined || index === playerRef.current.index) return;
+        const [index, active] = await Promise.all([
+          TrackPlayer.getActiveTrackIndex(),
+          TrackPlayer.getActiveTrack() as Promise<RNTrack | undefined>,
+        ]);
+        if (index === undefined) return;
+        if (index === playerRef.current.index && !active) return;
+
+        // If the audio player is already playing the queue's current track, no movement is needed
+        if (active && queueRef.current.current?.track && isSameTrackOrKey(queueRef.current.current.track, active)) {
+          playerRef.current = { ...playerRef.current, index };
+          return;
+        }
+
+        const target = active || index;
+        const next = Q.moveTo(queueRef.current, target, isOnlineRef.current);
         playerRef.current = { ...playerRef.current, index };
-        const next = Q.moveTo(queueRef.current, index, isOnlineRef.current);
         if (next !== queueRef.current) {
           commit(next, "follow");
           incrementedRef.current = false;
@@ -212,7 +224,12 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
       await onPlayer(async () => {
         await ensureTrackPlayerInitialized();
         const held = keysOf((await TrackPlayer.getQueue()) as RNTrack[]);
-        if (held.length === 0) return;
+        if (held.length === 0) {
+          if (saved.current) {
+            playerRef.current = { keys: [], index: Q.playOrder(saved).index };
+          }
+          return;
+        }
         if (sameKeys(held, keysOf(Q.playOrder(saved).tracks))) {
           playerRef.current = { keys: held, index: Q.playOrder(saved).index };
         } else {
@@ -474,7 +491,7 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const generation = queue.generation;
     const known = Q.allTracks(queue);
-    const knownIds = new Set(known.map((t) => t.id).filter((id): id is string | number => id !== undefined));
+    const knownIds = new Set(known.map((t) => t.id).filter((id): id is number => id !== undefined));
     const knownUrls = new Set(known.map((t) => t.url).filter(Boolean));
 
     // 1. Instant synchronous draw from the local reservoir to maintain exactly 12 songs

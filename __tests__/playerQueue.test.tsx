@@ -52,6 +52,7 @@ jest.mock("@/scripts/autoplay", () => {
 import React from "react";
 import { act, create } from "react-test-renderer";
 import TrackPlayer from "react-native-track-player";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PlayerContextProvider, usePlayer, type PlayerContextType } from "@/state/PlayerContext";
 import { kvStorage } from "@/scripts/storage/kvStorage";
@@ -221,5 +222,27 @@ describe("player queue", () => {
     } finally {
       mockDiscoveryOn = false;
     }
+  });
+
+  test("unlocking/resuming the app with active playback does not skip songs forward", async () => {
+    // Start album playback at track 1 ("What Cheer Iowa")
+    await act(() => player.playTrack(album[1], album, "Space Trash (EP)"));
+    await settle();
+
+    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
+    expect(titles(player.upcoming)).toEqual(["People on TV"]);
+
+    // Simulate active track changed event on resume with the currently playing track
+    await act(async () => {
+      (TrackPlayer as any).emit("playback-active-track-changed", {
+        track: album[1],
+        index: 0,
+      });
+    });
+    await settle();
+
+    // The current track should STILL be "What Cheer Iowa" and not have skipped forward!
+    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
+    expect(titles(player.upcoming)).toEqual(["People on TV"]);
   });
 });

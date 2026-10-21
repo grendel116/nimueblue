@@ -118,7 +118,7 @@ export async function replenishDiscoveryReservoir(
     if (fetched.length === 0) return [];
 
     const existingIds = new Set([
-      ...currentPool.map((t) => t.id).filter((id): id is string | number => id !== undefined),
+      ...currentPool.map((t) => t.id).filter((id): id is number => id !== undefined),
       ...knownIds,
       ...playedIds,
     ]);
