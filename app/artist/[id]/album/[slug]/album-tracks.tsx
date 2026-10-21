@@ -16,7 +16,7 @@ import { queryAlbum } from "@/queries/queries";
 import { resolveFeedSourceName } from "@/queries/chorus";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
 import { openInBrowser } from "@/scripts/openInBrowser";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -114,12 +114,20 @@ function formatUTCDate(utcDate: string | undefined) {
 
 export default function AlbumTracks() {
   const { id, slug } = useLocalSearchParams();
-  const { isPending, isError, data, error, isFetching, refetch } = useQuery(
+  const { isPending, isError, data, error } = useQuery(
     queryAlbum({ slug: slug, id: id }),
   );
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
   const downloads = useDownloads();
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
 
   const savedAlbums = useMemo(() => groupTracksIntoAlbums(downloads), [downloads]);
   const matchedSavedAlbum = useMemo(() => {
@@ -260,7 +268,7 @@ export default function AlbumTracks() {
             ? error.message
             : "Something went wrong loading this album."
         }
-        onDismiss={() => (router.canDismiss() ? router.dismiss() : router.back())}
+        onDismiss={handleBack}
         onOpenLibrary={() => openMainTab("library")}
       />
     );
@@ -282,7 +290,7 @@ export default function AlbumTracks() {
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.topNav}>
         <Pressable
-          onPress={() => router.dismiss()}
+          onPress={handleBack}
           style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
@@ -333,7 +341,7 @@ export default function AlbumTracks() {
                     </Text>
                     <Pressable
                       onPress={() =>
-                        router.navigate({
+                        router.push({
                           pathname: "/artist/[id]/artist-page",
                           params: {
                             id: fairplayerReleaseSlug.artistPageRouteId(selectedAlbum),

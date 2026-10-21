@@ -47,7 +47,7 @@ export default function TrackGroupListScreen<K extends QueryKey>({
     <View style={[styles.mainWrapper, { paddingTop: top }]}>
       <View style={styles.header}>
         <Pressable
-          onPress={() => router.dismiss()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
@@ -67,7 +67,7 @@ export default function TrackGroupListScreen<K extends QueryKey>({
           <Pressable
             onPress={() => {
               const href = albumHref(item);
-              if (href) router.navigate(href);
+              if (href) router.push(href);
             }}
           >
             <TrackGroupItem

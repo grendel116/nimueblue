@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { Pill } from "@/components/ui";
 
 type TagPillProps = {
-  key?: number;
+  key?: number | string;
   tagName: string;
 };
 

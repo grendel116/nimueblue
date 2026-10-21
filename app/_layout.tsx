@@ -179,8 +179,7 @@ export default function RootLayout() {
                     options={{
                       headerShown: false,
                       animation: "fade",
-                      animationDuration: 300,
-                      presentation: "transparentModal",
+                      animationDuration: 200,
                     }}
                   />
                   <Stack.Screen
@@ -247,4 +246,3 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
-

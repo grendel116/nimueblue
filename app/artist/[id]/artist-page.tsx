@@ -28,7 +28,7 @@ import { isNetworkError } from "@/scripts/networkError";
 export default function ArtistPage() {
   const { id } = useLocalSearchParams();
   const routeId = String(id ?? "");
-  const { data, isError, isPending, error, isFetching, refetch } = useQuery(
+  const { data, isError, isPending, error } = useQuery(
     queryArtist({ artistSlug: routeId }),
   );
   const router = useRouter();
@@ -39,6 +39,14 @@ export default function ArtistPage() {
     theme.coverMaxSize,
     Math.max(110, Math.floor((effectiveWidth - 48) / 2)),
   );
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
 
   if (isPending) {
     return (
@@ -57,7 +65,7 @@ export default function ArtistPage() {
             ? error.message
             : "Something went wrong loading this artist."
         }
-        onDismiss={() => (router.canDismiss() ? router.dismiss() : router.back())}
+        onDismiss={handleBack}
         onOpenLibrary={() => openMainTab("library")}
       />
     );
@@ -87,7 +95,7 @@ export default function ArtistPage() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topNav}>
         <Pressable
-          onPress={() => router.dismiss()}
+          onPress={handleBack}
           style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
@@ -129,7 +137,7 @@ export default function ArtistPage() {
               style={[styles.albumItem, { width: itemWidth }]}
               onPress={() => {
                 const href = albumHref(item);
-                if (href) router.navigate(href);
+                if (href) router.push(href);
               }}
             >
               <View style={[styles.albumCoverWrap, { width: itemWidth, height: itemWidth }]}>
