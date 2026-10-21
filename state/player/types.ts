@@ -1,13 +1,6 @@
-import { RepeatMode } from "react-native-track-player";
-
 // The repeat button cycles off → repeat all → repeat one
 export type RepeatSetting = "none" | "queue" | "track";
 export const REPEAT_CYCLE: RepeatSetting[] = ["none", "queue", "track"];
-export const REPEAT_MODES: Record<RepeatSetting, RepeatMode> = {
-  none: RepeatMode.Off,
-  queue: RepeatMode.Queue,
-  track: RepeatMode.Track,
-};
 
 export type QueueSection = "queue" | "upcoming";
 export type QueueSlot = { section: QueueSection; index: number };

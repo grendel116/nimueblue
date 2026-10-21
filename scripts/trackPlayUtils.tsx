@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const PLAY_COUNTS_KEY = "mirlo_blue_play_counts_v1";
+export const PLAY_COUNTS_KEY = "mirlo_blue_play_counts_v1";
 
 // A track whose free previews are used up holds this count
 const EXHAUSTED = Number.MAX_SAFE_INTEGER;
@@ -13,7 +13,7 @@ const listeners = new Set<PlayCountsListener>();
 /**
  * Loads the consolidated dictionary of track play counts from storage.
  */
-async function getTrackPlayCounts(): Promise<Record<number, number>> {
+export async function getTrackPlayCounts(): Promise<Record<number, number>> {
   if (playCountsCache !== null) return playCountsCache;
   try {
     const raw = await AsyncStorage.getItem(PLAY_COUNTS_KEY);
@@ -93,7 +93,35 @@ export async function isPlaybackLimitReached(
   return maxFreePlays !== undefined && maxFreePlays !== null && plays >= maxFreePlays;
 }
 
-function disabledIds(counts: Record<number, number>): Set<number> {
+// The play counts as last loaded, for sending along with the player's state
+export function playCountsSync(): Record<number, number> {
+  return playCountsCache ?? {};
+}
+
+export function subscribePlayCounts(listener: PlayCountsListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+// The web app inside the Android app shows the counts the phone side keeps
+export function adoptPlayCounts(counts: Record<number, number>): void {
+  playCountsCache = counts;
+  listeners.forEach((listener) => listener(counts));
+}
+
+// Folds in counts saved elsewhere, keeping the higher count for each track
+export async function mergePlayCounts(incoming: Record<number, number>): Promise<void> {
+  const counts = { ...(await getTrackPlayCounts()) };
+  for (const [id, count] of Object.entries(incoming)) {
+    const key = Number(id);
+    counts[key] = Math.max(counts[key] ?? 0, Number(count) || 0);
+  }
+  await persistPlayCounts(counts);
+}
+
+export function disabledIds(counts: Record<number, number>): Set<number> {
   const disabled = new Set<number>();
   for (const [id, count] of Object.entries(counts)) {
     if (count >= EXHAUSTED) disabled.add(Number(id));

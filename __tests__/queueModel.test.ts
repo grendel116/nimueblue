@@ -143,38 +143,6 @@ describe("queue model", () => {
     expect(ids(playOrder(s).tracks)).toEqual(ids(order));
   });
 
-  test("following the player by track stays put when already playing that track", () => {
-    let s = play(emptyQueue, album, 0, "Space Trash");
-    const current = s.current!.track;
-    const same = moveTo(s, current);
-    expect(same).toBe(s);
-    expect(playing(same)).toBe(current.id);
-  });
-
-  test("following the player by track advances directly to an upcoming track", () => {
-    let s = play(emptyQueue, album, 0, "Space Trash");
-    s = addToQueue(s, song(9));
-    const target = album[2]; // Song 3
-    s = moveTo(s, target);
-    expect(playing(s)).toBe(target.id);
-    expect(s.history.map((h) => h.track.id)).toEqual([1, 9, 2]);
-  });
-
-  test("following the player by track steps back to a history track", () => {
-    let s = play(emptyQueue, album, 0, "Space Trash");
-    s = advance(s, 2);
-    expect(playing(s)).toBe(3);
-    s = moveTo(s, album[0]); // Song 1 in history
-    expect(playing(s)).toBe(1);
-  });
-
-  test("following the player with an unknown track does not modify the queue", () => {
-    let s = play(emptyQueue, album, 0, "Space Trash");
-    const unknown = song(999);
-    const untouched = moveTo(s, unknown);
-    expect(untouched).toBe(s);
-  });
-
   test("dragging a Next Up song into Your Queue makes it yours", () => {
     let s = play(emptyQueue, album, 0, "Space Trash");
     s = moveItem(s, { section: "upcoming", index: 1 }, { section: "queue", index: 0 });

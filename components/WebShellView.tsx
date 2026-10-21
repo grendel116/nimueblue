@@ -5,7 +5,7 @@ import { checkForUpdates } from "@/scripts/appVersionCheck";
 import TrackPlayer, { Event, useTrackPlayerEvents } from "react-native-track-player";
 import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ensureTrackPlayerInitialized } from "@/state/player/setup";
+import { getPlayerHost } from "@/state/player/host";
 import { chooseMusicFolder, openMusicFolder, rescanMusicFolder } from "@/scripts/musicFolder";
 import { getDownloadedTracks } from "@/scripts/downloadManager";
 import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
@@ -35,10 +35,6 @@ export default function WebShellView() {
 
   useEffect(() => {
     checkForUpdates().catch((err) => console.warn("Update check failed:", err));
-
-    ensureTrackPlayerInitialized().catch((err) => {
-      console.warn("Failed to initialize native TrackPlayer in WebShellView:", err);
-    });
 
     const handleUrl = async (url: string | null, initial: boolean) => {
       if (!url) return;
@@ -85,68 +81,42 @@ export default function WebShellView() {
     return () => sub.remove();
   }, []);
 
-  // Forward native TrackPlayer events into the WebView
-  useTrackPlayerEvents(
-    [
-      Event.PlaybackState,
-      Event.PlaybackActiveTrackChanged,
-      Event.PlaybackProgressUpdated,
-      Event.PlaybackQueueEnded,
-      Event.PlaybackError,
-    ],
-    async (event) => {
-      if (!webViewRef.current) return;
-      const payload: Record<string, any> = { type: event.type };
-      if (event.type === Event.PlaybackState) {
-        payload.state = event.state;
-      } else if (event.type === Event.PlaybackActiveTrackChanged) {
-        payload.track = event.track;
-        payload.index = event.index;
-      } else if (event.type === Event.PlaybackProgressUpdated) {
-        payload.position = event.position;
-        payload.duration = event.duration;
-      } else if (event.type === Event.PlaybackError) {
-        payload.message = event.message;
-        payload.code = (event as any).code;
-      }
-      const js = `window.postMessage(${JSON.stringify(payload)}, '*'); true;`;
-      webViewRef.current.injectJavaScript(js);
-    }
-  );
+  const postToWeb = (payload: Record<string, unknown>) => {
+    webViewRef.current?.injectJavaScript(`window.postMessage(${JSON.stringify(payload)}, '*'); true;`);
+  };
 
-  // Resync player state when returning to foreground / unlocking screen
+  // The player host lives here on the phone side; the web app shows every state it announces
+  useEffect(() => getPlayerHost().subscribe((message) => postToWeb({ type: "player", message })), []);
+
+  // Play/pause state and progress go straight from the audio player to the web app
+  useTrackPlayerEvents([Event.PlaybackState, Event.PlaybackProgressUpdated], (event) => {
+    if (event.type === Event.PlaybackState) {
+      postToWeb({ type: event.type, state: event.state });
+    } else {
+      postToWeb({ type: event.type, position: event.position, duration: event.duration });
+    }
+  });
+
+  // Coming back to the app (unlocking the screen), the web app gets the current state, since it
+  // may have been asleep while songs played on
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        syncStateToWeb();
-      }
+      if (state === "active") syncStateToWeb();
     });
     return () => sub.remove();
   }, []);
 
   const syncStateToWeb = async () => {
     try {
-      const [stateObj, activeIndex, activeTrack, progress, queue] = await Promise.all([
-        TrackPlayer.getPlaybackState().catch(() => ({ state: undefined })),
-        TrackPlayer.getActiveTrackIndex().catch(() => undefined),
-        TrackPlayer.getActiveTrack().catch(() => undefined),
-        TrackPlayer.getProgress().catch(() => undefined),
-        TrackPlayer.getQueue().catch(() => []),
+      const [{ state }, progress] = await Promise.all([
+        TrackPlayer.getPlaybackState(),
+        TrackPlayer.getProgress(),
       ]);
-      const payload = {
-        type: "sync",
-        state: stateObj?.state,
-        activeIndex,
-        activeTrack,
-        progress,
-        queue,
-      };
-      webViewRef.current?.injectJavaScript(
-        `window.postMessage(${JSON.stringify(payload)}, '*'); true;`
-      );
+      postToWeb({ type: "sync", state, progress });
     } catch (e) {
-      console.warn("Failed to sync state to web:", e);
+      console.warn("Failed to sync playback to web:", e);
     }
+    getPlayerHost().request({ type: "refresh" });
   };
 
   const onMessage = async (event: WebViewMessageEvent) => {
@@ -155,79 +125,8 @@ export default function WebShellView() {
       if (!data || !data.type) return;
 
       switch (data.type) {
-        case "setupPlayer":
-          await ensureTrackPlayerInitialized();
-          break;
-        case "updateOptions":
-          if (data.options) {
-            await TrackPlayer.updateOptions(data.options);
-          }
-          break;
-        case "getQueue":
-          try {
-            const q = await TrackPlayer.getQueue();
-            replySuccess(data.id, q);
-          } catch (err: any) {
-            replyError(data.id, err?.message || "Failed to get queue");
-          }
-          break;
-        case "setQueue":
-          await ensureTrackPlayerInitialized();
-          if (Array.isArray(data.queue)) {
-            await TrackPlayer.setQueue(data.queue);
-          }
-          break;
-        case "reset":
-          await TrackPlayer.reset();
-          break;
-        case "play":
-          await ensureTrackPlayerInitialized();
-          await TrackPlayer.play();
-          break;
-        case "pause":
-          await TrackPlayer.pause();
-          break;
-        case "stop":
-          await TrackPlayer.stop();
-          break;
-        case "seekTo":
-          if (typeof data.position === "number") {
-            await TrackPlayer.seekTo(data.position);
-          }
-          break;
-        case "skip":
-          if (typeof data.index === "number") {
-            await TrackPlayer.skip(data.index);
-          }
-          break;
-        case "skipToNext":
-          await TrackPlayer.skipToNext();
-          break;
-        case "skipToPrevious":
-          await TrackPlayer.skipToPrevious();
-          break;
-        case "add":
-          if (data.tracks) {
-            await TrackPlayer.add(data.tracks, data.insertBeforeIndex);
-          }
-          break;
-        case "remove":
-          if (data.indexes !== undefined) {
-            await TrackPlayer.remove(data.indexes);
-          }
-          break;
-        case "move":
-          if (typeof data.fromIndex === "number" && typeof data.toIndex === "number") {
-            await TrackPlayer.move(data.fromIndex, data.toIndex);
-          }
-          break;
-        case "removeUpcomingTracks":
-          await TrackPlayer.removeUpcomingTracks();
-          break;
-        case "setRepeatMode":
-          if (typeof data.mode === "number") {
-            await TrackPlayer.setRepeatMode(data.mode);
-          }
+        case "player":
+          getPlayerHost().request(data.request);
           break;
         case "webReady":
           isWebReadyRef.current = true;

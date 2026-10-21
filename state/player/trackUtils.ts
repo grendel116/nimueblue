@@ -12,12 +12,6 @@ export function isSameTrack(a: RNTrack, b: RNTrack): boolean {
   return Boolean(a.url) && a.url === b.url;
 }
 
-export function isSameTrackOrKey(a?: RNTrack, b?: RNTrack): boolean {
-  if (!a || !b) return false;
-  if (a._queueKey && b._queueKey && a._queueKey === b._queueKey) return true;
-  return isSameTrack(a, b);
-}
-
 export function resolveStreamUrl(rawAudio: string): string {
   if (!rawAudio) return "";
   if (/^(https?|file):\/\//.test(rawAudio)) return rawAudio;
@@ -25,8 +19,6 @@ export function resolveStreamUrl(rawAudio: string): string {
   if (API_ROOT && API_ROOT !== "/" && path.startsWith(`${API_ROOT}/`)) return path;
   return `${API_ROOT}${path}`;
 }
-
-let nextQueueKeyId = 1;
 
 // Prepares any track for the player: absolute stream URL, API key header, artwork, and artist.
 // A song saved on the phone plays from its file instead of streaming
@@ -64,7 +56,6 @@ export function toPlayerTrack(
   return {
     ...t,
     trackGroup: cleanTrackGroup,
-    _queueKey: t._queueKey || `qk-${nextQueueKeyId++}`,
     url: streamUrl,
     headers: saved ? {} : t.headers || { "mirlo-api-key": API_KEY },
     type: saved ? TrackType.Default : t.type || audioTrackType(streamUrl),

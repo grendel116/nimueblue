@@ -23,7 +23,7 @@ import { usePlayer } from "@/state/PlayerContext";
 import { openDownloadedAlbum, openDownloadedArtist } from "@/scripts/albumLookup";
 import Player from "@/components/Player";
 import { useRouter, type Href } from "expo-router";
-import TrackPlayer, { useProgress } from "react-native-track-player";
+import { useProgress } from "react-native-track-player";
 import Slider from "@react-native-community/slider";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import DismissModalBar from "@/components/DismissModalBar";
@@ -472,7 +472,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
 }
 
 function ProgressSection({ isLive }: { isLive: boolean }) {
-  const { skipNext } = usePlayer("skipNext");
+  const { skipNext, seekTo } = usePlayer("skipNext", "seekTo");
   const progress = useProgress(200);
   const [slidingValue, setSlidingValue] = useState<number | null>(null);
   const shown = slidingValue ?? (isLive ? getRadioTimerElapsed(progress.position) : progress.position);
@@ -496,7 +496,7 @@ function ProgressSection({ isLive }: { isLive: boolean }) {
               await skipNext();
             }
           } else {
-            await TrackPlayer.seekTo(val);
+            await seekTo(val);
           }
         }}
       />

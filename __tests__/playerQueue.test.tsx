@@ -1,5 +1,5 @@
-// Runs the real player provider against the web player stand-in, checking that the queue
-// screen's sections and the player's play order agree after each listener action
+// Runs the real player host and provider against the web player stand-in, checking that the
+// queue screen's sections and the audio player agree after each listener action
 class FakeAudio {
   src = "";
   paused = true;
@@ -52,11 +52,10 @@ jest.mock("@/scripts/autoplay", () => {
 import React from "react";
 import { act, create } from "react-test-renderer";
 import TrackPlayer from "react-native-track-player";
-import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PlayerContextProvider, usePlayer, type PlayerContextType } from "@/state/PlayerContext";
 import { kvStorage } from "@/scripts/storage/kvStorage";
-import { useQueueStore } from "@/state/player/useQueueStore";
+import { createPlayerHost, QUEUE_KEY, type PlayerHost } from "@/state/player/host";
 
 const song = (id: number, title = `Song ${id}`): RNTrack =>
   ({ id: `s${id}` as any, title, url: `https://example.com/${id}.mp3` }) as RNTrack;
@@ -94,29 +93,40 @@ async function playerOrder() {
   return { titles: titles(queue), index };
 }
 
-const album = [song(1, "Sator Arepo"), song(2, "What Cheer Iowa"), song(3, "People on TV")];
+const album = [
+  song(1, "Sator Arepo"),
+  song(2, "What Cheer Iowa"),
+  song(3, "People on TV"),
+  song(4, "Late Night Radio"),
+];
 const radio = song(9, "50s 60s RETRO HITS");
 
 describe("player queue", () => {
   let renderer: ReturnType<typeof create> | undefined;
+  let host: PlayerHost;
 
-  beforeEach(async () => {
-    kvStorage.clearAll();
-    useQueueStore.getState().resetQueue();
-    await AsyncStorage.clear();
-    await TrackPlayer.reset();
+  const showScreens = async () => {
     act(() => {
       renderer = create(
-        <PlayerContextProvider>
+        <PlayerContextProvider connection={host}>
           <Probe />
         </PlayerContextProvider>,
       );
     });
     await settle();
+  };
+
+  beforeEach(async () => {
+    kvStorage.clearAll();
+    await AsyncStorage.clear();
+    await TrackPlayer.reset();
+    host = createPlayerHost();
+    await showScreens();
   });
 
   afterEach(async () => {
     act(() => renderer?.unmount());
+    host.dispose();
     await settle();
   });
 
@@ -135,10 +145,14 @@ describe("player queue", () => {
 
     expect(player.activeTrack?.title).toBe("Sator Arepo");
     expect(titles(player.userQueue)).toEqual([radio.title]);
-    expect(titles(player.upcoming)).toEqual(["What Cheer Iowa", "People on TV"]);
+    expect(titles(player.upcoming)).toEqual([
+      "What Cheer Iowa",
+      "People on TV",
+      "Late Night Radio",
+    ]);
     expect(player.queueSource).toBe("Space Trash (EP)");
     expect(await playerOrder()).toEqual({
-      titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV"],
+      titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV", "Late Night Radio"],
       index: 0,
     });
 
@@ -146,7 +160,65 @@ describe("player queue", () => {
     await settle();
     expect(player.activeTrack?.title).toBe(radio.title);
     expect(player.userQueue).toEqual([]);
-    expect((await playerOrder()).index).toBe(1);
+    expect(await playerOrder()).toEqual({
+      titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV", "Late Night Radio"],
+      index: 1,
+    });
+  });
+
+  test("starting an album and skipping to the second song keeps the rest of the album in Next Up before Discovery", async () => {
+    mockDiscoveryOn = true;
+    try {
+      await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+      await settle();
+
+      const setQueue = jest.spyOn(TrackPlayer, "setQueue");
+      const remove = jest.spyOn(TrackPlayer, "remove");
+      const removeUpcoming = jest.spyOn(TrackPlayer, "removeUpcomingTracks");
+      try {
+        await act(() => player.skipNext());
+        await settle();
+
+        expect(player.activeTrack?.title).toBe("What Cheer Iowa");
+        expect(player.queueSource).toBe("Space Trash (EP)");
+        const nextUp = player.upcoming.filter((t) => !t.autoplay);
+        const discovery = player.upcoming.filter((t) => t.autoplay);
+        expect(titles(nextUp)).toEqual(["People on TV", "Late Night Radio"]);
+        expect(discovery).toHaveLength(12);
+        // Skipping within an album is a single skip() call with zero queue rebuilds
+        expect(setQueue).not.toHaveBeenCalled();
+        expect(remove).not.toHaveBeenCalled();
+        expect(removeUpcoming).not.toHaveBeenCalled();
+      } finally {
+        setQueue.mockRestore();
+        remove.mockRestore();
+        removeUpcoming.mockRestore();
+      }
+    } finally {
+      mockDiscoveryOn = false;
+    }
+  });
+
+  test("saved queues with legacy colliding _queueKey values are given unique keys on restore", async () => {
+    act(() => renderer?.unmount());
+    host.dispose();
+    kvStorage.set(
+      QUEUE_KEY,
+      JSON.stringify({
+        history: [],
+        current: { track: { id: 1, title: "Old Song", url: "https://example.com/1.mp3", _queueKey: "qk-1" }, from: "nextUp" },
+        userQueue: [],
+        nextUp: [{ id: 2, title: "Album Track 2", url: "https://example.com/2.mp3", _queueKey: "qk-2" }],
+        discovery: [{ id: 99, title: "Discovery Track", url: "https://example.com/99.mp3", _queueKey: "qk-2", autoplay: true }],
+        source: "Saved Album",
+      }),
+    );
+    host = createPlayerHost();
+    await showScreens();
+
+    expect(player.upcoming).toHaveLength(2);
+    expect(player.upcoming[0]._queueKey).not.toBe(player.upcoming[1]._queueKey);
+    expect(titles(player.upcoming)).toEqual(["Album Track 2", "Discovery Track"]);
   });
 
   test("adding during playback goes under Your Queue, not into Next Up", async () => {
@@ -155,12 +227,17 @@ describe("player queue", () => {
     await act(() => player.addToQueue(radio));
     await settle();
     expect(titles(player.userQueue)).toEqual([radio.title]);
-    expect(titles(player.upcoming)).toEqual(["What Cheer Iowa", "People on TV"]);
+    expect(titles(player.upcoming)).toEqual([
+      "What Cheer Iowa",
+      "People on TV",
+      "Late Night Radio",
+    ]);
     expect((await playerOrder()).titles).toEqual([
       "Sator Arepo",
       radio.title,
       "What Cheer Iowa",
       "People on TV",
+      "Late Night Radio",
     ]);
   });
 
@@ -168,11 +245,19 @@ describe("player queue", () => {
     await act(() => player.addToQueue(radio));
     await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
     await settle();
-    await act(() => TrackPlayer.skip(2));
+    await act(() => TrackPlayer.skipToNext());
     await settle();
-    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
+    expect(player.activeTrack?.title).toBe(radio.title);
     expect(player.userQueue).toEqual([]);
-    expect(titles(player.upcoming)).toEqual(["People on TV"]);
+    expect(titles(player.upcoming)).toEqual([
+      "What Cheer Iowa",
+      "People on TV",
+      "Late Night Radio",
+    ]);
+    expect(await playerOrder()).toEqual({
+      titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV", "Late Night Radio"],
+      index: 1,
+    });
   });
 
   test("tapping a Next Up song keeps Your Queue next", async () => {
@@ -201,19 +286,25 @@ describe("player queue", () => {
     expect((await playerOrder()).index).toBe(0);
   });
 
-  test("Discovery maintains exactly 12 songs, adding one whenever a song is taken from discovery", async () => {
+  test("Discovery maintains 12 songs, appending synchronously on skip without rebuilding the player queue", async () => {
     mockDiscoveryOn = true;
     try {
-      await act(() => player.playTrack(album[2], album, "Space Trash (EP)"));
+      await act(() => player.playTrack(album[3], album, "Space Trash (EP)"));
       await settle();
       const discovery = () => player.upcoming.filter((t) => t.autoplay);
       expect(discovery()).toHaveLength(12);
 
-      // Skipping advances playback into discovery, taking 1 song from the discovery queue
-      await act(() => player.skipNext());
-      await settle();
-      expect(player.activeTrack?.autoplay).toBe(true);
-      expect(discovery()).toHaveLength(12);
+      const removeUpcoming = jest.spyOn(TrackPlayer, "removeUpcomingTracks");
+      try {
+        // Skipping advances playback into discovery, taking 1 song and appending 1 at the tail
+        await act(() => player.skipNext());
+        await settle();
+        expect(player.activeTrack?.autoplay).toBe(true);
+        expect(discovery()).toHaveLength(12);
+        expect(removeUpcoming).not.toHaveBeenCalled();
+      } finally {
+        removeUpcoming.mockRestore();
+      }
 
       // Tapping a discovery song directly takes it from the discovery queue
       await act(() => player.skipToUpcoming(1));
@@ -224,55 +315,51 @@ describe("player queue", () => {
     }
   });
 
-  test("unlocking/resuming the app with active playback does not skip songs forward", async () => {
-    // Start album playback at track 1 ("What Cheer Iowa")
-    await act(() => player.playTrack(album[1], album, "Space Trash (EP)"));
-    await settle();
-
-    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
-    expect(titles(player.upcoming)).toEqual(["People on TV"]);
-
-    // Simulate active track changed event on resume with the currently playing track
-    await act(async () => {
-      (TrackPlayer as any).emit("playback-active-track-changed", {
-        track: album[1],
-        index: 0,
-      });
-    });
-    await settle();
-
-    // The current track should STILL be "What Cheer Iowa" and not have skipped forward!
-    expect(player.activeTrack?.title).toBe("What Cheer Iowa");
-    expect(titles(player.upcoming)).toEqual(["People on TV"]);
-  });
-
-  test("app resume or network reconnect while playing does not restart playback from 0:00", async () => {
+  test("songs that play on while the screens are away show up when they come back", async () => {
     await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
     await settle();
 
-    const spySetQueue = jest.spyOn(TrackPlayer, "setQueue");
-    const spySkip = jest.spyOn(TrackPlayer, "skip");
-    const spyReset = jest.spyOn(TrackPlayer, "reset");
-    const spySeekTo = jest.spyOn(TrackPlayer, "seekTo");
+    // The screens go away (the phone is locked) while the audio player moves on twice
+    act(() => renderer?.unmount());
+    await act(() => TrackPlayer.skipToNext());
+    await settle();
+    await act(() => TrackPlayer.skipToNext());
+    await settle();
 
+    const setQueue = jest.spyOn(TrackPlayer, "setQueue");
+    const reset = jest.spyOn(TrackPlayer, "reset");
     try {
-      // Simulate app becoming active on phone unlock
-      await act(async () => {
-        (AppState as any).emit?.("change", "active");
-      });
-      await settle();
-
-      // Ensure no disruptive player actions were taken that would reset or restart audio
-      expect(spySetQueue).not.toHaveBeenCalled();
-      expect(spySkip).not.toHaveBeenCalled();
-      expect(spyReset).not.toHaveBeenCalled();
-      expect(spySeekTo).not.toHaveBeenCalled();
-      expect(player.activeTrack?.title).toBe(album[0].title);
+      await showScreens();
+      const order = await playerOrder();
+      expect(player.activeTrack?.title).toBe("People on TV");
+      expect(order.titles[order.index]).toBe("People on TV");
+      expect(titles(player.upcoming)).toEqual(["Late Night Radio"]);
+      // Coming back never reloads the song playing
+      expect(setQueue).not.toHaveBeenCalled();
+      expect(reset).not.toHaveBeenCalled();
     } finally {
-      spySetQueue.mockRestore();
-      spySkip.mockRestore();
-      spyReset.mockRestore();
-      spySeekTo.mockRestore();
+      setQueue.mockRestore();
+      reset.mockRestore();
+    }
+  });
+
+  test("editing the queue during playback only updates the upcoming tracks", async () => {
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+    const setQueue = jest.spyOn(TrackPlayer, "setQueue");
+    const skip = jest.spyOn(TrackPlayer, "skip");
+    try {
+      await act(() => player.addToQueue(radio));
+      await settle();
+      expect(await playerOrder()).toEqual({
+        titles: ["Sator Arepo", radio.title, "What Cheer Iowa", "People on TV", "Late Night Radio"],
+        index: 0,
+      });
+      expect(setQueue).not.toHaveBeenCalled();
+      expect(skip).not.toHaveBeenCalled();
+    } finally {
+      setQueue.mockRestore();
+      skip.mockRestore();
     }
   });
 });

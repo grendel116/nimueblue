@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { createMMKV } from "react-native-mmkv";
 
 export interface KeyValueStorage {
   getString: (key: string) => string | undefined;
@@ -7,39 +7,14 @@ export interface KeyValueStorage {
   clearAll: () => void;
 }
 
-const memoryMap = new Map<string, string>();
+// The phone's own fast storage. In tests MMKV hands back its built-in stand-in
+const mmkv = createMMKV({ id: "nimue-blue-queue" });
 
-const memoryStorage: KeyValueStorage = {
-  getString: (k: string) => memoryMap.get(k),
-  set: (k: string, v: string) => {
-    memoryMap.set(k, v);
-  },
+export const kvStorage: KeyValueStorage = {
+  getString: (k: string) => mmkv.getString(k),
+  set: (k: string, v: string) => mmkv.set(k, v),
   delete: (k: string) => {
-    memoryMap.delete(k);
+    mmkv.remove(k);
   },
-  clearAll: () => {
-    memoryMap.clear();
-  },
+  clearAll: () => mmkv.clearAll(),
 };
-
-function createStorage(): KeyValueStorage {
-  if (Platform.OS === "web") {
-    return memoryStorage;
-  }
-
-  try {
-    const { MMKV } = require("react-native-mmkv");
-    const mmkv = new MMKV({ id: "nimue-blue-queue" });
-    return {
-      getString: (k: string) => mmkv.getString(k),
-      set: (k: string, v: string) => mmkv.set(k, v),
-      delete: (k: string) => mmkv.delete(k),
-      clearAll: () => mmkv.clearAll(),
-    };
-  } catch (error) {
-    // In Jest environments or fallback where native JSI is not linked
-    return memoryStorage;
-  }
-}
-
-export const kvStorage: KeyValueStorage = createStorage();

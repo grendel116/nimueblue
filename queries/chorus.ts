@@ -416,27 +416,26 @@ export async function purgeChorusDeletedEntities(
     console.error("Failed to purge deleted entities from history:", err);
   }
 
-  // 3. Purge from TrackPlayer active queue
+  // 3. Purge from the player's queue
   try {
-    const TrackPlayer = require("react-native-track-player").default;
-    const queue = (await TrackPlayer.getQueue()) as RNTrack[];
-    const indicesToRemove: number[] = [];
-    queue.forEach((track, index) => {
-      const canonicalUrl = normalizeCanonicalUrl(track.url);
-      const songSlug = (track.trackGroup?.urlSlug || "").trim().toLowerCase();
-      const isDeleted =
-        deletedCanonicalUrls.has(canonicalUrl) ||
-        (Boolean(songSlug) && deletedAlbumSlugs.has(songSlug));
-      if (isDeleted) {
-        indicesToRemove.push(index);
-      }
-    });
-
-    if (indicesToRemove.length > 0) {
-      await TrackPlayer.remove(indicesToRemove);
-    }
+    const { playerConnection } = require("@/state/player/connection");
+    const player = playerConnection();
+    const { activeTrack, userQueue, upcoming } = player.snapshot();
+    const tracks = [...(activeTrack ? [activeTrack] : []), ...userQueue, ...upcoming];
+    const keys = tracks
+      .filter((track: RNTrack) => {
+        const canonicalUrl = normalizeCanonicalUrl(track.url);
+        const songSlug = (track.trackGroup?.urlSlug || "").trim().toLowerCase();
+        return (
+          deletedCanonicalUrls.has(canonicalUrl) ||
+          (Boolean(songSlug) && deletedAlbumSlugs.has(songSlug))
+        );
+      })
+      .map((track: RNTrack) => track._queueKey)
+      .filter(Boolean);
+    if (keys.length > 0) await player.request({ type: "removeKeys", keys });
   } catch (err) {
-    // TrackPlayer might not be initialized or active
+    console.error("Failed to purge deleted entities from the queue:", err);
   }
 }
 

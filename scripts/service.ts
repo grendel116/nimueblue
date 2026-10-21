@@ -1,101 +1,38 @@
 import TrackPlayer, { Event, RepeatMode } from "react-native-track-player";
 
 import { isRadioSetComplete, resetRadioTimer } from "@/scripts/radioTimer";
+import { getPlayerHost } from "@/state/player/host";
 
-// Next track, wrapping to the start at the end of the queue
-async function skipToNextTrack() {
-  const queue = await TrackPlayer.getQueue();
-  const trackIndex = await TrackPlayer.getActiveTrackIndex();
-  if (queue.length === 0 || trackIndex === undefined) return;
-
-  if (trackIndex >= queue.length - 1) {
-    const repeatMode = await TrackPlayer.getRepeatMode();
-    if (repeatMode === RepeatMode.Queue) {
-      await TrackPlayer.skip(0);
-    }
-    return;
-  } else {
-    await TrackPlayer.skipToNext();
-  }
-}
-
+// Lock screen, notification and headphone buttons go to the player host like any other tap
 module.exports = async function () {
+  const host = getPlayerHost();
+
   TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async () => {
     resetRadioTimer();
   });
-  TrackPlayer.addEventListener(Event.RemotePlay, async () => {
-    try {
-      await TrackPlayer.play();
-    } catch (err) {
-      console.error("RemotePlay error:", err);
-    }
-  });
 
-  TrackPlayer.addEventListener(Event.RemotePause, async () => {
-    try {
-      await TrackPlayer.pause();
-    } catch (err) {
-      console.error("RemotePause error:", err);
-    }
-  });
-
-  TrackPlayer.addEventListener(Event.RemoteNext, async () => {
-    try {
-      await skipToNextTrack();
-    } catch (err) {
-      console.error("RemoteNext error:", err);
-    }
-  });
+  TrackPlayer.addEventListener(Event.RemotePlay, () => host.request({ type: "play" }));
+  TrackPlayer.addEventListener(Event.RemotePause, () => host.request({ type: "pause" }));
+  TrackPlayer.addEventListener(Event.RemoteNext, () => host.request({ type: "skipNext" }));
+  TrackPlayer.addEventListener(Event.RemotePrevious, () => host.request({ type: "skipPrevious" }));
+  TrackPlayer.addEventListener(Event.RemoteSeek, ({ position }) =>
+    host.request({ type: "seekTo", position }),
+  );
 
   // A station's set ends after 10 minutes of listening (repeat one keeps it on)
   TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, async ({ position }) => {
     try {
       if (!isRadioSetComplete(position)) return;
-      const active = (await TrackPlayer.getActiveTrack()) as RNTrack | undefined;
-      if (!active?.liveStation) return;
+      if (!host.snapshot().activeTrack?.liveStation) return;
       if ((await TrackPlayer.getRepeatMode()) === RepeatMode.Track) return;
       resetRadioTimer();
-      await skipToNextTrack();
+      await host.request({ type: "skipNext" });
     } catch (err) {
       console.error("Radio set error:", err);
     }
   });
 
-  TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-    try {
-      const progress = await TrackPlayer.getProgress();
-      if (progress.position > 3) {
-        await TrackPlayer.seekTo(0);
-        return;
-      }
-
-      const queue = await TrackPlayer.getQueue();
-      const trackIndex = await TrackPlayer.getActiveTrackIndex();
-      if (queue.length === 0 || trackIndex === undefined) return;
-
-      if (trackIndex === 0) {
-        const repeatMode = await TrackPlayer.getRepeatMode();
-        if (repeatMode === RepeatMode.Queue) {
-          await TrackPlayer.skip(queue.length - 1);
-        } else {
-          await TrackPlayer.seekTo(0);
-        }
-      } else {
-        await TrackPlayer.skipToPrevious();
-      }
-    } catch (err) {
-      console.error("RemotePrevious error:", err);
-    }
-  });
-
-  TrackPlayer.addEventListener(Event.RemoteSeek, async ({ position }) => {
-    try {
-      await TrackPlayer.seekTo(position);
-    } catch (err) {
-      console.error("RemoteSeek error:", err);
-    }
-  });
-
+  // Another app taking the audio pauses playback; getting it back resumes
   TrackPlayer.addEventListener(Event.RemoteDuck, async ({ paused, permanent }) => {
     try {
       if (permanent || paused) {

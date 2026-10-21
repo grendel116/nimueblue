@@ -84,112 +84,41 @@ let latestProgress = {
   buffered: 0,
 };
 
+// Inside the Android app the phone side plays the audio; this page only hears its play state
+// and progress, for the play button and progress bars
 function isWebViewBridge(): boolean {
   return typeof window !== "undefined" && Boolean((window as any).ReactNativeWebView);
 }
 
-function postToNative(type: string, payload: Record<string, any> = {}) {
-  if (isWebViewBridge()) {
-    (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type, ...payload }));
-  }
-}
-
-if (typeof window !== "undefined") {
+if (isWebViewBridge()) {
   const onNativeMessage = (event: any) => {
-    try {
-      let raw = event.data;
-      if (typeof raw === "string") {
-        try {
-          raw = JSON.parse(raw);
-        } catch {
-          return;
-        }
+    let raw = event.data;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        return;
       }
-      if (!raw || typeof raw !== "object" || !raw.type) return;
-
-      switch (raw.type) {
-        case Event.PlaybackState:
-          currentState = raw.state;
-          emit(Event.PlaybackState, { state: raw.state });
-          break;
-        case Event.PlaybackActiveTrackChanged:
-          if (typeof raw.index === "number") {
-            activeIndex = raw.index;
-          }
-          if (raw.track && queue[activeIndex]) {
-            queue[activeIndex] = raw.track;
-          }
-          emit(Event.PlaybackActiveTrackChanged, {
-            track: raw.track || queue[activeIndex],
-            index: activeIndex,
-          });
-          break;
-        case Event.PlaybackProgressUpdated:
-          latestProgress = {
-            position: raw.position ?? 0,
-            duration: raw.duration ?? 0,
-            buffered: raw.buffered ?? 0,
-          };
-          emit(Event.PlaybackProgressUpdated, latestProgress);
-          break;
-        case Event.PlaybackQueueEnded:
-          currentState = State.Ended;
-          emit(Event.PlaybackQueueEnded);
-          break;
-        case Event.PlaybackError:
-          currentState = State.Error;
-          emit(Event.PlaybackError, { message: raw.message, code: raw.code });
-          break;
-        case "sync":
-          if (raw.state) {
-            currentState = raw.state;
-            emit(Event.PlaybackState, { state: raw.state });
-          }
-          if (Array.isArray(raw.queue)) {
-            queue = [...raw.queue];
-          }
-          const prevIndex = activeIndex;
-          const prevTrack = queue[prevIndex];
-          if (typeof raw.activeIndex === "number") {
-            activeIndex = raw.activeIndex;
-          }
-          if (raw.activeTrack) {
-            if (queue.length > activeIndex) {
-              queue[activeIndex] = raw.activeTrack;
-            }
-            const changed =
-              activeIndex !== prevIndex ||
-              !prevTrack ||
-              prevTrack.id !== raw.activeTrack.id ||
-              prevTrack.url !== raw.activeTrack.url;
-            if (changed) {
-              emit(Event.PlaybackActiveTrackChanged, {
-                track: raw.activeTrack,
-                index: activeIndex,
-              });
-            }
-          }
-          if (raw.progress) {
-            latestProgress = {
-              position: raw.progress.position ?? 0,
-              duration: raw.progress.duration ?? 0,
-              buffered: raw.progress.buffered ?? 0,
-            };
-            emit(Event.PlaybackProgressUpdated, latestProgress);
-          }
-          break;
-      }
-    } catch {
-      // ignore
+    }
+    if (!raw || typeof raw !== "object") return;
+    const state = raw.type === Event.PlaybackState || raw.type === "sync" ? raw.state : undefined;
+    const progress =
+      raw.type === Event.PlaybackProgressUpdated ? raw : raw.type === "sync" ? raw.progress : undefined;
+    if (state) {
+      currentState = state;
+      emit(Event.PlaybackState, { state });
+    }
+    if (progress) {
+      latestProgress = {
+        position: progress.position ?? 0,
+        duration: progress.duration ?? 0,
+        buffered: progress.buffered ?? 0,
+      };
+      emit(Event.PlaybackProgressUpdated, latestProgress);
     }
   };
-
-  if (typeof window.addEventListener === "function") {
-    window.addEventListener("message", onNativeMessage);
-  }
-  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
-    document.addEventListener("message", onNativeMessage as any);
-  }
+  window.addEventListener("message", onNativeMessage);
+  if (typeof document !== "undefined") document.addEventListener("message", onNativeMessage as any);
 }
 
 function setPlaybackState(nextState: State) {
@@ -326,24 +255,15 @@ function loadAudioSource(audio: HTMLAudioElement, url: string, autoPlay: boolean
   }
 }
 
+// The browser's audio player, used by the player host when it runs in the page
 const TrackPlayer = {
-  setupPlayer: async (options?: any) => {
-    if (isWebViewBridge()) {
-      postToNative("setupPlayer", { options });
-      currentState = State.Ready;
-      return undefined;
-    }
+  setupPlayer: async (_options?: any) => {
     if (currentState === State.None) {
       currentState = State.Ready;
     }
     return undefined;
   },
-  updateOptions: async (options?: any) => {
-    if (isWebViewBridge()) {
-      postToNative("updateOptions", { options });
-    }
-    return undefined;
-  },
+  updateOptions: async (_options?: any) => undefined,
   emit,
   registerPlaybackService: () => {},
   addEventListener: (event: Event, listener: (data: any) => void) => {
@@ -353,10 +273,6 @@ const TrackPlayer = {
   setQueue: async (newQueue: any[]) => {
     queue = [...newQueue];
     activeIndex = 0;
-    if (isWebViewBridge()) {
-      postToNative("setQueue", { queue: newQueue });
-      return undefined;
-    }
     loadedUrl = "";
     destroyHls();
     const audio = getAudio();
@@ -369,26 +285,10 @@ const TrackPlayer = {
     }
     return undefined;
   },
-  getQueue: async () => {
-    if (queue.length === 0 && isWebViewBridge()) {
-      try {
-        const { askNative } = require("@/scripts/nativeShell");
-        const nativeQueue = await (askNative as any)("getQueue");
-        if (Array.isArray(nativeQueue) && nativeQueue.length > 0) {
-          queue = [...nativeQueue];
-        }
-      } catch {}
-    }
-    return [...queue];
-  },
+  getQueue: async () => [...queue],
   reset: async () => {
     queue = [];
     activeIndex = 0;
-    if (isWebViewBridge()) {
-      postToNative("reset");
-      setPlaybackState(State.None);
-      return undefined;
-    }
     loadedUrl = "";
     shouldPlay = false;
     destroyHls();
@@ -415,9 +315,6 @@ const TrackPlayer = {
     } else {
       queue.push(...items);
     }
-    if (isWebViewBridge()) {
-      postToNative("add", { tracks: items, insertBeforeIndex });
-    }
     return undefined;
   },
   remove: async (indexes: number | number[]) => {
@@ -427,9 +324,6 @@ const TrackPlayer = {
       queue.splice(index, 1);
       if (index < activeIndex) activeIndex -= 1;
     }
-    if (isWebViewBridge()) {
-      postToNative("remove", { indexes });
-    }
     return undefined;
   },
   move: async (fromIndex: number, toIndex: number) => {
@@ -438,16 +332,10 @@ const TrackPlayer = {
     const [item] = queue.splice(fromIndex, 1);
     queue.splice(Math.min(Math.max(toIndex, 0), queue.length), 0, item);
     activeIndex = queue.indexOf(activeTrack);
-    if (isWebViewBridge()) {
-      postToNative("move", { fromIndex, toIndex });
-    }
     return undefined;
   },
   removeUpcomingTracks: async () => {
     queue = queue.slice(0, activeIndex + 1);
-    if (isWebViewBridge()) {
-      postToNative("removeUpcomingTracks");
-    }
     return undefined;
   },
   skip: async (index: number) => {
@@ -455,10 +343,6 @@ const TrackPlayer = {
       activeIndex = index;
       const track = queue[activeIndex];
       emit(Event.PlaybackActiveTrackChanged, { track, index });
-      if (isWebViewBridge()) {
-        postToNative("skip", { index });
-        return undefined;
-      }
       const audio = getAudio();
       if (audio && track?.url) {
         loadAudioSource(audio, track.url, shouldPlay);
@@ -467,14 +351,6 @@ const TrackPlayer = {
     return undefined;
   },
   skipToNext: async () => {
-    if (isWebViewBridge()) {
-      postToNative("skipToNext");
-      if (activeIndex < queue.length - 1) {
-        activeIndex += 1;
-        emit(Event.PlaybackActiveTrackChanged, { track: queue[activeIndex], index: activeIndex });
-      }
-      return undefined;
-    }
     if (activeIndex < queue.length - 1) {
       shouldPlay = true;
       await TrackPlayer.skip(activeIndex + 1);
@@ -483,14 +359,6 @@ const TrackPlayer = {
     return undefined;
   },
   skipToPrevious: async () => {
-    if (isWebViewBridge()) {
-      postToNative("skipToPrevious");
-      if (activeIndex > 0) {
-        activeIndex -= 1;
-        emit(Event.PlaybackActiveTrackChanged, { track: queue[activeIndex], index: activeIndex });
-      }
-      return undefined;
-    }
     if (activeIndex > 0) {
       shouldPlay = true;
       await TrackPlayer.skip(activeIndex - 1);
@@ -499,11 +367,6 @@ const TrackPlayer = {
     return undefined;
   },
   play: async () => {
-    if (isWebViewBridge()) {
-      setPlaybackState(State.Playing);
-      postToNative("play");
-      return;
-    }
     shouldPlay = true;
     setPlaybackState(State.Playing);
     const audio = getAudio();
@@ -520,11 +383,6 @@ const TrackPlayer = {
     }
   },
   pause: async () => {
-    if (isWebViewBridge()) {
-      setPlaybackState(State.Paused);
-      postToNative("pause");
-      return;
-    }
     shouldPlay = false;
     setPlaybackState(State.Paused);
     const audio = getAudio();
@@ -533,11 +391,6 @@ const TrackPlayer = {
     }
   },
   stop: async () => {
-    if (isWebViewBridge()) {
-      setPlaybackState(State.Stopped);
-      postToNative("stop");
-      return;
-    }
     shouldPlay = false;
     if (hlsInstance) {
       hlsInstance.stopLoad();
@@ -550,19 +403,10 @@ const TrackPlayer = {
     setPlaybackState(State.Stopped);
   },
   seekTo: async (position: number) => {
-    if (isWebViewBridge()) {
-      latestProgress.position = position;
-      emit(Event.PlaybackProgressUpdated, latestProgress);
-      postToNative("seekTo", { position });
-      return;
-    }
     const audio = getAudio();
     if (audio) audio.currentTime = position;
   },
   getProgress: async () => {
-    if (isWebViewBridge()) {
-      return { ...latestProgress };
-    }
     const audio = getAudio();
     return {
       position: audio?.currentTime || 0,
@@ -572,9 +416,6 @@ const TrackPlayer = {
   },
   setRepeatMode: async (mode: RepeatMode) => {
     repeatMode = mode;
-    if (isWebViewBridge()) {
-      postToNative("setRepeatMode", { mode });
-    }
   },
   getRepeatMode: async () => repeatMode,
 };
