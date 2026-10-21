@@ -52,7 +52,9 @@ type PlayerStore = Store<PlayerContextType>;
 // Carries a store that never changes identity; components subscribe through usePlayer
 export const PlayerContext = createContext<PlayerStore | null>(null);
 
-const keysOf = (tracks: RNTrack[]) => tracks.map((t) => t._queueKey ?? "");
+const keyOfTrack = (t: RNTrack) =>
+  t._queueKey || (t.id !== undefined ? `id-${t.id}` : (t.url || t.title || ""));
+const keysOf = (tracks: RNTrack[]) => tracks.map(keyOfTrack);
 const sameKeys = (a: string[], b: string[]) => a.length === b.length && a.every((k, i) => k === b[i]);
 
 export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -126,7 +128,45 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
           if (tracks.length === 0) {
             await TrackPlayer.reset();
-          } else if (sameKeys(held.keys, keys)) {
+            playerRef.current = { keys: [], index: -1 };
+            return;
+          }
+
+          const [activeTrack, activeIndex] = await Promise.all([
+            TrackPlayer.getActiveTrack() as Promise<RNTrack | undefined>,
+            TrackPlayer.getActiveTrackIndex(),
+          ]);
+
+          const currentTrack = next.current?.track;
+          const isAlreadyPlayingCurrent = Boolean(
+            currentTrack && activeTrack && isSameTrackOrKey(currentTrack, activeTrack),
+          );
+
+          if (isAlreadyPlayingCurrent) {
+            // The audio player is already playing or holding the right song.
+            // Never restart, seek, or skip it.
+            if (start) {
+              const playback = await TrackPlayer.getPlaybackState();
+              const state = playback.state;
+              if (
+                state !== State.Playing &&
+                state !== State.Buffering &&
+                state !== State.Loading
+              ) {
+                await TrackPlayer.play();
+              }
+            }
+            // Keep upcoming tracks in sync without disturbing current playback
+            if (!sameKeys(held.keys.slice(index + 1), keys.slice(index + 1))) {
+              await TrackPlayer.removeUpcomingTracks();
+              const after = tracks.slice(index + 1);
+              if (after.length > 0) await TrackPlayer.add(after.map(toNativeTrack));
+            }
+            playerRef.current = { keys, index: typeof activeIndex === "number" ? activeIndex : index };
+            return;
+          }
+
+          if (sameKeys(held.keys, keys)) {
             if (held.index !== index) await TrackPlayer.skip(index);
             if (start) await TrackPlayer.play();
           } else if (start || held.keys[held.index] !== keys[index]) {
@@ -223,18 +263,38 @@ export const PlayerContextProvider: React.FC<{ children: React.ReactNode }> = ({
     (async () => {
       await onPlayer(async () => {
         await ensureTrackPlayerInitialized();
-        const held = keysOf((await TrackPlayer.getQueue()) as RNTrack[]);
+        const [activeTrack, activeIndex, heldTracks] = await Promise.all([
+          TrackPlayer.getActiveTrack() as Promise<RNTrack | undefined>,
+          TrackPlayer.getActiveTrackIndex(),
+          TrackPlayer.getQueue() as Promise<RNTrack[]>,
+        ]);
+        const held = keysOf(heldTracks || []);
         if (held.length === 0) {
           if (saved.current) {
             playerRef.current = { keys: [], index: Q.playOrder(saved).index };
           }
           return;
         }
-        if (sameKeys(held, keysOf(Q.playOrder(saved).tracks))) {
-          playerRef.current = { keys: held, index: Q.playOrder(saved).index };
-        } else {
-          await TrackPlayer.reset();
+        // If the player holds tracks and is playing or paused on the saved current track, adopt it!
+        if (activeTrack && saved.current?.track && isSameTrackOrKey(saved.current.track, activeTrack)) {
+          playerRef.current = {
+            keys: held,
+            index: typeof activeIndex === "number" ? activeIndex : Q.playOrder(saved).index,
+          };
+          return;
         }
+        if (sameKeys(held, keysOf(Q.playOrder(saved).tracks))) {
+          playerRef.current = {
+            keys: held,
+            index: typeof activeIndex === "number" ? activeIndex : Q.playOrder(saved).index,
+          };
+          return;
+        }
+        // Active audio should never be wiped out. Adopt the existing player keys
+        playerRef.current = {
+          keys: held,
+          index: typeof activeIndex === "number" ? activeIndex : -1,
+        };
       });
       followPlayer();
     })();

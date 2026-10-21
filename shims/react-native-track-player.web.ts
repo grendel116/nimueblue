@@ -148,6 +148,8 @@ if (typeof window !== "undefined") {
           if (Array.isArray(raw.queue)) {
             queue = [...raw.queue];
           }
+          const prevIndex = activeIndex;
+          const prevTrack = queue[prevIndex];
           if (typeof raw.activeIndex === "number") {
             activeIndex = raw.activeIndex;
           }
@@ -155,10 +157,17 @@ if (typeof window !== "undefined") {
             if (queue.length > activeIndex) {
               queue[activeIndex] = raw.activeTrack;
             }
-            emit(Event.PlaybackActiveTrackChanged, {
-              track: raw.activeTrack,
-              index: activeIndex,
-            });
+            const changed =
+              activeIndex !== prevIndex ||
+              !prevTrack ||
+              prevTrack.id !== raw.activeTrack.id ||
+              prevTrack.url !== raw.activeTrack.url;
+            if (changed) {
+              emit(Event.PlaybackActiveTrackChanged, {
+                track: raw.activeTrack,
+                index: activeIndex,
+              });
+            }
           }
           if (raw.progress) {
             latestProgress = {

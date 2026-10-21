@@ -245,4 +245,34 @@ describe("player queue", () => {
     expect(player.activeTrack?.title).toBe("What Cheer Iowa");
     expect(titles(player.upcoming)).toEqual(["People on TV"]);
   });
+
+  test("app resume or network reconnect while playing does not restart playback from 0:00", async () => {
+    await act(() => player.playTrack(album[0], album, "Space Trash (EP)"));
+    await settle();
+
+    const spySetQueue = jest.spyOn(TrackPlayer, "setQueue");
+    const spySkip = jest.spyOn(TrackPlayer, "skip");
+    const spyReset = jest.spyOn(TrackPlayer, "reset");
+    const spySeekTo = jest.spyOn(TrackPlayer, "seekTo");
+
+    try {
+      // Simulate app becoming active on phone unlock
+      await act(async () => {
+        (AppState as any).emit?.("change", "active");
+      });
+      await settle();
+
+      // Ensure no disruptive player actions were taken that would reset or restart audio
+      expect(spySetQueue).not.toHaveBeenCalled();
+      expect(spySkip).not.toHaveBeenCalled();
+      expect(spyReset).not.toHaveBeenCalled();
+      expect(spySeekTo).not.toHaveBeenCalled();
+      expect(player.activeTrack?.title).toBe(album[0].title);
+    } finally {
+      spySetQueue.mockRestore();
+      spySkip.mockRestore();
+      spyReset.mockRestore();
+      spySeekTo.mockRestore();
+    }
+  });
 });
