@@ -29,7 +29,7 @@
       ],
       "backgroundColor": "#070b14",
       "package": "space.mirlo.blue",
-      "versionCode": 21
+      "versionCode": 42
     },
     "web": {
       "bundler": "metro",
