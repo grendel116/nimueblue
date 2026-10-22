@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { usePlayer } from "@/state/PlayerContext";
+import { isSameTrack } from "@/state/player/trackUtils";
 import { audioTrackType, isTrackOwnedOrPreview, linkifyUrls, htmlToMarkdown } from "@/scripts/utils";
 import { useQuery } from "@tanstack/react-query";
 import { queryAlbum } from "@/queries/queries";
@@ -51,11 +52,7 @@ function AlbumPlayButton({ playableTracks }: { playableTracks: RNTrack[] }) {
       playableTracks.length > 0 &&
       ((activeTrack.trackGroup?.urlSlug &&
         activeTrack.trackGroup.urlSlug === playableTracks[0]?.trackGroup?.urlSlug) ||
-        playableTracks.some(
-          (t) =>
-            (t.id !== undefined && t.id === activeTrack.id) ||
-            (Boolean(t.url) && t.url === activeTrack.url),
-        )),
+        playableTracks.some((t) => isSameTrack(activeTrack, t))),
   );
 
   const togglePlayback = useCallback(() => {
@@ -187,7 +184,7 @@ export default function AlbumTracks() {
 
       resolvedAlbum.tracks?.forEach((track) => {
         const rawAudioUrl = track.audio?.url || track.url || "";
-        const streamUrl = /^(https?|file):\/\//.test(rawAudioUrl)
+        const streamUrl = /^(https?|file|content):\/|^blob:/.test(rawAudioUrl)
           ? rawAudioUrl
           : `${API_ROOT}${rawAudioUrl.startsWith("/") ? "" : "/"}${rawAudioUrl}`;
         const trackSource =

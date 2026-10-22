@@ -2,19 +2,41 @@ import { TrackType } from "react-native-track-player";
 import { audioTrackType, resolveArtworkUrl } from "@/scripts/utils";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
-import { findDownload } from "@/scripts/downloadManager";
+import { findDownload, nameKey, sameAlbum } from "@/scripts/downloadManager";
 
-// Same track: by Mirlo id when both have one, by station/podcast identifier, otherwise by stream URL
-export function isSameTrack(a: RNTrack, b: RNTrack): boolean {
-  if (a.id !== undefined && b.id !== undefined) return a.id === b.id;
-  if (a.liveStation && b.liveStation) return a.liveStation === b.liveStation;
-  if (a.podcastEpisodeId && b.podcastEpisodeId) return a.podcastEpisodeId === b.podcastEpisodeId;
-  return Boolean(a.url) && a.url === b.url;
+// Same track: by stream URL, Mirlo id, station/podcast identifier, or matched download/album
+export function isSameTrack(a?: RNTrack | null, b?: RNTrack | null): boolean {
+  if (!a || !b) return false;
+  if (Boolean(a.url) && a.url === b.url) return true;
+  if (a.id !== undefined && b.id !== undefined && a.id !== 0 && b.id !== 0 && a.id === b.id) {
+    return true;
+  }
+  if (Boolean(a.liveStation) && a.liveStation === b.liveStation) return true;
+  if (Boolean(a.podcastEpisodeId) && a.podcastEpisodeId === b.podcastEpisodeId) return true;
+  if (Boolean(a.url) && findDownload(b)?.url === a.url) return true;
+  if (Boolean(b.url) && findDownload(a)?.url === b.url) return true;
+  if (a.title && b.title && nameKey(a.title) === nameKey(b.title)) {
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+      return false;
+    }
+    const albumA = {
+      title: a.trackGroup?.title || (a as any).albumTitle,
+      artist: (typeof a.artist === "string" ? a.artist : undefined) || a.trackGroup?.artist?.name,
+    };
+    const albumB = {
+      title: b.trackGroup?.title || (b as any).albumTitle,
+      artist: (typeof b.artist === "string" ? b.artist : undefined) || b.trackGroup?.artist?.name,
+    };
+    if (albumA.title && albumB.title && sameAlbum(albumA, albumB)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function resolveStreamUrl(rawAudio: string): string {
   if (!rawAudio) return "";
-  if (/^(https?|file):\/\//.test(rawAudio)) return rawAudio;
+  if (/^(https?|file|content):\/|^blob:/.test(rawAudio)) return rawAudio;
   const path = rawAudio.startsWith("/") ? rawAudio : `/${rawAudio}`;
   if (API_ROOT && API_ROOT !== "/" && path.startsWith(`${API_ROOT}/`)) return path;
   return `${API_ROOT}${path}`;

@@ -6,6 +6,7 @@ import {
   ScrollView,
   FlatList,
   Pressable,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,6 +20,7 @@ import { useSearch, SearchCategoryFilter, Result } from "@/state/SearchContext";
 import { queryTags } from "@/queries/queries";
 import { GENRE_CATALOG, GenreDefinition } from "@/constants/genres";
 import { theme } from "@/constants/theme";
+import { dragScroll } from "@/scripts/dragScroll";
 
 const CATEGORY_TABS: { key: SearchCategoryFilter; label: string }[] = [
   { key: "All", label: "All" },
@@ -41,31 +43,44 @@ function matchesCategoryFilter(item: Result, filter: SearchCategoryFilter): bool
   return true;
 }
 
-function GenreCard({ genre }: { genre: GenreDefinition }) {
+function GenreCard({
+  genre,
+  cardWidth,
+}: {
+  genre: GenreDefinition;
+  cardWidth: number;
+}) {
   const router = useRouter();
 
   return (
     <Pressable
-      android_ripple={{ color: theme.colors.ripple }}
+      android_ripple={{ color: theme.colors.ripple, borderless: false }}
       onPress={() => router.push(`/tags/${encodeURIComponent(genre.primaryTag)}` as any)}
       style={({ pressed }) => [
-        styles.genreCard,
-        { borderColor: genre.accentSoft },
-        pressed && styles.genreCardPressed,
+        styles.albumCard,
+        { width: cardWidth },
+        pressed && styles.cardPressed,
       ]}
       accessibilityRole="button"
       accessibilityLabel={`Explore ${genre.name} genre`}
     >
       <View
         style={[
-          styles.genreIconBadge,
-          { backgroundColor: genre.accentSoft, borderColor: genre.accent },
+          styles.cardImageContainer,
+          {
+            backgroundColor: genre.accentSoft,
+            borderColor: genre.accent,
+          },
         ]}
       >
-        <Ionicons name={genre.icon} size={22} color={genre.accent} />
+        <Ionicons name={genre.icon} size={42} color={genre.accent} />
+        <View style={styles.glassSheen} />
       </View>
-      <Text style={styles.genreTitle} numberOfLines={2}>
+      <Text style={styles.cardTitle} numberOfLines={1}>
         {genre.name}
+      </Text>
+      <Text style={styles.cardArtist} numberOfLines={1}>
+        {genre.subtitle}
       </Text>
     </Pressable>
   );
@@ -85,6 +100,8 @@ export default function SearchPage() {
     queryTags({ orderBy: "count", take: 50 }),
   );
   const { top, bottom } = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.max(140, Math.min(170, (width - 48) / 2.2));
 
   const tagPills = useMemo(() => {
     return (tags?.results || []).map((tag, index) => (
@@ -146,19 +163,27 @@ export default function SearchPage() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.sectionBlock}>
-            <Text style={styles.sectionHeader}>Browse Genres</Text>
-            <Text style={styles.sectionSubheader}>
-              Explore tracks, releases, and community broadcasts across genres
-            </Text>
-            <View style={styles.genreGrid}>
-              {GENRE_CATALOG.map((genre) => (
-                <GenreCard key={genre.id} genre={genre} />
-              ))}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeader}>Browse Genres</Text>
+              <Text style={styles.sectionSubheader}>
+                Explore tracks, releases, and community broadcasts across genres
+              </Text>
             </View>
+            <FlatList
+              ref={dragScroll}
+              horizontal
+              data={GENRE_CATALOG}
+              keyExtractor={(genre) => genre.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+              renderItem={({ item }) => (
+                <GenreCard genre={item} cardWidth={cardWidth} />
+              )}
+            />
           </View>
 
           {tagPills.length > 0 && (
-            <View style={styles.sectionBlock}>
+            <View style={styles.tagsSectionBlock}>
               <Text style={styles.sectionHeader}>Popular Tags</Text>
               <View style={styles.tagWrap}>{tagPills}</View>
             </View>
@@ -254,13 +279,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 100,
     gap: 24,
   },
   sectionBlock: {
-    gap: 8,
+    gap: 12,
+  },
+  sectionHeaderRow: {
+    paddingHorizontal: 16,
   },
   sectionHeader: {
     ...theme.typography.sectionHeader,
@@ -268,41 +295,57 @@ const styles = StyleSheet.create({
   sectionSubheader: {
     color: theme.colors.textSecondary,
     fontSize: 13,
-    marginBottom: 4,
+    marginTop: 4,
   },
-  genreGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: 10,
+  carouselContent: {
+    paddingHorizontal: 16,
+    gap: 14,
   },
-  genreCard: {
-    width: "48.5%",
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    padding: 12,
-    gap: 8,
-    minHeight: 88,
-    justifyContent: "space-between",
+  albumCard: {
+    marginRight: 2,
   },
-  genreCardPressed: {
-    opacity: 0.8,
+  cardPressed: {
+    opacity: 0.75,
     transform: [{ scale: 0.98 }],
   },
-  genreIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.radius.sm,
+  cardImageContainer: {
+    aspectRatio: 1,
+    borderRadius: theme.radius.md,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
+    borderColor: theme.colors.surfaceCardBorder,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  genreTitle: {
+  glassSheen: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  cardTitle: {
     color: theme.colors.textPrimary,
-    fontSize: 14,
     fontWeight: "700",
-    lineHeight: 18,
+    fontSize: 13,
+    marginTop: 8,
+  },
+  cardArtist: {
+    color: theme.colors.textCyan,
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  tagsSectionBlock: {
+    paddingHorizontal: 16,
+    gap: 8,
   },
   tagWrap: {
     flexDirection: "row",

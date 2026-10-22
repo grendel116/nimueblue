@@ -1,6 +1,7 @@
 import { Pressable, View, StyleSheet, Text, Image } from "react-native";
 import { usePlayer } from "@/state/PlayerContext";
 import { formatTime, isTrackOwnedOrPreview } from "@/scripts/utils";
+import { isSameTrack } from "@/state/player/trackUtils";
 import FavoriteTrackButton from "./FavoriteTrackButton";
 import AddToQueueButton from "./AddToQueueButton";
 import DownloadTrackButton from "./DownloadTrackButton";
@@ -22,7 +23,7 @@ export default function PlayPauseWrapper({
     disabledTrackIds,
   );
   const thisSongSelected = Boolean(
-    activeTrack?.url && activeTrack.url === trackObject?.url,
+    activeTrack && isSameTrack(activeTrack, trackObject),
   );
 
   const contributors = trackObject.trackArtists

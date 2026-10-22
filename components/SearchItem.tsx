@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Result } from "@/state/SearchContext";
 import { usePlayer } from "@/state/PlayerContext";
+import { isSameTrack } from "@/state/player/trackUtils";
 import AddToQueueButton from "./AddToQueueButton";
 import { theme } from "@/constants/theme";
 
@@ -23,14 +24,7 @@ export default function SearchItem({ result }: SearchItemProps) {
 
   const playableTrack = result.track;
   const isThisTrackActive = Boolean(
-    playableTrack &&
-      activeTrack &&
-      ((playableTrack.id !== undefined &&
-        activeTrack.id !== undefined &&
-        playableTrack.id === activeTrack.id) ||
-        (Boolean(playableTrack.url) &&
-          Boolean(activeTrack.url) &&
-          playableTrack.url === activeTrack.url)),
+    playableTrack && activeTrack && isSameTrack(activeTrack, playableTrack),
   );
 
   const imageUri =

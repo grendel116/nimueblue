@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, type ComponentProps } from "react";
 import { usePlayer } from "@/state/PlayerContext";
+import { isSameTrack } from "@/state/player/trackUtils";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
@@ -225,7 +226,7 @@ export default function LibraryScreen() {
             );
           }
           const { track } = item;
-          const isSelected = Boolean(activeTrack?.url && activeTrack.url === track.url);
+          const isSelected = Boolean(activeTrack && isSameTrack(activeTrack, track));
           return (
             <Pressable
               android_ripple={{ color: theme.colors.ripple }}
