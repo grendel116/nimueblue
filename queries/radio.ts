@@ -329,7 +329,19 @@ const IMX_FM: RadioStation = {
   streamUrl: "https://lhttp-hw.qtfm.cn/live/4917/64k.mp3",
   playlistPage: "https://imx.fm",
   donatePage: "https://imx.fm",
-  tags: ["chinese", "china", "mandarin", "cantonese", "c-pop", "indie", "中文", "华语", "音乐"],
+  tags: [
+    "chinese",
+    "china",
+    "mandarin",
+    "cantonese",
+    "c-pop",
+    "indie",
+    "underground",
+    "中文",
+    "华语",
+    "粵語",
+    "音乐",
+  ],
   fetchPlays: async () => [
     {
       key: "imx-live",
@@ -337,34 +349,6 @@ const IMX_FM: RadioStation = {
       artist: "IMX.FM",
       airdate: new Date().toISOString(),
       artwork: IMX_FM_LOGO,
-    },
-  ],
-};
-
-// 香港電台第二台 (RTHK Radio 2): Hong Kong public culture and Chinese music broadcast
-const RTHK_RADIO_2_LOGO =
-  "https://webstatic.rthk.hk/img/radio_icon/Player_Logo/R2_cNam_01.svg";
-
-const RTHK_RADIO_2: RadioStation = {
-  id: "rthk-radio-2",
-  name: "香港電台第二台 RTHK 2",
-  liveName: "香港電台第二台 (RTHK Radio 2)",
-  location: "Hong Kong",
-  artwork: RTHK_RADIO_2_LOGO,
-  about:
-    "Public broadcasting from Hong Kong championing local Cantonese and Mandarin music, youth culture, and arts.",
-  streamUrl:
-    "https://rthkradio2-live.akamaized.net/hls/live/2040078/radio2/index_64_a.m3u8",
-  playlistPage: "https://www.rthk.hk/radio/radio2",
-  donatePage: "https://www.rthk.hk/radio/radio2",
-  tags: ["chinese", "cantonese", "hong kong", "cantopop", "culture", "中文", "粵語", "香港"],
-  fetchPlays: async () => [
-    {
-      key: "rthk2-live",
-      song: "香港電台第二台",
-      artist: "Live from Hong Kong",
-      airdate: new Date().toISOString(),
-      artwork: RTHK_RADIO_2_LOGO,
     },
   ],
 };
@@ -379,7 +363,6 @@ export const RADIO_STATIONS: RadioStation[] = [
   REFUGE,
   BANGKOK_COMMUNITY_RADIO,
   IMX_FM,
-  RTHK_RADIO_2,
 ];
 
 function normalizeStationName(name: string): string {
@@ -432,6 +415,7 @@ export type RadioBrowserStation = {
   favicon?: string;
   tags?: string;
   country?: string;
+  countrycode?: string;
   state?: string;
   language?: string;
   votes?: number;
@@ -441,6 +425,79 @@ export type RadioBrowserStation = {
   lastcheckok?: number;
   ssl_error?: number;
 };
+
+export const EXCLUDED_COLONIAL_COUNTRIES = new Set([
+  "morocco",
+  "maroc",
+  "kingdom of morocco",
+  "israel",
+  "state of israel",
+  "united arab emirates",
+  "the united arab emirates",
+  "uae",
+  "saudi arabia",
+  "kingdom of saudi arabia",
+  "turkey",
+  "türkiye",
+  "turkiye",
+  "republic of turkey",
+  "republic of türkiye",
+  "russia",
+  "russian federation",
+  "the russian federation",
+  "azerbaijan",
+  "republic of azerbaijan",
+  "rwanda",
+  "republic of rwanda",
+  "qatar",
+  "state of qatar",
+  "bahrain",
+  "kingdom of bahrain",
+  "kuwait",
+  "state of kuwait",
+]);
+
+export const EXCLUDED_COLONIAL_COUNTRY_CODES = new Set([
+  "ma",
+  "il",
+  "ae",
+  "sa",
+  "tr",
+  "ru",
+  "az",
+  "rw",
+  "qa",
+  "bh",
+  "kw",
+]);
+
+export function isExcludedColonialStation(rb: RadioBrowserStation): boolean {
+  const country = (rb.country || "").trim().toLowerCase();
+  if (country && EXCLUDED_COLONIAL_COUNTRIES.has(country)) return true;
+
+  const code = (rb.countrycode || "").trim().toLowerCase();
+  if (code && EXCLUDED_COLONIAL_COUNTRY_CODES.has(code)) return true;
+
+  const state = (rb.state || "").trim().toLowerCase();
+  if (state && EXCLUDED_COLONIAL_COUNTRIES.has(state)) return true;
+
+  return false;
+}
+
+function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
+  if (isExcludedColonialStation(rb)) return false;
+  const stream = (rb.url_resolved || rb.url || "").trim();
+  if (!stream || !rb.name?.trim()) return false;
+  // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
+  if (!stream.toLowerCase().startsWith("https://")) return false;
+  // Reject playlist files which are not direct playable audio streams
+  if (/\.(pls|m3u|asx)(\?|$)/i.test(stream)) return false;
+  // Radio-Browser verification: check status and SSL health
+  if (rb.lastcheckok !== undefined && rb.lastcheckok !== 1) return false;
+  if (rb.ssl_error !== undefined && rb.ssl_error !== 0) return false;
+  // High-resolution artwork is required
+  return isQualityArtwork(rb.favicon);
+}
 
 export const RADICAL_RADIO_TAGS = [
   "pirate radio",
@@ -536,19 +593,7 @@ export async function fetchDiscoveredRadioStations(
     });
 
   return [...stationsById.values()]
-    .filter((station) => {
-      const stream = (station.url_resolved || station.url || "").trim();
-      if (!stream || !station.name?.trim()) return false;
-      // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
-      if (!stream.toLowerCase().startsWith("https://")) return false;
-      // Reject playlist files which are not direct playable audio streams
-      if (/\.(pls|m3u|asx)(\?|$)/i.test(stream)) return false;
-      // Radio-Browser verification: check status and SSL health
-      if (station.lastcheckok !== undefined && station.lastcheckok !== 1) return false;
-      if (station.ssl_error !== undefined && station.ssl_error !== 0) return false;
-      // High-resolution artwork is required
-      return isQualityArtwork(station.favicon);
-    })
+    .filter(isPlayableRadioBrowserStation)
     .slice(0, limit)
     .map(radioBrowserToRadioStation);
 }
@@ -643,18 +688,6 @@ function matchesStationQuery(station: RadioStation, query: string): boolean {
     station.about.toLowerCase().includes(query) ||
     Boolean(station.tags?.some((t) => t.toLowerCase().includes(query)))
   );
-}
-
-function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
-  const stream = (rb.url_resolved || rb.url || "").trim();
-  if (!stream || !rb.name?.trim()) return false;
-  if (!stream.toLowerCase().startsWith("https://")) return false;
-  if (rb.lastcheckok !== undefined && rb.lastcheckok !== 1) return false;
-  if (rb.ssl_error !== undefined && rb.ssl_error !== 0) return false;
-  if (!isQualityArtwork(rb.favicon)) return false;
-  const path = stream.split("?")[0].toLowerCase();
-  if (path.endsWith(".m3u") || path.endsWith(".pls") || path.endsWith(".asx")) return false;
-  return true;
 }
 
 export async function searchRadioStations(

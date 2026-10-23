@@ -1,6 +1,5 @@
 import { memo, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Platform,
@@ -18,7 +17,13 @@ import { askChoice } from "@/scripts/askChoice";
 import { theme } from "@/constants/theme";
 import { DownloadedAlbum, groupTracksIntoAlbums, useDownloads } from "@/scripts/downloadManager";
 import { openDownloadedAlbum } from "@/scripts/albumLookup";
-import { PICKS_PHONE_FILES, chooseAlbumCover, removeDownloads } from "@/scripts/offlineFiles";
+import {
+  PICKS_PHONE_FILES,
+  chooseAlbumCover,
+  createAlbumFolder,
+  editAlbumMetadata,
+  removeDownloads,
+} from "@/scripts/offlineFiles";
 import {
   chooseMusicFolder,
   MusicFolderStatus,
@@ -26,6 +31,8 @@ import {
   rescanMusicFolder,
   useMusicFolder,
 } from "@/scripts/musicFolder";
+import { AlbumFormModal } from "@/components/DownloadEditModals";
+import DropletSpinner from "@/components/DropletSpinner";
 
 export function formatBytes(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -47,30 +54,50 @@ function emptyText(folder: MusicFolderStatus): string {
   }
 }
 
-function confirmDeleteAlbum(album: DownloadedAlbum) {
-  const count = album.tracks.length;
-  askChoice(
-    "Delete Album?",
-    `Remove "${album.title}" and its ${count} ${count === 1 ? "song" : "songs"} from your downloads?`,
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => removeDownloads(album.tracks).catch(showError("Couldn't delete album")),
-      },
-    ],
-  );
-}
-
 // Everything saved on this phone, one row per album like the other Library boxes. Tapping an
-// album opens its page; holding it offers the cover and delete
+// album opens its page; tapping the menu button offers rename, cover, and delete
 export default memo(function DownloadsTab() {
   const tracks = useDownloads();
   const albums = useMemo(() => groupTracksIntoAlbums(tracks), [tracks]);
   const musicFolder = useMusicFolder();
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
+  const [creatingAlbum, setCreatingAlbum] = useState(false);
+  const [editingAlbum, setEditingAlbum] = useState<DownloadedAlbum | null>(null);
+
+  const runBusyAction = async (action: () => Promise<unknown>, errorMsg: string) => {
+    setIsBusy(true);
+    try {
+      await action();
+    } catch (err) {
+      showError(errorMsg)(err);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const confirmDeleteAlbum = (album: DownloadedAlbum) => {
+    const count = album.tracks.length;
+    askChoice(
+      "Delete Album?",
+      count > 0
+        ? `Remove "${album.title}" and its ${count} ${count === 1 ? "song" : "songs"} from your downloads?`
+        : `Remove the empty album "${album.title}" from your downloads?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            void runBusyAction(
+              () => removeDownloads(album.tracks, album.key),
+              "Couldn't delete album",
+            ),
+        },
+      ],
+    );
+  };
 
   const open = async (album: DownloadedAlbum) => {
     setOpeningKey(album.key);
@@ -82,17 +109,21 @@ export default memo(function DownloadsTab() {
   };
 
   const showTools = (album: DownloadedAlbum) =>
-    askChoice(album.title, undefined, [
+    askChoice(album.title, album.artist, [
+      {
+        text: "Rename Album",
+        onPress: () => setEditingAlbum(album),
+      },
       ...(PICKS_PHONE_FILES
         ? [
             {
               text: "Change Cover",
-              onPress: () => chooseAlbumCover(album).catch(showError("Couldn't set cover")),
+              onPress: () =>
+                void runBusyAction(() => chooseAlbumCover(album), "Couldn't set cover"),
             },
           ]
         : []),
       { text: "Delete", style: "destructive", onPress: () => confirmDeleteAlbum(album) },
-      // Android shows three buttons at most and closes on a tap outside instead
       ...(Platform.OS === "ios" ? [{ text: "Cancel", style: "cancel" as const }] : []),
     ]);
 
@@ -128,10 +159,19 @@ export default memo(function DownloadsTab() {
               )}`
             : ""}
         </Text>
-        {musicFolder.status !== "unsupported" && (
-          <View style={styles.barActions}>
-            {importing && <ActivityIndicator size="small" color={theme.colors.primary} />}
-            {musicFolder.status === "ready" ? (
+        <View style={styles.barActions}>
+          {importing && <DropletSpinner size={18} color={theme.colors.primary} />}
+          <TouchableOpacity
+            onPress={() => setCreatingAlbum(true)}
+            style={styles.folderButton}
+            accessibilityRole="button"
+            accessibilityLabel="Create Album"
+          >
+            <Ionicons name="add" size={16} color={theme.colors.primary} />
+            <Text style={styles.folderButtonText}>Album</Text>
+          </TouchableOpacity>
+          {musicFolder.status !== "unsupported" &&
+            (musicFolder.status === "ready" ? (
               <>
                 {Platform.OS === "web" && (
                   <TouchableOpacity
@@ -168,9 +208,8 @@ export default memo(function DownloadsTab() {
                   {musicFolder.status === "needs-permission" ? "Reconnect Music Folder" : "Choose Music Folder"}
                 </Text>
               </TouchableOpacity>
-            )}
-          </View>
-        )}
+            ))}
+        </View>
       </View>
 
       {albums.length === 0 ? (
@@ -194,10 +233,8 @@ export default memo(function DownloadsTab() {
               <Pressable
                 android_ripple={{ color: theme.colors.ripple }}
                 onPress={() => open(album)}
-                onLongPress={() => showTools(album)}
                 disabled={openingKey !== null}
                 style={({ pressed }) => [styles.row, pressed && { opacity: 0.75 }]}
-                accessibilityHint="Hold for cover and delete"
               >
                 {album.artwork ? (
                   <Image source={{ uri: album.artwork }} style={styles.thumb} />
@@ -218,16 +255,55 @@ export default memo(function DownloadsTab() {
                     {formatBytes(album.totalBytes)}
                   </Text>
                 </View>
+                <Pressable
+                  onPress={() => showTools(album)}
+                  hitSlop={8}
+                  style={styles.menuBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Album options for ${album.title}`}
+                >
+                  <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.textSecondary} />
+                </Pressable>
                 {openingKey === album.key ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                  <DropletSpinner size={18} color={theme.colors.primary} />
                 ) : (
                   <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
                 )}
               </Pressable>
-
             </View>
           )}
         />
+      )}
+
+      <AlbumFormModal
+        visible={creatingAlbum}
+        mode="create"
+        onClose={() => setCreatingAlbum(false)}
+        onSubmit={(title, artist) => {
+          void runBusyAction(() => createAlbumFolder(title, artist), "Couldn't create album");
+        }}
+      />
+
+      <AlbumFormModal
+        visible={editingAlbum !== null}
+        mode="edit"
+        initialTitle={editingAlbum?.title ?? ""}
+        initialArtist={editingAlbum?.artist ?? ""}
+        onClose={() => setEditingAlbum(null)}
+        onSubmit={(title, artist) => {
+          if (!editingAlbum) return;
+          const targetKey = editingAlbum.key;
+          void runBusyAction(
+            () => editAlbumMetadata(targetKey, { albumTitle: title, artist }),
+            "Couldn't rename album",
+          );
+        }}
+      />
+
+      {isBusy && (
+        <View style={styles.busyOverlay} pointerEvents="auto">
+          <DropletSpinner size={52} color={theme.colors.primary} />
+        </View>
       )}
     </View>
   );
@@ -235,6 +311,13 @@ export default memo(function DownloadsTab() {
 
 const styles = StyleSheet.create({
   pane: { flex: 1 },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -248,6 +331,7 @@ const styles = StyleSheet.create({
   barActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
   },
   addButton: {
@@ -296,4 +380,5 @@ const styles = StyleSheet.create({
   title: { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" },
   artist: { color: theme.colors.textCyan, fontSize: 12, marginTop: 2 },
   meta: { color: theme.colors.textSecondary, fontSize: 11, marginTop: 2 },
+  menuBtn: { padding: 6, marginRight: 2 },
 });

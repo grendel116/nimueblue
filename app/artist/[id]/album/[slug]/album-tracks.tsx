@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   Pressable,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,7 +18,7 @@ import { queryAlbum } from "@/queries/queries";
 import { resolveFeedSourceName } from "@/queries/chorus";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
 import { openInBrowser } from "@/scripts/openInBrowser";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -29,15 +30,37 @@ import { theme } from "@/constants/theme";
 import TagPill from "@/components/TagPill";
 import { recordHistoryItem } from "@/scripts/historyManager";
 import {
+  SAVED_PREFIX,
   SAVED_SOURCE,
+  albumTitleKey,
   downloadedAlbumMatcher,
   useDownloads,
   groupTracksIntoAlbums,
+  mergeAlbumWithDownloads,
   savedAlbumSlug,
+  savedArtistSlug,
   savedAlbumPage,
+  sameAlbum,
   nameKey,
 } from "@/scripts/downloadManager";
+import {
+  PICKS_PHONE_FILES,
+  chooseAlbumCover,
+  createAlbumFolder,
+  editAlbumMetadata,
+  editTracksMetadata,
+  moveTracksToTargetAlbum,
+  removeDownloads,
+} from "@/scripts/offlineFiles";
+import { askChoice } from "@/scripts/askChoice";
+import { showError } from "@/scripts/showError";
+import {
+  AlbumFormModal,
+  MoveToAlbumModal,
+  TrackEditModal,
+} from "@/components/DownloadEditModals";
 import LoadingScreen from "@/components/LoadingScreen";
+import DropletSpinner from "@/components/DropletSpinner";
 import OfflineNotice from "@/components/OfflineNotice";
 import { openMainTab } from "@/components/Footer";
 import { isNetworkError } from "@/scripts/networkError";
@@ -111,12 +134,36 @@ function formatUTCDate(utcDate: string | undefined) {
 
 export default function AlbumTracks() {
   const { id, slug } = useLocalSearchParams();
+  const isSavedRoute = String(slug ?? "").startsWith(SAVED_PREFIX);
   const { isPending, isError, data, error } = useQuery(
     queryAlbum({ slug: slug, id: id }),
   );
   const router = useRouter();
   const { disabledTrackIds } = usePlayer("disabledTrackIds");
   const downloads = useDownloads();
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [editingAlbumModal, setEditingAlbumModal] = useState(false);
+  const [editingTracksIds, setEditingTracksIds] = useState<number[] | null>(null);
+  const [movingTracksIds, setMovingTracksIds] = useState<number[] | null>(null);
+  const [activeSavedKey, setActiveSavedKey] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+
+  const runTrackAction = async (action: () => Promise<unknown>, errorMsg: string) => {
+    setIsBusy(true);
+    try {
+      await action();
+    } catch (err) {
+      showError(errorMsg)(err);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    setActiveSavedKey(null);
+  }, [slug]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -128,18 +175,39 @@ export default function AlbumTracks() {
 
   const savedAlbums = useMemo(() => groupTracksIntoAlbums(downloads), [downloads]);
   const matchedSavedAlbum = useMemo(() => {
-    if (!slug) return undefined;
-    const target = nameKey(String(slug));
+    if (activeSavedKey) {
+      const byActiveKey = savedAlbums.find((a) => a.key === activeSavedKey);
+      if (byActiveKey) return byActiveKey;
+    }
+    const slugStr = slug ? String(slug) : "";
+    const target = slugStr ? nameKey(slugStr) : "";
+    const online = data?.result;
     return savedAlbums.find(
       (a) =>
-        nameKey(a.title) === target ||
-        savedAlbumSlug(a.key) === slug ||
-        a.tracks.some((t) => String(t.id) === String(slug)),
+        (target && nameKey(a.title) === target) ||
+        (slugStr && savedAlbumSlug(a.key) === slugStr) ||
+        (slugStr && a.tracks.some((t) => String(t.id) === slugStr)) ||
+        (online &&
+          sameAlbum(
+            { title: a.title, artist: a.artist },
+            { title: online.title, artist: online.artist?.name },
+          )),
     );
-  }, [savedAlbums, slug]);
+  }, [savedAlbums, slug, data?.result, activeSavedKey]);
 
-  const resolvedAlbum: AlbumProps | undefined =
-    data?.result || (matchedSavedAlbum ? savedAlbumPage(matchedSavedAlbum) : undefined);
+  // For saved albums, derive the page reactively from downloads so renames and moves update live;
+  // for online albums with local downloads, merge the downloaded tracks (including extra/duplicate tracks)
+  const resolvedAlbum: AlbumProps | undefined = useMemo(() => {
+    if (isSavedRoute && matchedSavedAlbum) {
+      return savedAlbumPage(matchedSavedAlbum);
+    }
+    if (data?.result) {
+      return downloads.length > 0 || matchedSavedAlbum
+        ? mergeAlbumWithDownloads(data.result, matchedSavedAlbum, downloads)
+        : data.result;
+    }
+    return matchedSavedAlbum ? savedAlbumPage(matchedSavedAlbum) : undefined;
+  }, [isSavedRoute, matchedSavedAlbum, data?.result, downloads]);
 
   useEffect(() => {
     if (!resolvedAlbum) return;
@@ -198,7 +266,7 @@ export default function AlbumTracks() {
 
         const newTrack: RNTrack = {
           title: track.title || resolvedAlbum.title || `Track ${track.order ?? 1}`,
-          artist: resolvedAlbum.artist?.name || "",
+          artist: track.artist || resolvedAlbum.artist?.name || "",
           artwork: resolvedAlbum.cover?.sizes?.[600] || resolvedAlbum.cover?.sizes?.[300],
           url: streamUrl,
           allowIndividualSale: track.allowIndividualSale,
@@ -224,6 +292,7 @@ export default function AlbumTracks() {
             url: streamUrl,
             duration: track.audio?.duration ?? track.duration,
           },
+          duration: track.audio?.duration ?? track.duration,
           isPreview: track.isPreview,
           order: track.order,
           headers: track.headers || {
@@ -233,6 +302,7 @@ export default function AlbumTracks() {
           source: trackSource,
           sourceUrl: trackSourceUrl,
           fairplayerTrackId: track.fairplayerTrackId,
+          downloadAlbum: track.downloadAlbum,
         };
 
         allTracks.push(newTrack);
@@ -248,10 +318,56 @@ export default function AlbumTracks() {
     return { allTracks, playableTracks: tracksToPlay };
   }, [resolvedAlbum, disabledTrackIds]);
 
+  const savedTracksById = useMemo(() => {
+    const map = new Map<number, (typeof downloads)[number]>();
+    for (const d of downloads) map.set(d.id, d);
+    return map;
+  }, [downloads]);
+
+  const downloadedTrackIdsOnPage = useMemo(
+    () => album.filter((t) => savedTracksById.has(t.id)).map((t) => t.id),
+    [album, savedTracksById],
+  );
+
+  // Prune any selected IDs that are no longer on this album page
+  useEffect(() => {
+    const valid = new Set(downloadedTrackIdsOnPage);
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => valid.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [downloadedTrackIdsOnPage]);
+
+  // Automatically adopt any loose downloaded tracks paired on this album page into the album's
+  // universal schema (albumTitle and artist) so they stay unified in Downloads and on disk
+  useEffect(() => {
+    if (!resolvedAlbum || downloadedTrackIdsOnPage.length === 0) return;
+    const targetTitle = (resolvedAlbum.title || "").trim();
+    const targetArtist = (resolvedAlbum.artist?.name || "").trim();
+    if (!targetTitle || !targetArtist) return;
+    const outOfSyncIds = downloadedTrackIdsOnPage.filter((trackId) => {
+      const st = savedTracksById.get(trackId);
+      if (!st) return false;
+      return (
+        (st.albumTitle || "").trim() !== targetTitle ||
+        (st.artist || "").trim() !== targetArtist
+      );
+    });
+    if (outOfSyncIds.length > 0) {
+      const targetKey = matchedSavedAlbum?.key ?? albumTitleKey(targetTitle);
+      editAlbumMetadata(
+        targetKey,
+        {
+          albumTitle: targetTitle,
+          artist: targetArtist,
+        },
+        outOfSyncIds,
+      ).catch(() => {});
+    }
+  }, [resolvedAlbum, matchedSavedAlbum, downloadedTrackIdsOnPage, savedTracksById]);
+
   if (isPending && !resolvedAlbum) {
-    return (
-      <LoadingScreen />
-    );
+    return <LoadingScreen />;
   }
 
   if (isError && !resolvedAlbum) {
@@ -278,27 +394,209 @@ export default function AlbumTracks() {
   const selectedAlbum = resolvedAlbum;
   const isSavedPage = selectedAlbum.source === SAVED_SOURCE;
   const onDevice = isSavedPage || downloadedAlbumMatcher(downloads)(selectedAlbum);
+  const canManageTracks = isSavedPage || downloadedTrackIdsOnPage.length > 0;
   const albumSource =
     selectedAlbum?.source ||
-    (selectedAlbum?.tracks?.[0]?.source) ||
+    selectedAlbum?.tracks?.[0]?.source ||
     resolveFeedSourceName(selectedAlbum?.tracks?.[0]?.url || selectedAlbum?.tracks?.[0]?.audio?.url);
+
+  const toggleSelectTrack = (trackId: number) => {
+    if (!selectionMode) {
+      setSelectionMode(true);
+      setSelectedIds([trackId]);
+      return;
+    }
+    setSelectedIds((prev) =>
+      prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId],
+    );
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds([]);
+  };
+
+  const confirmDeleteTracks = (ids: number[]) => {
+    const toRemove = ids
+      .map((id) => savedTracksById.get(id))
+      .filter((t): t is NonNullable<typeof t> => Boolean(t));
+    if (toRemove.length === 0) return;
+    const count = toRemove.length;
+    askChoice(
+      count === 1 ? "Delete Track?" : `Delete ${count} Tracks?`,
+      count === 1
+        ? `Remove "${toRemove[0].title}" from your downloads?`
+        : `Remove ${count} tracks from your downloads?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void runTrackAction(async () => {
+              await removeDownloads(toRemove);
+              if (selectionMode) exitSelectionMode();
+            }, "Couldn't delete tracks");
+          },
+        },
+      ],
+    );
+  };
+
+  const openTrackMenu = (track: RNTrack) => {
+    const saved = savedTracksById.get(track.id);
+    if (!saved) return;
+    askChoice(saved.title || track.title, saved.artist || track.artist, [
+      {
+        text: "Rename Track",
+        onPress: () => setEditingTracksIds([track.id]),
+      },
+      {
+        text: "Move to Album",
+        onPress: () => setMovingTracksIds([track.id]),
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => confirmDeleteTracks([track.id]),
+      },
+      ...(Platform.OS === "ios" ? [{ text: "Cancel", style: "cancel" as const }] : []),
+    ]);
+  };
+
+  const openAlbumMenu = () => {
+    if (!matchedSavedAlbum) return;
+    askChoice(matchedSavedAlbum.title, matchedSavedAlbum.artist, [
+      {
+        text: "Rename Album",
+        onPress: () => setEditingAlbumModal(true),
+      },
+      ...(PICKS_PHONE_FILES
+        ? [
+            {
+              text: "Change Cover",
+              onPress: () =>
+                void runTrackAction(
+                  () => chooseAlbumCover(matchedSavedAlbum),
+                  "Couldn't set cover",
+                ),
+            },
+          ]
+        : []),
+      ...(Platform.OS === "ios" ? [{ text: "Cancel", style: "cancel" as const }] : []),
+    ]);
+  };
+
+  const singleEditingTrack =
+    editingTracksIds?.length === 1 ? savedTracksById.get(editingTracksIds[0]) : undefined;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.topNav}>
         <Pressable
-          onPress={handleBack}
+          onPress={selectionMode ? exitSelectionMode : handleBack}
           style={styles.backBtn}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={selectionMode ? "Done selecting" : "Back"}
         >
           <Ionicons
-            name="chevron-back"
+            name={selectionMode ? "close" : "chevron-back"}
             size={24}
             color={theme.colors.textPrimary}
           />
         </Pressable>
+
+        {selectionMode ? (
+          <View style={styles.selectionTopBar}>
+            <Text style={styles.selectionCountText}>
+              {selectedIds.length} selected
+            </Text>
+            <View style={styles.topNavRight}>
+              <TouchableOpacity
+                onPress={() =>
+                  setSelectedIds(
+                    selectedIds.length === downloadedTrackIdsOnPage.length
+                      ? []
+                      : [...downloadedTrackIdsOnPage],
+                  )
+                }
+                style={styles.navPillBtn}
+                accessibilityRole="button"
+              >
+                <Text style={styles.navPillText}>
+                  {selectedIds.length === downloadedTrackIdsOnPage.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={exitSelectionMode}
+                style={[styles.navPillBtn, styles.navPillPrimary]}
+                accessibilityRole="button"
+              >
+                <Text style={styles.navPillPrimaryText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.topNavRight}>
+            {matchedSavedAlbum && (
+              <Pressable
+                onPress={openAlbumMenu}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Album options"
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={20}
+                  color={theme.colors.textPrimary}
+                />
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
+
+      {selectionMode && (
+        <View style={styles.bulkBar}>
+          {selectedIds.length === 1 && (
+            <TouchableOpacity
+              onPress={() => setEditingTracksIds([...selectedIds])}
+              style={styles.bulkActionBtn}
+              accessibilityRole="button"
+            >
+              <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+              <Text style={styles.bulkActionText}>Rename</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            disabled={selectedIds.length === 0}
+            onPress={() => setMovingTracksIds([...selectedIds])}
+            style={[styles.bulkActionBtn, selectedIds.length === 0 && styles.bulkDisabled]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="folder-open-outline" size={16} color={theme.colors.primary} />
+            <Text style={styles.bulkActionText}>Move to Album</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            disabled={selectedIds.length === 0}
+            onPress={() => confirmDeleteTracks([...selectedIds])}
+            style={[
+              styles.bulkActionBtn,
+              styles.bulkDangerBtn,
+              selectedIds.length === 0 && styles.bulkDisabled,
+            ]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="trash-outline" size={16} color={theme.colors.danger} />
+            <Text style={styles.bulkDangerText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.container}>
         <FlatList
           style={{ width: "100%" }}
@@ -311,7 +609,29 @@ export default function AlbumTracks() {
                 trackObject={item}
                 playableTracks={playableTracks}
                 selectedAlbum={selectedAlbum}
+                selectionMode={selectionMode && savedTracksById.has(item.id)}
+                isSelected={selectedIds.includes(item.id)}
+                onToggleSelect={
+                  savedTracksById.has(item.id)
+                    ? () => toggleSelectTrack(item.id)
+                    : undefined
+                }
+                onTrackMenu={
+                  canManageTracks && savedTracksById.has(item.id)
+                    ? () => openTrackMenu(item)
+                    : undefined
+                }
               />
+            ) : null
+          }
+          ListEmptyComponent={
+            isSavedPage ? (
+              <View style={styles.emptyAlbumBox}>
+                <Ionicons name="musical-notes-outline" size={32} color={theme.colors.textMuted} />
+                <Text style={styles.emptyAlbumText}>
+                  No tracks in this album yet. Open another downloaded album and use Move to Album to add tracks here.
+                </Text>
+              </View>
             ) : null
           }
           ListHeaderComponent={
@@ -333,9 +653,7 @@ export default function AlbumTracks() {
                     {selectedAlbum?.title}
                   </Text>
                   <View style={styles.artistNameRow}>
-                    <Text style={styles.byText}>
-                      {"by "}
-                    </Text>
+                    <Text style={styles.byText}>{"by "}</Text>
                     <Pressable
                       onPress={() =>
                         router.push({
@@ -371,9 +689,7 @@ export default function AlbumTracks() {
           }
           ListFooterComponent={
             <View style={styles.footerSection}>
-              <Text style={styles.aboutHeader}>
-                About
-              </Text>
+              <Text style={styles.aboutHeader}>About</Text>
               <Text style={styles.releaseDateText}>
                 {formatUTCDate(selectedAlbum?.releaseDate)}
               </Text>
@@ -435,6 +751,91 @@ export default function AlbumTracks() {
           }
         />
       </View>
+
+      <AlbumFormModal
+        visible={editingAlbumModal}
+        mode="edit"
+        initialTitle={matchedSavedAlbum?.title ?? selectedAlbum.title}
+        initialArtist={matchedSavedAlbum?.artist ?? selectedAlbum.artist.name}
+        onClose={() => setEditingAlbumModal(false)}
+        onSubmit={(newTitle, newArtist) => {
+          const sourceKey = matchedSavedAlbum?.key ?? albumTitleKey(selectedAlbum.title);
+          void runTrackAction(async () => {
+            setActiveSavedKey(albumTitleKey(newTitle));
+            const nextKey = await editAlbumMetadata(
+              sourceKey,
+              {
+                albumTitle: newTitle,
+                artist: newArtist,
+              },
+              downloadedTrackIdsOnPage,
+            );
+            setActiveSavedKey(nextKey);
+            const stillMatchesOnline =
+              !isSavedRoute &&
+              data?.result &&
+              sameAlbum(
+                { title: newTitle, artist: newArtist },
+                { title: data.result.title, artist: data.result.artist?.name },
+              );
+            const targetId = savedArtistSlug(newArtist);
+            const targetSlug = savedAlbumSlug(nextKey);
+            if (
+              (isSavedRoute || !stillMatchesOnline) &&
+              (String(id) !== targetId || String(slug) !== targetSlug)
+            ) {
+              router.replace({
+                pathname: "/artist/[id]/album/[slug]/album-tracks",
+                params: {
+                  id: targetId,
+                  slug: targetSlug,
+                },
+              });
+            }
+          }, "Couldn't rename album");
+        }}
+      />
+
+      <TrackEditModal
+        visible={editingTracksIds !== null}
+        initialTitle={singleEditingTrack?.title ?? ""}
+        initialOrder={singleEditingTrack?.order}
+        onClose={() => setEditingTracksIds(null)}
+        onSubmit={(changes) => {
+          if (!editingTracksIds) return;
+          const ids = [...editingTracksIds];
+          void runTrackAction(async () => {
+            await editTracksMetadata(ids, changes);
+            if (selectionMode) exitSelectionMode();
+          }, "Couldn't update track");
+        }}
+      />
+
+      <MoveToAlbumModal
+        visible={movingTracksIds !== null}
+        albums={savedAlbums}
+        currentAlbumKey={matchedSavedAlbum?.key}
+        trackCount={movingTracksIds?.length ?? 0}
+        defaultArtist={selectedAlbum.artist?.name ?? ""}
+        onClose={() => setMovingTracksIds(null)}
+        onSelectAlbum={(target) => {
+          if (!movingTracksIds) return;
+          const ids = [...movingTracksIds];
+          void runTrackAction(async () => {
+            if (target.isNew) {
+              await createAlbumFolder(target.title, target.artist);
+            }
+            await moveTracksToTargetAlbum(ids, target);
+            if (selectionMode) exitSelectionMode();
+          }, "Couldn't move tracks");
+        }}
+      />
+
+      {isBusy && (
+        <View style={styles.busyOverlay} pointerEvents="auto">
+          <DropletSpinner size={52} color={theme.colors.primary} />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -444,9 +845,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
   topNav: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     height: 52,
     backgroundColor: theme.colors.surface,
@@ -455,6 +864,87 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: 6,
+  },
+  topNavRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectionTopBar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginLeft: 8,
+  },
+  selectionCountText: {
+    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  navPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  navPillText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  navPillPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  navPillPrimaryText: {
+    color: theme.colors.playButtonIcon,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  bulkBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.surfaceGlassBorder,
+  },
+  bulkActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceGlassBorder,
+  },
+  bulkDangerBtn: {
+    borderColor: theme.colors.danger,
+  },
+  bulkDisabled: {
+    opacity: 0.45,
+  },
+  bulkActionText: {
+    color: theme.colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  bulkDangerText: {
+    color: theme.colors.danger,
+    fontSize: 12,
+    fontWeight: "700",
   },
   container: {
     flex: 1,
@@ -469,6 +959,18 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingHorizontal: 16,
     paddingBottom: 80,
+  },
+  emptyAlbumBox: {
+    alignItems: "center",
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  emptyAlbumText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 19,
   },
   headerSection: {
     marginBottom: 16,

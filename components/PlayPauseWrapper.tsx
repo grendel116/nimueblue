@@ -1,4 +1,5 @@
 import { Pressable, View, StyleSheet, Text, Image } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { usePlayer } from "@/state/PlayerContext";
 import { formatTime, isTrackOwnedOrPreview } from "@/scripts/utils";
 import { isSameTrack } from "@/state/player/trackUtils";
@@ -6,15 +7,31 @@ import FavoriteTrackButton from "./FavoriteTrackButton";
 import AddToQueueButton from "./AddToQueueButton";
 import DownloadTrackButton from "./DownloadTrackButton";
 import { theme } from "@/constants/theme";
-import { SAVED_SOURCE } from "@/scripts/downloadManager";
+import { SAVED_SOURCE, useDownloads } from "@/scripts/downloadManager";
+
+export interface TrackRowProps extends PlayPauseWrapperProps {
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  onTrackMenu?: () => void;
+}
 
 export default function PlayPauseWrapper({
   trackObject,
   playableTracks,
   style,
   selectedAlbum,
-}: PlayPauseWrapperProps) {
-  const { activeTrack, playTrack, disabledTrackIds } = usePlayer("activeTrack", "playTrack", "disabledTrackIds");
+  selectionMode,
+  isSelected,
+  onToggleSelect,
+  onTrackMenu,
+}: TrackRowProps) {
+  const { activeTrack, playTrack, disabledTrackIds } = usePlayer(
+    "activeTrack",
+    "playTrack",
+    "disabledTrackIds",
+  );
+  const downloads = useDownloads();
 
   const canPlayTrack = isTrackOwnedOrPreview(
     trackObject,
@@ -49,23 +66,40 @@ export default function PlayPauseWrapper({
     trackObject.artwork ||
     selectedAlbum?.cover?.sizes?.[600];
 
+  const savedDuration = downloads.find((d) => d.id === trackObject.id)?.duration;
+  const durationSeconds =
+    trackObject.audio?.duration || trackObject.duration || savedDuration;
+
   return (
     <Pressable
       android_ripple={{ color: theme.colors.ripple }}
       onPress={() => {
+        if (selectionMode && onToggleSelect) {
+          onToggleSelect();
+          return;
+        }
         if (!canPlayTrack) return;
         playTrack(trackObject, playableTracks);
       }}
+      onLongPress={onToggleSelect}
       style={({ pressed }) => [
         styles.listItem,
         thisSongSelected && styles.selectedListItem,
-        pressed && canPlayTrack && styles.listItemPressed,
+        selectionMode && isSelected && styles.checkedListItem,
+        pressed && (canPlayTrack || selectionMode) && styles.listItemPressed,
         style,
       ]}
       accessibilityLabel={`Play ${trackObject?.title || "track"}`}
     >
       <View style={styles.trackDetailsRow}>
-        {artworkUri ? (
+        {selectionMode ? (
+          <Ionicons
+            name={isSelected ? "checkbox" : "square-outline"}
+            size={20}
+            color={isSelected ? theme.colors.primary : theme.colors.textSecondary}
+            style={styles.checkboxIcon}
+          />
+        ) : artworkUri ? (
           <Image
             source={{ uri: artworkUri }}
             style={styles.trackThumb}
@@ -114,11 +148,11 @@ export default function PlayPauseWrapper({
         </View>
       </View>
       <View style={styles.actionRow}>
-        {canPlayTrack && (
+        {!selectionMode && canPlayTrack && (
           <AddToQueueButton track={trackObject} album={selectedAlbum} size={17} />
         )}
-        <FavoriteTrackButton track={trackObject} size={17} />
-        {selectedAlbum && selectedAlbum.source !== SAVED_SOURCE && (
+        {!selectionMode && <FavoriteTrackButton track={trackObject} size={17} />}
+        {!selectionMode && selectedAlbum && selectedAlbum.source !== SAVED_SOURCE && (
           <DownloadTrackButton track={trackObject} album={selectedAlbum} />
         )}
         <Text
@@ -132,10 +166,23 @@ export default function PlayPauseWrapper({
             },
           ]}
         >
-          {trackObject.audio?.duration
-            ? formatTime(trackObject.audio.duration)
-            : "0:00"}
+          {durationSeconds ? formatTime(durationSeconds) : "0:00"}
         </Text>
+        {!selectionMode && onTrackMenu && (
+          <Pressable
+            onPress={onTrackMenu}
+            hitSlop={8}
+            style={styles.menuBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`Options for ${trackObject.title}`}
+          >
+            <Ionicons
+              name="ellipsis-vertical"
+              size={16}
+              color={theme.colors.textSecondary}
+            />
+          </Pressable>
+        )}
       </View>
     </Pressable>
   );
@@ -156,6 +203,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.surfaceGlassBorder,
   },
+  checkedListItem: {
+    backgroundColor: theme.colors.primarySoft,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
   listItemPressed: {
     backgroundColor: theme.colors.surfaceElevated,
     opacity: 0.8,
@@ -166,6 +218,9 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     flex: 1,
     paddingRight: 10,
+  },
+  checkboxIcon: {
+    marginRight: 10,
   },
   orderText: {
     fontSize: 14,
@@ -202,5 +257,9 @@ const styles = StyleSheet.create({
   },
   durationText: {
     fontSize: 13,
+  },
+  menuBtn: {
+    padding: 4,
+    marginLeft: 2,
   },
 });

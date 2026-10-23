@@ -1,6 +1,7 @@
 import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
+  isExcludedColonialStation,
   liveTrack,
   RADICAL_RADIO_TAGS,
   RADIO_STATIONS,
@@ -8,6 +9,7 @@ import {
   radioBrowserToRadioStation,
   searchRadioStations,
 } from "@/queries/radio";
+import { RADIO_STATION_META } from "../worker/src/data/metadata.js";
 
 describe("discovered radio stations", () => {
   test("removes duplicate stations by name, homepage, or stream while keeping the first entry", () => {
@@ -124,19 +126,53 @@ describe("discovered radio stations", () => {
     expect(station.id).toBe("rb-11111111111111111111111111111111");
   });
 
-  test("assigns hls track type for .m3u8 radio streams and includes Thai and Chinese stations", () => {
-    const rthk = RADIO_STATIONS.find((s) => s.id === "rthk-radio-2");
+  test("assigns hls track type for .m3u8 radio streams and includes Thai and single curated Chinese station", () => {
     const bcr = RADIO_STATIONS.find((s) => s.id === "bangkok-community-radio");
     const imx = RADIO_STATIONS.find((s) => s.id === "imx-fm");
+    const rthk = RADIO_STATIONS.find((s) => s.id === "rthk-radio-2");
 
-    expect(rthk).toBeDefined();
     expect(bcr).toBeDefined();
     expect(imx).toBeDefined();
-    expect(liveTrack(rthk!).type).toBe("hls");
+    expect(rthk).toBeUndefined();
     expect(liveTrack(bcr!).type).toBe("default");
+    expect(
+      liveTrack({
+        ...imx!,
+        streamUrl: "https://example.com/live/index.m3u8",
+      }).type,
+    ).toBe("hls");
   });
 
-  test("searches curated and remote stations by language, country, and non-Latin script", async () => {
+  test("worker metadata includes artwork for all curated radio stations", () => {
+    const meta = RADIO_STATION_META as Record<
+      string,
+      { name: string; art: string; audio: string; web: string; app: string }
+    >;
+    for (const station of RADIO_STATIONS) {
+      expect(meta[station.id]).toBeDefined();
+      expect(meta[station.id].art).toBe(station.artwork);
+      expect(meta[station.id].app).toBe(`/station/${station.id}`);
+    }
+  });
+
+  test("excludes capitalist-colonial countries from discovered and searched stations", async () => {
+    expect(
+      isExcludedColonialStation({
+        stationuuid: "m1",
+        name: "Radio Azawan",
+        url: "https://example.com/azawan",
+        country: "Morocco",
+      }),
+    ).toBe(true);
+    expect(
+      isExcludedColonialStation({
+        stationuuid: "i1",
+        name: "Station",
+        url: "https://example.com/stream",
+        countrycode: "IL",
+      }),
+    ).toBe(true);
+
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => [
@@ -151,17 +187,45 @@ describe("discovered radio stations", () => {
           lastcheckok: 1,
           ssl_error: 0,
         },
+        {
+          stationuuid: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          name: "Radio Azawan",
+          url: "https://stream.example.com/azawan.mp3",
+          favicon: "https://static.mytuner.mobi/media/tvos_radios/azawan.png",
+          country: "Morocco",
+          countrycode: "MA",
+          tags: "world music",
+          lastcheckok: 1,
+          ssl_error: 0,
+        },
+        {
+          stationuuid: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+          name: "Tel Aviv Stream",
+          url: "https://stream.example.com/tlv.mp3",
+          favicon: "https://static.mytuner.mobi/media/tvos_radios/tlv.png",
+          country: "Israel",
+          countrycode: "IL",
+          tags: "world music",
+          lastcheckok: 1,
+          ssl_error: 0,
+        },
       ],
     } as Response);
 
     try {
+      const discovered = await fetchDiscoveredRadioStations();
+      expect(discovered.some((s) => s.name === "COOL Fahrenheit 93 FM")).toBe(true);
+      expect(discovered.some((s) => s.name === "Radio Azawan")).toBe(false);
+      expect(discovered.some((s) => s.name === "Tel Aviv Stream")).toBe(false);
+
       const thaiResults = await searchRadioStations("thai");
       expect(thaiResults.some((s) => s.id === "bangkok-community-radio")).toBe(true);
       expect(thaiResults.some((s) => s.name === "COOL Fahrenheit 93 FM")).toBe(true);
+      expect(thaiResults.some((s) => s.name === "Radio Azawan")).toBe(false);
 
       const chineseScriptResults = await searchRadioStations("中文");
       expect(chineseScriptResults.some((s) => s.id === "imx-fm")).toBe(true);
-      expect(chineseScriptResults.some((s) => s.id === "rthk-radio-2")).toBe(true);
+      expect(chineseScriptResults.some((s) => s.id === "rthk-radio-2")).toBe(false);
     } finally {
       fetchSpy.mockRestore();
     }

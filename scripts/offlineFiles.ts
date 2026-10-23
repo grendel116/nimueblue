@@ -3,10 +3,20 @@ import * as DocumentPicker from "expo-document-picker";
 import {
   DownloadedAlbum,
   DownloadedTrack,
+  createDownloadedAlbum,
   forgetDownloadedTracks,
   getDownloadedTracks,
+  groupTracksIntoAlbums,
+  moveTracksToAlbum,
+  removeCreatedAlbum,
   updateAlbum,
+  updateDownloadedTracks,
 } from "./downloadManager";
+import {
+  createAlbumInMusicFolder,
+  deleteTracksFromMusicFolder,
+  syncTracksInMusicFolder,
+} from "./musicFolder";
 
 // Saving files to the phone. The web build uses offlineFiles.web.ts instead.
 // The phone picks its own album covers; its songs come from the music folder
@@ -52,9 +62,18 @@ async function pruneCovers(): Promise<void> {
 // Deletes saved songs from the music folder, then the covers nothing uses any more
 export async function removeDownloads(
   tracks: DownloadedTrack[],
+  albumKey?: string,
 ): Promise<void> {
-  tracks.forEach((t) => deleteQuietly(t.url));
-  await forgetDownloadedTracks(tracks.map((t) => t.id));
+  const existingAlbum = albumKey
+    ? groupTracksIntoAlbums(await getDownloadedTracks()).find((a) => a.key === albumKey)
+    : undefined;
+  await deleteTracksFromMusicFolder(
+    tracks,
+    existingAlbum ? { title: existingAlbum.title, artist: existingAlbum.artist } : undefined,
+  );
+  if (tracks.length > 0) await forgetDownloadedTracks(tracks.map((t) => t.id));
+  if (albumKey) await removeCreatedAlbum(albumKey);
+  await syncTracksInMusicFolder();
   await pruneCovers();
 }
 
@@ -74,5 +93,54 @@ export async function chooseAlbumCover(album: DownloadedAlbum): Promise<void> {
   );
   adopt(asset.uri, cover);
   await updateAlbum(album.key, { artwork: cover.uri });
+  await syncTracksInMusicFolder();
   await pruneCovers();
+}
+
+export async function createAlbumFolder(title: string, artist: string): Promise<string> {
+  const key = await createDownloadedAlbum(title, artist);
+  await createAlbumInMusicFolder(title, artist);
+  return key;
+}
+
+export async function editAlbumMetadata(
+  albumKey: string,
+  changes: { albumTitle?: string; artist?: string },
+  extraTrackIds?: number[],
+): Promise<string> {
+  const nextKey = await updateAlbum(albumKey, changes, extraTrackIds);
+  const album = groupTracksIntoAlbums(await getDownloadedTracks()).find((a) => a.key === nextKey);
+  if (album) {
+    if (album.tracks.length > 0) {
+      await syncTracksInMusicFolder(album.tracks);
+    } else {
+      await createAlbumInMusicFolder(album.title, album.artist);
+    }
+  }
+  return nextKey;
+}
+
+export async function editTracksMetadata(
+  trackIds: number[],
+  changes: { title?: string; artist?: string; albumTitle?: string; order?: number },
+): Promise<void> {
+  await updateDownloadedTracks(trackIds, changes);
+  const idSet = new Set(trackIds);
+  const updated = (await getDownloadedTracks()).filter((t) => idSet.has(t.id));
+  if (updated.length > 0) {
+    await syncTracksInMusicFolder(updated);
+  }
+}
+
+export async function moveTracksToTargetAlbum(
+  trackIds: number[],
+  target: { title: string; artist: string; artwork?: string },
+): Promise<string> {
+  const nextKey = await moveTracksToAlbum(trackIds, target);
+  const idSet = new Set(trackIds);
+  const moved = (await getDownloadedTracks()).filter((t) => idSet.has(t.id));
+  if (moved.length > 0) {
+    await syncTracksInMusicFolder(moved);
+  }
+  return nextKey;
 }

@@ -7,8 +7,15 @@ import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getPlayerHost } from "@/state/player/host";
 import { chooseMusicFolder, openMusicFolder, rescanMusicFolder } from "@/scripts/musicFolder";
-import { getDownloadedTracks } from "@/scripts/downloadManager";
-import { removeDownloads, chooseAlbumCover } from "@/scripts/offlineFiles";
+import { getCreatedAlbums, getDownloadedTracks, subscribeDownloads } from "@/scripts/downloadManager";
+import {
+  removeDownloads,
+  chooseAlbumCover,
+  createAlbumFolder,
+  editAlbumMetadata,
+  editTracksMetadata,
+  moveTracksToTargetAlbum,
+} from "@/scripts/offlineFiles";
 import { redirectSystemPath } from "@/app/+native-intent";
 import { openInBrowser } from "@/scripts/openInBrowser";
 
@@ -87,6 +94,9 @@ export default function WebShellView() {
 
   // The player host lives here on the phone side; the web app shows every state it announces
   useEffect(() => getPlayerHost().subscribe((message) => postToWeb({ type: "player", message })), []);
+
+  // Any change to saved downloads or created albums is synced immediately to the web app
+  useEffect(() => subscribeDownloads(() => syncDownloadsToWeb()), []);
 
   // Play/pause state and progress go straight from the audio player to the web app
   useTrackPlayerEvents([Event.PlaybackState, Event.PlaybackProgressUpdated], (event) => {
@@ -171,13 +181,11 @@ export default function WebShellView() {
           break;
         case "removeDownloads":
           try {
-            if (Array.isArray(data.ids)) {
-              const tracks = await getDownloadedTracks();
-              const idSet = new Set(data.ids);
-              const toRemove = tracks.filter((t) => idSet.has(t.id));
-              await removeDownloads(toRemove);
-              await syncDownloadsToWeb();
-            }
+            const tracks = await getDownloadedTracks();
+            const idSet = new Set(Array.isArray(data.ids) ? data.ids : []);
+            const toRemove = tracks.filter((t) => idSet.has(t.id));
+            await removeDownloads(toRemove, data.albumKey);
+            await syncDownloadsToWeb();
             replySuccess(data.id, true);
           } catch (err: any) {
             console.warn("removeDownloads error:", err);
@@ -194,6 +202,53 @@ export default function WebShellView() {
           } catch (err: any) {
             console.warn("chooseAlbumCover error:", err);
             replyError(data.id, err?.message || "Failed to choose cover");
+          }
+          break;
+        case "createAlbumFolder":
+          try {
+            const key = await createAlbumFolder(String(data.title ?? ""), String(data.artist ?? ""));
+            await syncDownloadsToWeb();
+            replySuccess(data.id, key);
+          } catch (err: any) {
+            console.warn("createAlbumFolder error:", err);
+            replyError(data.id, err?.message || "Failed to create album");
+          }
+          break;
+        case "editAlbumMetadata":
+          try {
+            const key = await editAlbumMetadata(
+              String(data.albumKey ?? ""),
+              data.changes ?? {},
+              Array.isArray(data.extraTrackIds) ? data.extraTrackIds : undefined,
+            );
+            await syncDownloadsToWeb();
+            replySuccess(data.id, key);
+          } catch (err: any) {
+            console.warn("editAlbumMetadata error:", err);
+            replyError(data.id, err?.message || "Failed to edit album");
+          }
+          break;
+        case "editTracksMetadata":
+          try {
+            await editTracksMetadata(Array.isArray(data.trackIds) ? data.trackIds : [], data.changes ?? {});
+            await syncDownloadsToWeb();
+            replySuccess(data.id, true);
+          } catch (err: any) {
+            console.warn("editTracksMetadata error:", err);
+            replyError(data.id, err?.message || "Failed to edit tracks");
+          }
+          break;
+        case "moveTracksToAlbum":
+          try {
+            const key = await moveTracksToTargetAlbum(
+              Array.isArray(data.trackIds) ? data.trackIds : [],
+              data.target ?? { title: "", artist: "" },
+            );
+            await syncDownloadsToWeb();
+            replySuccess(data.id, key);
+          } catch (err: any) {
+            console.warn("moveTracksToAlbum error:", err);
+            replyError(data.id, err?.message || "Failed to move tracks");
           }
           break;
       }
@@ -234,11 +289,15 @@ export default function WebShellView() {
 
   const syncDownloadsToWeb = async () => {
     try {
-      const tracks = await getDownloadedTracks();
+      const [tracks, createdAlbums] = await Promise.all([
+        getDownloadedTracks(),
+        getCreatedAlbums(),
+      ]);
       webViewRef.current?.injectJavaScript(
         `window.postMessage(${JSON.stringify({
           type: "downloads",
           tracks,
+          createdAlbums,
         })}, '*'); true;`
       );
     } catch (err) {

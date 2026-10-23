@@ -1,21 +1,27 @@
 import { useEffect, useState } from "react";
 import { readTags } from "./readTags";
 import {
+  CreatedAlbum,
   DownloadedTrack,
   FolderLinks,
-  forgetDownloadedTracks,
+  albumTitleKey,
+  cleanTrackTitle,
+  getCreatedAlbums,
   getDownloadedTracks,
-  saveDownloadedTracks,
+  replaceDownloadedLibrary,
   setFolderLinks,
   showDownloads,
+  updateDownloadedTracks,
 } from "./downloadManager";
 import { IN_NATIVE_SHELL, askNative, onNative } from "./nativeShell";
 import {
   AUDIO_FILE,
   IMAGE_FILE,
-  bytesReader,
-  folderChanges,
-  namesFromFile,
+  MUSIC_FOLDER_MANIFEST,
+  MusicFolderManifest,
+  buildMusicFolderManifest,
+  folderAlbumAndArtist,
+  parseMusicFolderManifest,
   pickCover,
   songDetails,
 } from "./songFiles";
@@ -32,6 +38,7 @@ const STORE = "handles";
 const HANDLE_KEY = "musicFolder";
 // Tags sit at the start of a song; reading this much covers them without loading whole albums
 const TAG_BYTES = 4 * 1024 * 1024;
+const TAIL_BYTES = 65536;
 
 let folder: FileSystemDirectoryHandle | null = null;
 // In the Android app the phone holds the folder and sends its name
@@ -49,7 +56,7 @@ onNative("musicFolder", (data) => {
   shellFolderName = data.name ?? "";
   setStatus(data.status);
 });
-onNative("downloads", (data) => showDownloads(data.tracks ?? []));
+onNative("downloads", (data) => showDownloads(data.tracks ?? [], data.createdAlbums));
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -158,7 +165,40 @@ export async function removeFile(path: string): Promise<void> {
 }
 
 async function tagsOf(file: Blob) {
-  return readTags(bytesReader(new Uint8Array(await file.slice(0, TAG_BYTES).arrayBuffer())));
+  const head = new Uint8Array(await file.slice(0, TAG_BYTES).arrayBuffer());
+  const tailStart = file.size > TAG_BYTES ? Math.max(TAG_BYTES, file.size - TAIL_BYTES) : file.size;
+  const tail =
+    file.size > TAG_BYTES ? new Uint8Array(await file.slice(tailStart, file.size).arrayBuffer()) : new Uint8Array(0);
+  return readTags((offset, length) => {
+    if (offset < head.length) return head.subarray(offset, offset + length);
+    if (offset >= tailStart && offset < file.size) {
+      const rel = offset - tailStart;
+      return tail.subarray(rel, rel + length);
+    }
+    return new Uint8Array(0);
+  }, file.size);
+}
+
+function probeBrowserDuration(url: string): Promise<number | undefined> {
+  if (typeof Audio === "undefined" || !url) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    audio.preload = "metadata";
+    const done = (val?: number) => {
+      audio.removeAttribute("src");
+      resolve(val && Number.isFinite(val) && val > 0 ? Math.round(val) : undefined);
+    };
+    const timer = setTimeout(() => done(undefined), 3000);
+    audio.onloadedmetadata = () => {
+      clearTimeout(timer);
+      done(audio.duration);
+    };
+    audio.onerror = () => {
+      clearTimeout(timer);
+      done(undefined);
+    };
+    audio.src = url;
+  });
 }
 
 async function coverLink(coverPath: string): Promise<string | undefined> {
@@ -171,7 +211,8 @@ async function coverLink(coverPath: string): Promise<string | undefined> {
 // Makes browser links for every saved song and cover not linked yet. Songs whose files are
 // gone stay unlinked until a rescan forgets them
 export async function linkFiles(): Promise<void> {
-  for (const track of await getDownloadedTracks()) {
+  const tracks = await getDownloadedTracks();
+  for (const track of tracks) {
     try {
       if (track.path && !links.audio.has(track.path))
         links.audio.set(track.path, URL.createObjectURL(await readFile(track.path)));
@@ -184,6 +225,14 @@ export async function linkFiles(): Promise<void> {
     }
   }
   await setFolderLinks({ audio: new Map(links.audio), covers: new Map(links.covers) });
+
+  // Fill in missing durations for tracks whose files are now linked
+  for (const track of await getDownloadedTracks()) {
+    if ((!track.duration || track.duration <= 0) && track.url) {
+      const dur = await probeBrowserDuration(track.url);
+      if (dur) await updateDownloadedTracks([track.id], { duration: dur });
+    }
+  }
 }
 
 type FoundFile = { path: string; handle: FileSystemFileHandle };
@@ -199,36 +248,187 @@ async function filesUnder(dir: FileSystemDirectoryHandle, prefix: string): Promi
   return found;
 }
 
-// Brings Downloads in line with the folder: songs whose files are gone are forgotten, and audio
-// files not saved yet join as your own songs, described by their tags, names and folders
+async function readManifestFromWebRoot(): Promise<MusicFolderManifest | null> {
+  if (!folder) return null;
+  try {
+    const handle = await folder.getFileHandle(MUSIC_FOLDER_MANIFEST);
+    const file = await handle.getFile();
+    return parseMusicFolderManifest(await file.text());
+  } catch {
+    return null;
+  }
+}
+
+async function writeManifestToWebRoot(manifest: MusicFolderManifest): Promise<void> {
+  if (!folder) return;
+  const handle = await folder.getFileHandle(MUSIC_FOLDER_MANIFEST, { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(JSON.stringify(manifest, null, 2));
+  await writable.close();
+}
+
+export async function syncMusicFolderManifest(): Promise<void> {
+  if (IN_NATIVE_SHELL || !folder) return;
+  try {
+    const [tracks, albums] = await Promise.all([
+      getDownloadedTracks(),
+      getCreatedAlbums(),
+    ]);
+    await writeManifestToWebRoot(buildMusicFolderManifest(tracks, albums));
+  } catch (err) {
+    console.warn("Failed to sync nimue-library.json in web music folder:", err);
+  }
+}
+
+// Brings Downloads in line with the folder and its nimue-library.json manifest
 export async function rescanMusicFolder(): Promise<void> {
   if (IN_NATIVE_SHELL) return askNative("rescanMusicFolder");
   if (!folder) return;
-  const files = await filesUnder(folder, "");
+  const [manifest, files, currentTracks, currentAlbums] = await Promise.all([
+    readManifestFromWebRoot(),
+    filesUnder(folder, ""),
+    getDownloadedTracks(),
+    getCreatedAlbums(),
+  ]);
   const audio = files.filter((f) => AUDIO_FILE.test(f.path));
   const images = files.filter((f) => IMAGE_FILE.test(f.path)).map((f) => f.path);
-  const { gone, added } = folderChanges(await getDownloadedTracks(), audio.map((f) => f.path));
-  await forgetDownloadedTracks(gone);
 
   const now = Date.now();
-  const saved: DownloadedTrack[] = [];
-  for (const [index, path] of added.entries()) {
-    const file = await audio.find((f) => f.path === path)!.handle.getFile();
+  const albumsByKey = new Map<string, CreatedAlbum>();
+  for (const album of currentAlbums) {
+    if (!album.key) continue;
+    albumsByKey.set(album.key, { ...album });
+  }
+  if (manifest?.albums) {
+    for (const [key, record] of Object.entries(manifest.albums)) {
+      if (!key || !record) continue;
+      const prev = albumsByKey.get(key);
+      albumsByKey.set(key, {
+        key,
+        title: (record.title || prev?.title || "Imported Audio").trim(),
+        artist: (record.artist || prev?.artist || "Unknown Artist").trim(),
+        artwork: prev?.artwork || record.artwork,
+        createdAt: record.createdAt || prev?.createdAt || now,
+      });
+    }
+  }
+
+  const existingByPath = new Map<string, DownloadedTrack>();
+  for (const track of currentTracks) {
+    if (track.path) existingByPath.set(track.path, track);
+  }
+
+  const nextTracks: DownloadedTrack[] = [];
+
+  for (const [index, item] of audio.entries()) {
+    const existing = existingByPath.get(item.path);
+    const manifestTrack = manifest?.tracks?.[item.path];
+    const manifestAlbum = manifestTrack ? albumsByKey.get(manifestTrack.albumKey) : undefined;
+    const knownDuration = manifestTrack?.duration || existing?.duration;
+
+    if (manifestTrack && knownDuration && knownDuration > 0 && existing?.coverPath) {
+      const albumTitle = (manifestAlbum?.title || existing?.albumTitle || "Imported Audio").trim();
+      const artist = (manifestAlbum?.artist || existing?.artist || "Unknown Artist").trim();
+      nextTracks.push({
+        id: manifestTrack.id || existing?.id || -(now + index),
+        title: cleanTrackTitle(manifestTrack.title) || manifestTrack.title || "Song",
+        artist,
+        albumTitle,
+        order: manifestTrack.order ?? existing?.order ?? index + 1,
+        duration: knownDuration,
+        url: "",
+        path: item.path,
+        coverPath: existing.coverPath,
+        bytes: existing.bytes,
+        downloadedAt: existing.downloadedAt || now,
+        source: existing.source || "file",
+      });
+      continue;
+    }
+
+    const file = await item.handle.getFile();
     const tags = await tagsOf(file);
-    const { dirs, name } = split(path);
-    const parent = namesFromFile(dirs[dirs.length - 1] ?? "");
-    const folderCover = pickCover(images.filter((p) => split(p).dirs.join("/") === dirs.join("/")));
-    saved.push({
-      id: -(now + index),
-      ...songDetails(tags, name, index, parent.title || undefined, parent.artist || undefined),
+    const { dirs, name } = split(item.path);
+    const dirPath = dirs.join("/");
+    const folderMeta = folderAlbumAndArtist(dirPath);
+    const details = songDetails(
+      tags,
+      name,
+      index,
+      folderMeta.album || undefined,
+      folderMeta.artist || undefined,
+    );
+    const folderCover = pickCover(images.filter((p) => split(p).dirs.join("/") === dirPath));
+
+    const existingAlbumKey = existing?.albumTitle ? albumTitleKey(existing.albumTitle) : undefined;
+    const existingUserAlbum =
+      existingAlbumKey &&
+      existingAlbumKey !== albumTitleKey("Imported Audio") &&
+      existingAlbumKey !== albumTitleKey("Music")
+        ? albumsByKey.get(existingAlbumKey)
+        : undefined;
+
+    const resolvedAlbumTitle = (
+      manifestAlbum?.title ||
+      existingUserAlbum?.title ||
+      details.albumTitle ||
+      "Imported Audio"
+    ).trim();
+    const albumKey = albumTitleKey(resolvedAlbumTitle);
+    const knownAlbum = albumsByKey.get(albumKey);
+    const resolvedArtist = (
+      manifestAlbum?.artist ||
+      knownAlbum?.artist ||
+      existingUserAlbum?.artist ||
+      details.artist ||
+      "Unknown Artist"
+    ).trim();
+    const resolvedTitle =
+      cleanTrackTitle(manifestTrack?.title) ||
+      (existingUserAlbum ? cleanTrackTitle(existing?.title) : "") ||
+      details.title ||
+      "Song";
+    const resolvedOrder =
+      manifestTrack?.order ??
+      (existingUserAlbum ? existing?.order : undefined) ??
+      details.order;
+    const resolvedDuration =
+      manifestTrack?.duration || details.duration || existing?.duration;
+
+    if (!albumsByKey.has(albumKey)) {
+      albumsByKey.set(albumKey, {
+        key: albumKey,
+        title: resolvedAlbumTitle,
+        artist: resolvedArtist,
+        createdAt: now,
+      });
+    }
+
+    nextTracks.push({
+      id: manifestTrack?.id || existing?.id || -(now + index),
+      title: resolvedTitle,
+      artist: resolvedArtist,
+      albumTitle: resolvedAlbumTitle,
+      order: resolvedOrder,
+      ...(resolvedDuration !== undefined ? { duration: resolvedDuration } : {}),
       url: "",
-      path,
-      coverPath: tags.cover ? path : folderCover,
+      path: item.path,
+      coverPath: tags.cover ? item.path : folderCover,
       bytes: file.size,
-      downloadedAt: now,
-      source: "file",
+      downloadedAt: existing?.downloadedAt || now,
+      source: existing?.source || "file",
     });
   }
-  if (saved.length) await saveDownloadedTracks(saved);
+
+  await replaceDownloadedLibrary(nextTracks, Array.from(albumsByKey.values()));
+  await syncMusicFolderManifest();
   await linkFiles();
+}
+
+export async function createAlbumInMusicFolder(_title: string, _artist: string): Promise<void> {
+  await syncMusicFolderManifest();
+}
+
+export async function syncTracksInMusicFolder(_tracks?: DownloadedTrack[]): Promise<void> {
+  await syncMusicFolderManifest();
 }

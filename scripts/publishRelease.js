@@ -30,10 +30,11 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **HTML Character Entity Decoding**: Fixed an issue where HTML character entities (such as hexadecimal \`&#x27;\` for apostrophes, numeric character references, and legacy Windows-1252 codes) were displayed raw in track, album, and artist metadata from Faircamp and other HTML feeds.
-* **Consolidated Entity Decoder**: Replaced fragmented ad-hoc entity parsing with a comprehensive, unified decoding pipeline across all catalog ingestion, podcast RSS, radio feeds, and playback queue normalization.
-* **Repository & Build Hygiene**: Expanded \`.gitignore\` with standard app bundle (\`*.aab\`, \`*.ipa\`), test coverage, and platform-specific rules.
-* **Web App & Shell Updated**: Rebuilt Android native web shell bundle and GitHub Pages web app bundle.
+* **Offline Library Organization & Universal Catalog (\`nimue-library.json\`)**: Create, rename, and delete albums, rename tracks, and move tracks between albums with full album and artist inheritance persisted to \`/music/nimue-library.json\` in a unified Faircamp/Mirlo schema.
+* **Downloaded Track Precedence & Faircamp/Mirlo Matching**: Downloaded tracks automatically pair with and take precedence over play-limited cloud preview tracks on matched albums (including contributor-tagged and accented titles).
+* **Streamlined Track Selection & Loading Indicators**: Long-press any downloaded track to enter bulk selection mode (rename, move to album, or delete) with the swirling droplet spinner during track and album updates.
+* **Audio Duration Parsing & Curated Radio**: Added native duration parsing across MP3, FLAC, M4A, Ogg/Opus, and WAV files, plus updated curated international radio streams.
+* **Web App & Shell Updated**: Rebuilt Android native web shell bundle, Cloudflare Worker, and GitHub Pages web app bundle.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

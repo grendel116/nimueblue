@@ -62,6 +62,7 @@ export function toPlayerTrack(
       "",
   );
   const rawArtist =
+    saved?.artist ||
     (typeof t.artist === "string" && t.artist) ||
     (t.artist as any)?.name ||
     t.trackArtists?.[0]?.artistName ||
@@ -69,14 +70,19 @@ export function toPlayerTrack(
     fallback.artist ||
     "";
   const artist = decodeHtmlEntities(rawArtist);
-  const title = t.title ? decodeHtmlEntities(t.title) : t.title;
+  const rawTitle = saved?.title || t.title;
+  const title = rawTitle ? decodeHtmlEntities(rawTitle) : rawTitle;
 
   let cleanTrackGroup = t.trackGroup;
   if (t.trackGroup && typeof t.trackGroup === "object") {
     const { tracks: _tracks, ...restGroup } = t.trackGroup as AlbumProps;
+    const groupTitle = saved?.albumTitle || restGroup.title;
     cleanTrackGroup = {
       ...restGroup,
-      title: restGroup.title ? decodeHtmlEntities(restGroup.title) : restGroup.title,
+      title: groupTitle ? decodeHtmlEntities(groupTitle) : groupTitle,
+      artist: restGroup.artist
+        ? { ...restGroup.artist, name: artist || restGroup.artist.name }
+        : ({ name: artist } as Artist),
     };
   }
 
@@ -84,6 +90,7 @@ export function toPlayerTrack(
     ...t,
     title,
     trackGroup: cleanTrackGroup,
+    trackArtists: saved?.artist ? undefined : t.trackArtists,
     url: streamUrl,
     headers: saved ? {} : t.headers || { "mirlo-api-key": API_KEY },
     type: saved ? TrackType.Default : t.type || audioTrackType(streamUrl),

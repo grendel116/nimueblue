@@ -16,7 +16,12 @@ import {
   replenishDiscoveryReservoir,
   DISCOVERY_BUFFER_SIZE,
 } from "@/scripts/autoplay";
-import { findDownload, getDownloadedTracks, subscribeDownloads } from "@/scripts/downloadManager";
+import {
+  findDownload,
+  getDownloadedTracks,
+  subscribeDownloads,
+  updateDownloadedTracks,
+} from "@/scripts/downloadManager";
 import {
   getTrackPlayCounts,
   isPlaybackLimitReached,
@@ -466,13 +471,21 @@ export function createPlayerHost(): PlayerHost {
     }
   }
 
-  // Counts a play once half the song has been heard
+  // Counts a play once half the song has been heard, and records the duration of any saved song
+  // that was missing one
   const onProgress = async ({ position, duration }: { position: number; duration: number }) => {
+    const track = queue.current?.track;
+    if (track && duration > 0 && Number.isFinite(duration)) {
+      const dl = findDownload(track);
+      if (dl && (!dl.duration || dl.duration <= 0)) {
+        const rounded = Math.round(duration);
+        updateDownloadedTracks([dl.id], { duration: rounded }).catch(() => {});
+      }
+    }
     const ratio = duration > 0 ? position / duration : 0;
     if (ratio < 0.05) countedPlay = false;
     if (countedPlay || ratio < 0.5) return;
     countedPlay = true;
-    const track = queue.current?.track;
     const id = track?.id;
     if (!track || isOnPhone(track) || !isMirloTrack(track)) return;
     if (typeof id !== "number" || !Number.isInteger(id) || id <= 0) return;
@@ -522,13 +535,82 @@ export function createPlayerHost(): PlayerHost {
     }),
   ];
 
-  // A deleted download leaves the queue, so the player never reaches a missing file
+  // A deleted download leaves the queue, and edited downloads update their metadata/URLs in place
   const stopDownloads = subscribeDownloads((saved) => {
-    const urls = new Set(saved.map((d) => d.url));
-    const deleted = (t: RNTrack) => !!t.url?.startsWith("file://") && !urls.has(t.url);
+    const urls = new Set(saved.map((d) => d.url).filter(Boolean));
+    const byId = new Map(saved.map((d) => [d.id, d]));
+    const isLocalUrl = (url?: string) =>
+      Boolean(url?.startsWith("file://") || url?.startsWith("content://"));
+    const deleted = (t: RNTrack) =>
+      isLocalUrl(t.url) && !urls.has(t.url) && (t.id === undefined || !byId.has(t.id));
+    const syncTrackMeta = (t: RNTrack): { track: RNTrack; changed: boolean } => {
+      const dl = t.id !== undefined ? byId.get(t.id) : undefined;
+      if (!dl) return { track: t, changed: false };
+      const nextTitle = dl.title || t.title;
+      const nextArtist = dl.artist || t.artist;
+      const nextUrl = dl.url || t.url;
+      const nextAlbumTitle = dl.albumTitle || t.trackGroup?.title;
+      if (
+        nextTitle === t.title &&
+        nextArtist === t.artist &&
+        nextUrl === t.url &&
+        nextAlbumTitle === t.trackGroup?.title
+      ) {
+        return { track: t, changed: false };
+      }
+      return {
+        changed: true,
+        track: {
+          ...t,
+          title: nextTitle,
+          artist: nextArtist,
+          url: nextUrl,
+          audio: t.audio ? { ...t.audio, url: nextUrl } : t.audio,
+          trackGroup: t.trackGroup
+            ? {
+                ...t.trackGroup,
+                title: nextAlbumTitle || t.trackGroup.title,
+                artist: t.trackGroup.artist
+                  ? { ...t.trackGroup.artist, name: nextArtist }
+                  : ({ name: nextArtist } as Artist),
+              }
+            : t.trackGroup,
+        },
+      };
+    };
+
     run(async () => {
-      const next = Q.removeWhere(queue, deleted);
-      if (Q.allTracks(next).length !== Q.allTracks(queue).length) await commit(next);
+      let next = Q.removeWhere(queue, deleted);
+      let metaChanged = false;
+      const mapList = (list: RNTrack[]) =>
+        list.map((t) => {
+          const res = syncTrackMeta(t);
+          if (res.changed) metaChanged = true;
+          return res.track;
+        });
+      const currentRes = next.current ? syncTrackMeta(next.current.track) : undefined;
+      if (currentRes?.changed) metaChanged = true;
+      const nextUserQueue = mapList(next.userQueue);
+      const nextUp = mapList(next.nextUp);
+      const nextHistory = next.history.map((h) => {
+        const res = syncTrackMeta(h.track);
+        if (res.changed) metaChanged = true;
+        return res.changed ? { ...h, track: res.track } : h;
+      });
+      const nextSourceOrder = mapList(next.sourceOrder);
+      if (metaChanged) {
+        next = {
+          ...next,
+          current: next.current && currentRes ? { ...next.current, track: currentRes.track } : next.current,
+          userQueue: nextUserQueue,
+          nextUp,
+          history: nextHistory,
+          sourceOrder: nextSourceOrder,
+        };
+      }
+      if (metaChanged || Q.allTracks(next).length !== Q.allTracks(queue).length) {
+        await commit(next);
+      }
     });
   });
   const stopCounts = subscribePlayCounts(announce);

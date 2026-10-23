@@ -2,20 +2,24 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
-import { useDownloads } from "@/scripts/downloadManager";
+import { findDownload, useDownloads } from "@/scripts/downloadManager";
 import { CAN_DOWNLOAD, removeDownloads } from "@/scripts/offlineFiles";
 import { showError } from "@/scripts/showError";
 
 // Removes a song saved on the device
 export default function DownloadTrackButton({
   track,
+  album,
   size = 17,
 }: {
   track: RNTrack;
   album: AlbumProps;
   size?: number;
 }) {
-  const saved = useDownloads().find((d) => d.id === track.id);
+  const downloads = useDownloads();
+  const saved =
+    downloads.find((d) => d.id === track.id) ??
+    findDownload({ ...track, trackGroup: album });
   const [busy, setBusy] = useState(false);
 
   if (!CAN_DOWNLOAD || !saved) return null;

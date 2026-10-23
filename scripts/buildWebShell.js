@@ -72,6 +72,9 @@ if (fs.existsSync(jsDir)) {
 
 // Sync to local android project if present
 try {
+  if (fs.existsSync(androidAssetsDir)) {
+    fs.rmSync(androidAssetsDir, { recursive: true, force: true });
+  }
   fs.mkdirSync(androidAssetsDir, { recursive: true });
   fs.cpSync(assetsWebDir, androidAssetsDir, { recursive: true });
   console.log("Synced assets/web to", androidAssetsDir);

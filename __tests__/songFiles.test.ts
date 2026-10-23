@@ -1,13 +1,24 @@
 import {
   albumFolderPath,
+  buildMusicFolderManifest,
+  folderAlbumAndArtist,
   folderChanges,
+  isManifestFileName,
   matchTrack,
   namesFromFile,
+  parseMusicFolderManifest,
   pickCover,
   songDetails,
   songFileName,
+  targetTrackPath,
 } from "@/scripts/songFiles";
-import { DownloadedTrack, linkedTrack, storedTrack } from "@/scripts/downloadManager";
+import {
+  DownloadedTrack,
+  groupTracksIntoAlbums,
+  linkedTrack,
+  mergeAlbumWithDownloads,
+  storedTrack,
+} from "@/scripts/downloadManager";
 
 const tracks = [
   { id: 11, title: "Opening", order: 1 },
@@ -98,5 +109,261 @@ describe("saved song records", () => {
     expect(linkedTrack(stored, links)).toMatchObject({ url: "blob:a", artwork: "blob:c" });
     expect(linkedTrack(stored, { audio: new Map(), covers: new Map() }).url).toBe("");
     expect(linkedTrack(base, links)).toBe(base);
+  });
+
+  it("computes universal schema flat track paths in /music and parses them back on rescan", () => {
+    expect(
+      targetTrackPath({
+        title: "New Name",
+        artist: "My Artist",
+        albumTitle: "My Album",
+        order: 2,
+        path: "Old Artist/Old Album/01 Old Name.flac",
+      }),
+    ).toEqual({
+      dirPath: "",
+      fileName: "My Artist - My Album - 02 - New Name.flac",
+      fullPath: "My Artist - My Album - 02 - New Name.flac",
+    });
+
+    expect(namesFromFile("My Artist - My Album - 02 - New Name.flac")).toEqual({
+      artist: "My Artist",
+      album: "My Album",
+      track: 2,
+      title: "New Name",
+    });
+
+    expect(songDetails({}, "My Artist - My Album - 02 - New Name.flac", 0)).toEqual({
+      title: "New Name",
+      artist: "My Artist",
+      albumTitle: "My Album",
+      order: 2,
+    });
+
+    expect(folderAlbumAndArtist("My Artist/My Album")).toEqual({
+      artist: "My Artist",
+      album: "My Album",
+    });
+  });
+
+  it("pairs loose downloaded tracks with online album tracks, inherits album artist, and strips .mp3 from titles", () => {
+    const onlineAlbum = {
+      id: 3613,
+      title: "Prigioniero",
+      artist: { name: "Politburo " },
+      tracks: [
+        {
+          id: 21647,
+          title: "Aiuto",
+          order: 1,
+          isPreview: true,
+          url: "https://api.mirlo.space/v1/tracks/21647/stream/playlist.m3u8",
+          trackArtists: [{ artistName: "F. Cecere-E. Cecere S. Bellissima" }],
+        },
+        {
+          id: 21650,
+          title: "Marie Josè",
+          order: 4,
+          isPreview: true,
+          url: "https://api.mirlo.space/v1/tracks/21650/stream/playlist.m3u8",
+          trackArtists: [{ artistName: "F. Cecere-E. Cecere S. Bellissima" }],
+        },
+        {
+          id: 21655,
+          title: "Tradito.mp3",
+          order: 8,
+          isPreview: true,
+          url: "https://api.mirlo.space/v1/tracks/21655/stream/playlist.m3u8",
+          trackArtists: [{ artistName: "fabio cecere" }],
+        },
+      ],
+    } as unknown as AlbumProps;
+
+    const allDownloads: DownloadedTrack[] = [
+      {
+        id: -101,
+        title: "Aiuto",
+        artist: "F. Cecere-E. Cecere S. Bellissima",
+        albumTitle: "Imported Audio",
+        order: 1,
+        duration: 269,
+        url: "file:///music/Aiuto.mp3",
+        downloadedAt: 1,
+        source: "file",
+      },
+      {
+        id: -104,
+        title: "Marie Jose",
+        artist: "F. Cecere-E. Cecere S. Bellissima",
+        albumTitle: "Prigioniero",
+        order: 4,
+        duration: 205,
+        url: "file:///music/Marie Jose.mp3",
+        downloadedAt: 2,
+        source: "file",
+      },
+      {
+        id: -108,
+        title: "Tradito",
+        artist: "Politburo",
+        albumTitle: "Prigioniero",
+        order: 8,
+        duration: 197,
+        url: "file:///music/Tradito.mp3",
+        downloadedAt: 3,
+        source: "file",
+      },
+    ];
+
+    const savedAlbum = groupTracksIntoAlbums(allDownloads).find((a) => a.title === "Prigioniero");
+    const merged = mergeAlbumWithDownloads(onlineAlbum, savedAlbum, allDownloads);
+    expect(
+      merged.tracks?.map((t) => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        trackArtists: t.trackArtists,
+        isPreview: t.isPreview,
+        url: t.url,
+      })),
+    ).toEqual([
+      {
+        id: -101,
+        title: "Aiuto",
+        artist: "Politburo",
+        trackArtists: undefined,
+        isPreview: false,
+        url: "file:///music/Aiuto.mp3",
+      },
+      {
+        id: -104,
+        title: "Marie Jose",
+        artist: "Politburo",
+        trackArtists: undefined,
+        isPreview: false,
+        url: "file:///music/Marie Jose.mp3",
+      },
+      {
+        id: -108,
+        title: "Tradito",
+        artist: "Politburo",
+        trackArtists: undefined,
+        isPreview: false,
+        url: "file:///music/Tradito.mp3",
+      },
+    ]);
+  });
+
+  it("serializes and parses nimue-library.json in the Faircamp/Mirlo universal schema", () => {
+    expect(isManifestFileName("nimue-library.json")).toBe(true);
+    expect(isManifestFileName("A/nimue-library.json")).toBe(true);
+    expect(isManifestFileName("song.mp3")).toBe(false);
+
+    const manifest = buildMusicFolderManifest(
+      [
+        {
+          id: -1,
+          path: "01 Aiuto.mp3",
+          title: "Aiuto",
+          artist: "Politburo",
+          albumTitle: "Prigioniero",
+          order: 1,
+          duration: 269,
+        },
+      ],
+      [
+        {
+          key: "album:prigioniero",
+          title: "Prigioniero",
+          artist: "Politburo",
+          artwork: "cover.jpg",
+          createdAt: 1000,
+        },
+      ],
+    );
+
+    expect(manifest.albums["album:prigioniero"]).toEqual({
+      title: "Prigioniero",
+      artist: "Politburo",
+      artwork: "cover.jpg",
+      createdAt: 1000,
+    });
+    expect(manifest.tracks["01 Aiuto.mp3"]).toMatchObject({
+      title: "Aiuto",
+      albumKey: "album:prigioniero",
+      order: 1,
+      duration: 269,
+    });
+
+    const parsed = parseMusicFolderManifest(JSON.stringify(manifest));
+    expect(parsed).toEqual(manifest);
+  });
+
+  it("merges online album tracks with downloaded tracks and appends extra or duplicate downloads", () => {
+    const onlineAlbum = {
+      id: 100,
+      title: "Faircamp Release",
+      artist: { name: "Synth Artist" },
+      tracks: [
+        { id: 10, title: "Opening", order: 1, url: "https://example.com/1.mp3" },
+        { id: 11, title: "Middle", order: 2, url: "https://example.com/2.mp3" },
+      ],
+    } as unknown as AlbumProps;
+
+    const savedTracks: DownloadedTrack[] = [
+      {
+        id: -1,
+        title: "Opening",
+        artist: "Synth Artist",
+        albumTitle: "Faircamp Release",
+        order: 1,
+        duration: 180,
+        url: "file:///music/1.flac",
+        downloadedAt: 1,
+        source: "file",
+      },
+      {
+        id: -2,
+        title: "Opening",
+        artist: "Synth Artist",
+        albumTitle: "Faircamp Release",
+        order: 1,
+        duration: 180,
+        url: "file:///music/1-copy.flac",
+        downloadedAt: 2,
+        source: "file",
+      },
+      {
+        id: -3,
+        title: "Middle (Renamed)",
+        artist: "Synth Artist",
+        albumTitle: "Faircamp Release",
+        order: 2,
+        duration: 200,
+        url: "file:///music/2.flac",
+        downloadedAt: 3,
+        source: "file",
+      },
+      {
+        id: -4,
+        title: "Secret Bonus Track",
+        artist: "Synth Artist",
+        albumTitle: "Faircamp Release",
+        order: 3,
+        duration: 240,
+        url: "file:///music/3.flac",
+        downloadedAt: 4,
+        source: "file",
+      },
+    ];
+
+    const savedAlbum = groupTracksIntoAlbums(savedTracks)[0];
+    const merged = mergeAlbumWithDownloads(onlineAlbum, savedAlbum);
+    expect(merged.tracks?.map((t) => ({ id: t.id, title: t.title, order: t.order }))).toEqual([
+      { id: -1, title: "Opening", order: 1 },
+      { id: -2, title: "Opening", order: 1 },
+      { id: -3, title: "Middle (Renamed)", order: 2 },
+      { id: -4, title: "Secret Bonus Track", order: 3 },
+    ]);
   });
 });

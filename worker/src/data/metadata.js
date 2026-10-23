@@ -37,7 +37,7 @@ export const RADIO_STATION_META = {
     name: "WFMU 91.1 FM",
     artist: "Live from Jersey City",
     art: "https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/12/46/a8/1246a8d2-9aac-c896-868b-c9f78c278c6e/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.jpeg/512x512bb.jpg",
-    audio: "https://stream0.wfmu.org/freeform-128k",
+    audio: "https://stream0.wfmu.org/freeform-128k.mp3",
     web: "https://wfmu.org/playlists/",
     app: "/station/wfmu",
   },
@@ -80,6 +80,22 @@ export const RADIO_STATION_META = {
     audio: "https://streaming.radio.co/s3699c5e49/listen",
     web: "https://refugeworldwide.com/radio",
     app: "/station/refuge",
+  },
+  "bangkok-community-radio": {
+    name: "Bangkok Community Radio",
+    artist: "Live from Bangkok, Thailand",
+    art: "https://unify-fm-bucket.s3.us-west-2.amazonaws.com/bangkok_community_radio_logo.jpg",
+    audio: "https://bcr.radiocult.fm/stream",
+    web: "https://bangkokcommunityradio.com",
+    app: "/station/bangkok-community-radio",
+  },
+  "imx-fm": {
+    name: "听梦想FM (IMX.FM)",
+    artist: "Live from China",
+    art: "https://imx.fm/wp-content/uploads/2025/09/logo.png",
+    audio: "https://lhttp-hw.qtfm.cn/live/4917/64k.mp3",
+    web: "https://imx.fm",
+    app: "/station/imx-fm",
   },
 };
 
