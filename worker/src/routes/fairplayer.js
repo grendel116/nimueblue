@@ -1,13 +1,7 @@
-export const FAIRPLAYER_ROOT = "https://fairplayer.band";
+import { decodeHtmlAttribute, decodeHtmlEntities } from "../lib/html.js";
 
-export function decodeHtmlAttribute(value) {
-  return value
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&amp;/gi, "&");
-}
+export const FAIRPLAYER_ROOT = "https://fairplayer.band";
+export { decodeHtmlAttribute, decodeHtmlEntities };
 
 export function getHtmlAttribute(tag, name) {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -162,7 +156,7 @@ export function parseFaircampPageTracks(pageHtml, releaseUrl) {
   const titleRegex = /<a[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
   let titleMatch;
   while ((titleMatch = titleRegex.exec(pageHtml)) !== null) {
-    const t = titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    const t = decodeHtmlEntities(titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
     if (t) titles.push(t);
   }
 
@@ -241,9 +235,11 @@ export function assembleFairplayerAlbum({
   if (!songs.length) return null;
 
   const h1Match = releaseHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
-  const albumTitle = h1Match
-    ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
-    : getHtmlAttribute(songs[0], "data-release") || releaseId;
+  const albumTitle = decodeHtmlEntities(
+    h1Match
+      ? h1Match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+      : getHtmlAttribute(songs[0], "data-release") || releaseId,
+  );
 
   const artistName = getHtmlAttribute(songs[0], "data-artist") || albumTitle;
   const artwork = getHtmlAttribute(songs[0], "data-image") || "";
@@ -268,7 +264,7 @@ export function assembleFairplayerAlbum({
   if (pageHtml) {
     const abstractMatch = pageHtml.match(/<div\b[^>]*\bclass=["'][^"']*\babstract\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
     if (abstractMatch) {
-      about = abstractMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      about = decodeHtmlEntities(abstractMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
     }
     if (!about) {
       const ogDescMatch = pageHtml.match(/<meta\b[^>]*\bproperty=["']og:description["'][^>]*\bcontent=["']([^"']*)["']/i);

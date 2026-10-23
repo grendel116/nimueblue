@@ -20,18 +20,30 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 *.apk
+*.aab
+*.ipa
 
 # Metro
 .metro-health-check*
 
-# debug
+# Test coverage
+coverage/
+
+# Debug and logs
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# OS metadata
 .DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
 *.pem
+
+# IDEs
+.idea/
 
 # local env files
 .env*.local

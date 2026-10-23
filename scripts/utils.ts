@@ -238,6 +238,180 @@ export const isTrackOwned = (
   return ownsTrack || boughtTrack || boughtTrackGroup;
 };
 
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  // XML basics
+  quot: '"',
+  amp: "&",
+  apos: "'",
+  lt: "<",
+  gt: ">",
+
+  // Whitespace and symbols
+  nbsp: " ",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  deg: "°",
+  plusmn: "±",
+  micro: "µ",
+  para: "¶",
+  sect: "§",
+  middot: "·",
+  bull: "•",
+  euro: "€",
+  pound: "£",
+  yen: "¥",
+  cent: "¢",
+  times: "×",
+  divide: "÷",
+
+  // Normalized Punctuation & Quotes (straightened for search and display consistency)
+  lsquo: "'",
+  rsquo: "'",
+  sbquo: "'",
+  ldquo: '"',
+  rdquo: '"',
+  bdquo: '"',
+  laquo: '"',
+  raquo: '"',
+  lsaquo: "'",
+  rsaquo: "'",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+  prime: "′",
+  Prime: "″",
+
+  // Accented Latin characters
+  aacute: "á", Aacute: "Á",
+  agrave: "à", Agrave: "À",
+  acirc: "â", Acirc: "Â",
+  atilde: "ã", Atilde: "Ã",
+  auml: "ä", Auml: "Ä",
+  aring: "å", Aring: "Å",
+  aelig: "æ", AElig: "Æ",
+  ccedil: "ç", Ccedil: "Ç",
+  eacute: "é", Eacute: "É",
+  egrave: "è", Egrave: "È",
+  ecirc: "ê", Ecirc: "Ê",
+  euml: "ë", Euml: "Ë",
+  iacute: "í", Iacute: "Í",
+  igrave: "ì", Igrave: "Ì",
+  icirc: "î", Icirc: "Î",
+  iuml: "ï", Iuml: "Ï",
+  ntilde: "ñ", Ntilde: "Ñ",
+  oacute: "ó", Oacute: "Ó",
+  ograve: "ò", Ograve: "Ò",
+  ocirc: "ô", Ocirc: "Ô",
+  otilde: "õ", Otilde: "Õ",
+  ouml: "ö", Ouml: "Ö",
+  oslash: "ø", Oslash: "Ø",
+  oelig: "œ", OElig: "Œ",
+  szlig: "ß",
+  uacute: "ú", Uacute: "Ú",
+  ugrave: "ù", Ugrave: "Ù",
+  ucirc: "û", Ucirc: "Û",
+  uuml: "ü", Uuml: "Ü",
+  yacute: "ý", Yacute: "Ý",
+  yuml: "ÿ", Yuml: "Ÿ",
+  thorn: "þ", THORN: "Þ",
+  eth: "ð", ETH: "Ð",
+};
+
+const WINDOWS_1252_MAP: Record<number, string> = {
+  128: "€",
+  130: "'",
+  131: "ƒ",
+  132: '"',
+  133: "…",
+  134: "†",
+  135: "‡",
+  136: "ˆ",
+  137: "‰",
+  138: "Š",
+  139: "'",
+  140: "Œ",
+  142: "Ž",
+  145: "'",
+  146: "'",
+  147: '"',
+  148: '"',
+  149: "•",
+  150: "–",
+  151: "—",
+  152: "˜",
+  153: "™",
+  154: "š",
+  155: "'",
+  156: "œ",
+  158: "ž",
+  159: "Ÿ",
+};
+
+const CODE_POINT_NORMALIZATIONS: Record<number, string> = {
+  8216: "'", // ‘
+  8217: "'", // ’
+  8218: "'", // ‚
+  8219: "'", // ‛
+  8220: '"', // “
+  8221: '"', // ”
+  8222: '"', // „
+  8223: '"', // ‟
+  8249: "'", // ‹
+  8250: "'", // ›
+  171: '"',  // «
+  187: '"',  // »
+};
+
+/**
+ * Decodes standard HTML entities, hexadecimal numeric entities (&#x27;),
+ * decimal numeric entities (&#39;), and legacy Windows-1252 entity codes.
+ */
+export function decodeHtmlEntities(raw?: string): string {
+  if (!raw || typeof raw !== "string" || !raw.includes("&")) return raw || "";
+
+  return raw.replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z0-9]+);/gi,
+    (match, entity: string) => {
+      if (entity.startsWith("#x") || entity.startsWith("#X")) {
+        const code = parseInt(entity.slice(2), 16);
+        if (!isNaN(code)) {
+          if (CODE_POINT_NORMALIZATIONS[code]) return CODE_POINT_NORMALIZATIONS[code];
+          if (WINDOWS_1252_MAP[code]) return WINDOWS_1252_MAP[code];
+          if (code >= 0 && code <= 0x10ffff) {
+            try {
+              return String.fromCodePoint(code);
+            } catch {
+              return match;
+            }
+          }
+        }
+        return match;
+      }
+      if (entity.startsWith("#")) {
+        const code = parseInt(entity.slice(1), 10);
+        if (!isNaN(code)) {
+          if (CODE_POINT_NORMALIZATIONS[code]) return CODE_POINT_NORMALIZATIONS[code];
+          if (WINDOWS_1252_MAP[code]) return WINDOWS_1252_MAP[code];
+          if (code >= 0 && code <= 0x10ffff) {
+            try {
+              return String.fromCodePoint(code);
+            } catch {
+              return match;
+            }
+          }
+        }
+        return match;
+      }
+      return (
+        NAMED_HTML_ENTITIES[entity] ??
+        NAMED_HTML_ENTITIES[entity.toLowerCase()] ??
+        match
+      );
+    },
+  );
+}
+
 /**
  * Converts rich HTML formatting (e.g. from Faircamp/Chorus feeds) to clean Markdown.
  */
@@ -245,26 +419,18 @@ export function htmlToMarkdown(html?: string): string {
   if (!html || typeof html !== "string") return "";
   if (!html.includes("<") && !html.includes("&")) return html;
 
-  return html
-    .replace(/<p[^>]*>/gi, "")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
-    .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/(strong|b)>/gi, "**$2**")
-    .replace(/<(em|i)[^>]*>([\s\S]*?)<\/(em|i)>/gi, "*$2*")
-    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n")
-    .replace(/<\/?(ul|ol)[^>]*>/gi, "\n")
-    .replace(/&rsquo;|&lsquo;|&#8217;|&#8216;|&apos;|&#39;/g, "'")
-    .replace(/&ldquo;|&rdquo;|&#8220;|&#8221;|&quot;/g, '"')
-    .replace(/&hellip;|&#8230;/g, "...")
-    .replace(/&mdash;|&#8212;/g, "—")
-    .replace(/&ndash;|&#8211;/g, "–")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/<[^>]+>/g, "")
+  return decodeHtmlEntities(
+    html
+      .replace(/<p[^>]*>/gi, "")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)")
+      .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/(strong|b)>/gi, "**$2**")
+      .replace(/<(em|i)[^>]*>([\s\S]*?)<\/(em|i)>/gi, "*$2*")
+      .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, "- $1\n")
+      .replace(/<\/?(ul|ol)[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+  )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

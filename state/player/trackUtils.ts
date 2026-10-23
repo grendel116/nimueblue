@@ -1,5 +1,5 @@
 import { TrackType } from "react-native-track-player";
-import { audioTrackType, resolveArtworkUrl } from "@/scripts/utils";
+import { audioTrackType, decodeHtmlEntities, resolveArtworkUrl } from "@/scripts/utils";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
 import { findDownload, nameKey, sameAlbum } from "@/scripts/downloadManager";
@@ -61,22 +61,28 @@ export function toPlayerTrack(
       fallback.artwork ||
       "",
   );
-  const artist =
+  const rawArtist =
     (typeof t.artist === "string" && t.artist) ||
     (t.artist as any)?.name ||
     t.trackArtists?.[0]?.artistName ||
     t.trackGroup?.artist?.name ||
     fallback.artist ||
     "";
+  const artist = decodeHtmlEntities(rawArtist);
+  const title = t.title ? decodeHtmlEntities(t.title) : t.title;
 
   let cleanTrackGroup = t.trackGroup;
   if (t.trackGroup && typeof t.trackGroup === "object") {
     const { tracks: _tracks, ...restGroup } = t.trackGroup as AlbumProps;
-    cleanTrackGroup = restGroup;
+    cleanTrackGroup = {
+      ...restGroup,
+      title: restGroup.title ? decodeHtmlEntities(restGroup.title) : restGroup.title,
+    };
   }
 
   return {
     ...t,
+    title,
     trackGroup: cleanTrackGroup,
     url: streamUrl,
     headers: saved ? {} : t.headers || { "mirlo-api-key": API_KEY },

@@ -301,6 +301,25 @@ describe("Fairplayer Faircamp catalog integration", () => {
 
     expect(album.about).toBe("A release description with & decoded text.");
   });
+  test("decodes hexadecimal and named entities in track titles and release metadata", () => {
+    const album = parseFairplayerRelease(
+      `
+        <h1>Nadal a 10 bandes (Vol. 2)</h1>
+        <div class="song"
+          data-id="1"
+          data-title="Salms d&#x27;obedi&egrave;ncia lluciferiana"
+          data-duration="135"
+          data-url="https://mandanga.cat/nadal/01.opus"
+          data-image="https://images.example/nadal.jpg"
+          data-artist="Mandanga!">
+        </div>
+      `,
+      fairplayerReleaseSlug.encode("nadal@mandanga.cat"),
+    );
+
+    expect(album.tracks?.[0].title).toBe("Salms d'obediència lluciferiana");
+  });
+
 
   test("extracts abstract, page_more About markdown, banner image, and external links from Faircamp HTML", () => {
     const html = `

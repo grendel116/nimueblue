@@ -8,6 +8,184 @@ export function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+const NAMED_HTML_ENTITIES = {
+  // XML basics
+  quot: '"',
+  amp: "&",
+  apos: "'",
+  lt: "<",
+  gt: ">",
+
+  // Whitespace and symbols
+  nbsp: " ",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  deg: "°",
+  plusmn: "±",
+  micro: "µ",
+  para: "¶",
+  sect: "§",
+  middot: "·",
+  bull: "•",
+  euro: "€",
+  pound: "£",
+  yen: "¥",
+  cent: "¢",
+  times: "×",
+  divide: "÷",
+
+  // Normalized Punctuation & Quotes (straightened for search and display consistency)
+  lsquo: "'",
+  rsquo: "'",
+  sbquo: "'",
+  ldquo: '"',
+  rdquo: '"',
+  bdquo: '"',
+  laquo: '"',
+  raquo: '"',
+  lsaquo: "'",
+  rsaquo: "'",
+  hellip: "…",
+  mdash: "—",
+  ndash: "–",
+  prime: "′",
+  Prime: "″",
+
+  // Accented Latin characters
+  aacute: "á", Aacute: "Á",
+  agrave: "à", Agrave: "À",
+  acirc: "â", Acirc: "Â",
+  atilde: "ã", Atilde: "Ã",
+  auml: "ä", Auml: "Ä",
+  aring: "å", Aring: "Å",
+  aelig: "æ", AElig: "Æ",
+  ccedil: "ç", Ccedil: "Ç",
+  eacute: "é", Eacute: "É",
+  egrave: "è", Egrave: "È",
+  ecirc: "ê", Ecirc: "Ê",
+  euml: "ë", Euml: "Ë",
+  iacute: "í", Iacute: "Í",
+  igrave: "ì", Igrave: "Ì",
+  icirc: "î", Icirc: "Î",
+  iuml: "ï", Iuml: "Ï",
+  ntilde: "ñ", Ntilde: "Ñ",
+  oacute: "ó", Oacute: "Ó",
+  ograve: "ò", Ograve: "Ò",
+  ocirc: "ô", Ocirc: "Ô",
+  otilde: "õ", Otilde: "Õ",
+  ouml: "ö", Ouml: "Ö",
+  oslash: "ø", Oslash: "Ø",
+  oelig: "œ", OElig: "Œ",
+  szlig: "ß",
+  uacute: "ú", Uacute: "Ú",
+  ugrave: "ù", Ugrave: "Ù",
+  ucirc: "û", Ucirc: "Û",
+  uuml: "ü", Uuml: "Ü",
+  yacute: "ý", Yacute: "Ý",
+  yuml: "ÿ", Yuml: "Ÿ",
+  thorn: "þ", THORN: "Þ",
+  eth: "ð", ETH: "Ð",
+};
+
+const WINDOWS_1252_MAP = {
+  128: "€",
+  130: "'",
+  131: "ƒ",
+  132: '"',
+  133: "…",
+  134: "†",
+  135: "‡",
+  136: "ˆ",
+  137: "‰",
+  138: "Š",
+  139: "'",
+  140: "Œ",
+  142: "Ž",
+  145: "'",
+  146: "'",
+  147: '"',
+  148: '"',
+  149: "•",
+  150: "–",
+  151: "—",
+  152: "˜",
+  153: "™",
+  154: "š",
+  155: "'",
+  156: "œ",
+  158: "ž",
+  159: "Ÿ",
+};
+
+const CODE_POINT_NORMALIZATIONS = {
+  8216: "'", // ‘
+  8217: "'", // ’
+  8218: "'", // ‚
+  8219: "'", // ‛
+  8220: '"', // “
+  8221: '"', // ”
+  8222: '"', // „
+  8223: '"', // ‟
+  8249: "'", // ‹
+  8250: "'", // ›
+  171: '"',  // «
+  187: '"',  // »
+};
+
+/**
+ * Decodes standard HTML entities, hexadecimal numeric entities (&#x27;),
+ * decimal numeric entities (&#39;), and legacy Windows-1252 entity codes.
+ */
+export function decodeHtmlEntities(raw) {
+  if (!raw || typeof raw !== "string" || !raw.includes("&")) return raw || "";
+
+  return raw.replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z0-9]+);/gi,
+    (match, entity) => {
+      if (entity.startsWith("#x") || entity.startsWith("#X")) {
+        const code = parseInt(entity.slice(2), 16);
+        if (!isNaN(code)) {
+          if (CODE_POINT_NORMALIZATIONS[code]) return CODE_POINT_NORMALIZATIONS[code];
+          if (WINDOWS_1252_MAP[code]) return WINDOWS_1252_MAP[code];
+          if (code >= 0 && code <= 0x10ffff) {
+            try {
+              return String.fromCodePoint(code);
+            } catch {
+              return match;
+            }
+          }
+        }
+        return match;
+      }
+      if (entity.startsWith("#")) {
+        const code = parseInt(entity.slice(1), 10);
+        if (!isNaN(code)) {
+          if (CODE_POINT_NORMALIZATIONS[code]) return CODE_POINT_NORMALIZATIONS[code];
+          if (WINDOWS_1252_MAP[code]) return WINDOWS_1252_MAP[code];
+          if (code >= 0 && code <= 0x10ffff) {
+            try {
+              return String.fromCodePoint(code);
+            } catch {
+              return match;
+            }
+          }
+        }
+        return match;
+      }
+      return (
+        NAMED_HTML_ENTITIES[entity] ??
+        NAMED_HTML_ENTITIES[entity.toLowerCase()] ??
+        match
+      );
+    },
+  );
+}
+
+export function decodeHtmlAttribute(value) {
+  return decodeHtmlEntities(value);
+}
+
 export function isQualityArtwork(rawUrl) {
   if (!rawUrl) return false;
   const lower = rawUrl.toLowerCase();

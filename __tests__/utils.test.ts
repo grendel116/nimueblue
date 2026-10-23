@@ -6,6 +6,7 @@ import {
   isQualityArtwork,
   resolveQualityArtworkSource,
   htmlToMarkdown,
+  decodeHtmlEntities,
 } from "@/scripts/utils";
 import { createMockUser } from "@/__mocks__/mockUser";
 import { createMockRNTrack } from "@/__mocks__/mockRNTrack";
@@ -264,5 +265,39 @@ describe("htmlToMarkdown", () => {
   test("converts HTML character entities to clean text", () => {
     const html = "It&rsquo;s &ldquo;Sockpuppet&rdquo; &amp; friends &mdash; enjoy!";
     expect(htmlToMarkdown(html)).toBe("It's \"Sockpuppet\" & friends — enjoy!");
+  });
+});
+
+describe("decodeHtmlEntities", () => {
+  test("decodes hexadecimal entities including apostrophes and quotes", () => {
+    expect(decodeHtmlEntities("Salms d&#x27;obediència lluciferi")).toBe("Salms d'obediència lluciferi");
+    expect(decodeHtmlEntities("Say &#x22;Hello&#x22;")).toBe('Say "Hello"');
+    expect(decodeHtmlEntities("Rock &#x26; Roll")).toBe("Rock & Roll");
+    expect(decodeHtmlEntities("Upper &#X27; case")).toBe("Upper ' case");
+  });
+
+  test("decodes decimal entities", () => {
+    expect(decodeHtmlEntities("It&#39;s an &#8217;apostrophe&#8217;")).toBe("It's an 'apostrophe'");
+    expect(decodeHtmlEntities("Price: &#36;100")).toBe("Price: $100");
+    expect(decodeHtmlEntities("Leading zeroes: &#039;")).toBe("Leading zeroes: '");
+  });
+
+  test("decodes legacy Windows-1252 numeric entities", () => {
+    expect(decodeHtmlEntities("It&#146;s &#147;great&#148;")).toBe('It\'s "great"');
+    expect(decodeHtmlEntities("Wait&#133; &#150; more")).toBe("Wait… – more");
+  });
+
+  test("decodes standard XML and named entities", () => {
+    expect(decodeHtmlEntities("Tom &amp; Jerry")).toBe("Tom & Jerry");
+    expect(decodeHtmlEntities("&quot;Mirlo&quot; &lt;band&gt;")).toBe('"Mirlo" <band>');
+    expect(decodeHtmlEntities("&apos;single&apos;")).toBe("'single'");
+    expect(decodeHtmlEntities("caf&eacute; &amp; cr&egrave;me")).toBe("café & crème");
+    expect(decodeHtmlEntities("Se&ntilde;or &ccedil;a va")).toBe("Señor ça va");
+  });
+
+  test("leaves text without entities unchanged", () => {
+    expect(decodeHtmlEntities("Plain Track Title")).toBe("Plain Track Title");
+    expect(decodeHtmlEntities(undefined)).toBe("");
+    expect(decodeHtmlEntities("")).toBe("");
   });
 });

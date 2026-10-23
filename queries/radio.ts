@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { audioTrackType, isQualityArtwork } from "@/scripts/utils";
+import { audioTrackType, decodeHtmlEntities, isQualityArtwork } from "@/scripts/utils";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 // A station plays as a 10-minute set in the queue, then playback moves on to what's next
@@ -136,21 +136,6 @@ type WfmuNow = {
   };
 };
 
-const HTML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-};
-
-function decodeHtml(text: string): string {
-  return text.replace(/&(#\d+|[a-z]+);/gi, (entity, code: string) =>
-    code.startsWith("#")
-      ? String.fromCharCode(Number(code.slice(1)))
-      : (HTML_ENTITIES[code.toLowerCase()] ?? entity),
-  );
-}
 
 const WFMU_LOGO =
   "https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/12/46/a8/1246a8d2-9aac-c896-868b-c9f78c278c6e/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.jpeg/512x512bb.jpg";
@@ -176,8 +161,8 @@ const WFMU: RadioStation = {
       return [
         {
           key: String(segment.id),
-          song: decodeHtml(segment.title_html),
-          artist: decodeHtml(segment.artist_html ?? ""),
+          song: decodeHtmlEntities(segment.title_html),
+          artist: decodeHtmlEntities(segment.artist_html ?? ""),
           airdate: now,
           artwork: toArtworkUrl(segment.image) || WFMU_LOGO,
         },
@@ -187,7 +172,7 @@ const WFMU: RadioStation = {
     return [
       {
         key: `show-${program.id}-${episode.id}`,
-        song: decodeHtml(program.title_html),
+        song: decodeHtmlEntities(program.title_html),
         artist: "WFMU",
         airdate: now,
         artwork: WFMU_LOGO,

@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { queryOptions } from "@tanstack/react-query";
 import type { TrackType } from "react-native-track-player";
-import { coverSizes, isQualityArtwork } from "@/scripts/utils";
+import { coverSizes, decodeHtmlEntities, isQualityArtwork } from "@/scripts/utils";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
@@ -32,35 +32,10 @@ export type PodcastShow = {
   fetchEpisodes: (signal?: AbortSignal) => Promise<PodcastEpisode[]>;
 };
 
-const XML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  "#8216": "'",
-  "#8217": "'",
-  "#8220": '"',
-  "#8221": '"',
-  "#8211": "–",
-  "#8212": "—",
-  "#8230": "…",
-};
-
 export function decodeXml(text: string): string {
   if (!text) return "";
-  return text
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&(#\d+|[a-z]+);/gi, (match, entity: string) => {
-      const code = entity.toLowerCase();
-      if (XML_ENTITIES[code]) return XML_ENTITIES[code];
-      if (code.startsWith("#")) {
-        const num = Number(code.slice(1));
-        return !isNaN(num) ? String.fromCharCode(num) : match;
-      }
-      return match;
-    })
-    .trim();
+  const cleaned = text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+  return decodeHtmlEntities(cleaned).trim();
 }
 
 export function parseDuration(raw: string | undefined): number | undefined {

@@ -1,5 +1,5 @@
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
-import { audioTrackType, coverSizes, shuffle } from "@/scripts/utils";
+import { audioTrackType, coverSizes, decodeHtmlEntities, shuffle } from "@/scripts/utils";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
 
 const FAIRPLAYER_ROOT = "https://fairplayer.band";
@@ -175,15 +175,6 @@ const voidHtmlTags = new Set([
   "track",
   "wbr",
 ]);
-
-function decodeHtmlEntities(str: string): string {
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'");
-}
 
 function parseHtml(html: string): HtmlNode {
   const root: HtmlNode = { nodeName: "#document", childNodes: [] };

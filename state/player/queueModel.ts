@@ -1,6 +1,7 @@
 // The queue as the listener sees it: history, the song playing, Your Queue, Next Up, then
 // Discovery. The player host owns it and gives the audio player the song playing and the next one.
 // Tracks arrive already prepared for the player (see toPlayerTrack)
+import { decodeHtmlEntities } from "@/scripts/utils";
 
 export type Section = "queue" | "nextUp" | "discovery";
 
@@ -48,17 +49,19 @@ export function toNormalizedTrack(t: RNTrack): RNTrack {
     (typeof cover === "string" ? cover : cover?.url) ||
     undefined;
 
-  const artistName =
+  const rawArtist =
     (typeof t.artist === "string" && t.artist) ||
     (t.artist as any)?.name ||
     t.trackArtists?.[0]?.artistName ||
     t.trackGroup?.artist?.name ||
     "Unknown Artist";
+  const artistName = decodeHtmlEntities(rawArtist);
+  const trackTitle = t.title ? decodeHtmlEntities(t.title) : t.title;
 
   const cleanGroup = t.trackGroup
     ? {
         id: t.trackGroup.id ?? t.trackGroupId ?? 0,
-        title: t.trackGroup.title || "",
+        title: t.trackGroup.title ? decodeHtmlEntities(t.trackGroup.title) : "",
         urlSlug: t.trackGroup.urlSlug || "",
         releaseDate: t.trackGroup.releaseDate || "",
         trackGroupId: t.trackGroup.trackGroupId ?? t.trackGroupId ?? 0,
@@ -90,6 +93,7 @@ export function toNormalizedTrack(t: RNTrack): RNTrack {
 
   return {
     ...t,
+    title: trackTitle,
     artwork,
     artist: artistName,
     trackGroup: cleanGroup as any,

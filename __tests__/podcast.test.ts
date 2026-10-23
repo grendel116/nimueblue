@@ -20,6 +20,7 @@ describe("decodeXml", () => {
     expect(decodeXml("War &amp; Peace")).toBe("War & Peace");
     expect(decodeXml("It&#8217;s a &#8220;quote&#8221;")).toBe("It's a \"quote\"");
     expect(decodeXml("Price: &#36;100")).toBe("Price: $100");
+    expect(decodeXml("Salms d&#x27;obedi&egrave;ncia")).toBe("Salms d'obediència");
   });
 
   test("handles empty or falsy strings", () => {
