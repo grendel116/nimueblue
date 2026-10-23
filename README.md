@@ -7,7 +7,7 @@ An independent audio player for Mirlo, Faircamp catalogs, community radio, podca
 ## Features
 
 - **Independent Music:** Streams releases from [Mirlo](https://mirlo.space) and verified self-hosted [Faircamp](https://simonrepp.com/faircamp/) catalogs discovered through the [Fairplayer hub](https://fairplayer.band/hub/).
-- **Global Community Radio:** Live broadcasts from curated independent stations and [Radio-Browser](https://www.radio-browser.info/), spanning community, freeform, pirate, Thai, Chinese, and world music radio.
+- **Global Community Radio:** Live broadcasts from curated independent stations and [Radio-Browser](https://www.radio-browser.info/), spanning community, freeform, pirate, and world music radio.
 - **Podcasts & Discussions:** Curated independent shows and federated discovery from the [Castopod Index](https://index.castopod.org/), played directly from publisher RSS enclosures.
 - **Direct Artist & Station Support:** Support and Donate actions link straight to the artist's release page (on Mirlo or their own Faircamp site) or the station's donation page.
 - **Offline & Local Library:** Downloads saved as standard tagged audio files, local file import, device-side likes and wishlist support for federated catalogs, and a unified queue.
