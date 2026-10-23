@@ -39,6 +39,7 @@ export default function SearchInput() {
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
+          underlineColorAndroid="transparent"
         />
         {searchValue.length > 0 && (
           <Pressable
@@ -84,6 +85,8 @@ const styles = StyleSheet.create({
     height: "100%",
     fontSize: 15,
     paddingVertical: 0,
+    outlineStyle: "none" as any,
+    outlineWidth: 0 as any,
   },
   clearBtn: {
     marginLeft: 6,

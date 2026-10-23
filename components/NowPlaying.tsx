@@ -35,7 +35,7 @@ import { findPodcastShow } from "@/queries/podcast";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
 import ShareTrackButton from "@/components/ShareTrackButton";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
-import { releaseSupportUrl } from "@/scripts/hostLinks";
+import { releasePageUrl } from "@/scripts/hostLinks";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { openInBrowser } from "@/scripts/openInBrowser";
 import { getRadioTimerElapsed, setRadioTimerElapsed } from "@/scripts/radioTimer";
@@ -441,7 +441,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
         <Player />
       </View>
 
-      {/* Support actions: radio donation, podcast support, or Mirlo artist support */}
+      {/* Support actions: radio donation, podcast support, or artist support */}
       {station ? (
         <Pressable
           onPress={() => openInBrowser(station.donatePage)}
@@ -450,7 +450,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
           accessibilityLabel={`Donate to ${station.name}`}
         >
           <Ionicons name="cash-outline" size={16} color={theme.colors.playButtonIcon} />
-          <Text style={styles.donateText}>Donate to {station.name}</Text>
+          <Text style={styles.donateText}>Donate</Text>
         </Pressable>
       ) : podcastShow?.supportUrl ? (
         <Pressable
@@ -460,9 +460,7 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
           accessibilityLabel={`Support ${podcastShow.name}`}
         >
           <Ionicons name="cash-outline" size={16} color={theme.colors.playButtonIcon} />
-          <Text style={styles.donateText} numberOfLines={1}>
-            Support {podcastShow.name}
-          </Text>
+          <Text style={styles.donateText}>Support</Text>
         </Pressable>
       ) : activeTrack ? (
         <SupportArtistButton track={activeTrack} />
@@ -510,13 +508,13 @@ function ProgressSection({ isLive }: { isLive: boolean }) {
   );
 }
 
-// Opens the artist's support page on the host the song comes from
+// Opens the release's purchase/support page on its host
 function SupportArtistButton({ track }: { track: RNTrack }) {
   const albumSlug = track.trackGroup?.urlSlug;
   const isFaircamp = Boolean(
     track.fairplayerTrackId || fairplayerReleaseSlug.decode(String(albumSlug || "")),
   );
-  const url = releaseSupportUrl({
+  const url = releasePageUrl({
     ...track.trackGroup,
     source: track.source || track.trackGroup?.source || (isFaircamp ? "Faircamp" : undefined),
     sourceUrl: track.trackGroup?.sourceUrl || track.sourceUrl || fairplayerReleaseSlug.siteUrl(albumSlug),
@@ -533,9 +531,7 @@ function SupportArtistButton({ track }: { track: RNTrack }) {
       accessibilityLabel={`Support ${artistName}`}
     >
       <Ionicons name="cash-outline" size={16} color={theme.colors.playButtonIcon} />
-      <Text style={styles.donateText} numberOfLines={1}>
-        Support {artistName}
-      </Text>
+      <Text style={styles.donateText}>Support</Text>
     </Pressable>
   );
 }

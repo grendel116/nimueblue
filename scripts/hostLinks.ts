@@ -22,7 +22,7 @@ function isMirlo(release: ReleaseLink): boolean {
   return (release.source ?? "Mirlo Space") === "Mirlo Space";
 }
 
-// Where the listener buys or downloads the release
+// Where the listener buys, downloads, or supports the release
 export function releasePageUrl(release: ReleaseLink): string | undefined {
   if (isMirlo(release)) {
     const artist = mirloArtistSlug(release);
@@ -31,22 +31,11 @@ export function releasePageUrl(release: ReleaseLink): string | undefined {
   return release.sourceUrl;
 }
 
-// Where the listener supports the artist behind a release: their support page on Mirlo, or
-// the home of the site the release lives on (a Faircamp catalogue keeps each release in its
-// own folder under it)
+// Supporting a release opens the same host page where the release is purchased or downloaded
 export function releaseSupportUrl(release: ReleaseLink): string | undefined {
-  if (isMirlo(release)) {
-    const artist = mirloArtistSlug(release);
-    return artist ? mirloSupportUrl(artist) : undefined;
-  }
-  if (!release.sourceUrl) return undefined;
-  try {
-    return new URL("..", release.sourceUrl).href;
-  } catch {
-    return undefined;
-  }
+  return releasePageUrl(release);
 }
 
 export function mirloSupportUrl(artistSlug: string): string {
-  return `${MIRLO_WEB}/${artistSlug}/support`;
+  return `${MIRLO_WEB}/${artistSlug}`;
 }

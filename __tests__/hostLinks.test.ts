@@ -14,29 +14,31 @@ describe("host pages", () => {
     urlSlug: "fairplayer-comiat-de-benvinguda%40musica.laribal.org",
   };
 
-  test("a Mirlo release's page and its artist's support page", () => {
+  test("a Mirlo release's purchase and support links point to the release page", () => {
     expect(releasePageUrl(mirlo)).toBe("https://mirlo.space/oji/release/fawm-2026");
-    expect(releaseSupportUrl(mirlo)).toBe("https://mirlo.space/oji/support");
+    expect(releaseSupportUrl(mirlo)).toBe("https://mirlo.space/oji/release/fawm-2026");
   });
 
   test("Mirlo falls back to the artist's id when there's no slug", () => {
     const bySlugless = { ...mirlo, artist: { id: 765 } };
     expect(releasePageUrl(bySlugless)).toBe("https://mirlo.space/765/release/fawm-2026");
-    expect(releaseSupportUrl(bySlugless)).toBe("https://mirlo.space/765/support");
+    expect(releaseSupportUrl(bySlugless)).toBe("https://mirlo.space/765/release/fawm-2026");
   });
 
   test("tracks Mirlo serves without naming a source are Mirlo's", () => {
-    expect(releaseSupportUrl({ ...mirlo, source: undefined })).toBe("https://mirlo.space/oji/support");
+    expect(releaseSupportUrl({ ...mirlo, source: undefined })).toBe(
+      "https://mirlo.space/oji/release/fawm-2026",
+    );
   });
 
-  test("a Faircamp release's page and the home of its catalogue", () => {
+  test("a Faircamp release's purchase and support links point to the release page", () => {
     expect(releasePageUrl(faircamp)).toBe("https://musica.laribal.org/comiat-de-benvinguda/");
-    expect(releaseSupportUrl(faircamp)).toBe("https://musica.laribal.org/");
+    expect(releaseSupportUrl(faircamp)).toBe("https://musica.laribal.org/comiat-de-benvinguda/");
   });
 
-  test("a catalogue under a folder keeps its folder", () => {
+  test("a catalogue under a folder keeps its release page URL", () => {
     const nested = { source: "Faircamp", sourceUrl: "https://sockpuppet.band/sjx/the-war-machine/" };
-    expect(releaseSupportUrl(nested)).toBe("https://sockpuppet.band/sjx/");
+    expect(releaseSupportUrl(nested)).toBe("https://sockpuppet.band/sjx/the-war-machine/");
   });
 
   test("releases with no page offer none", () => {
@@ -45,6 +47,6 @@ describe("host pages", () => {
   });
 
   test("support pages for Mirlo artists", () => {
-    expect(mirloSupportUrl("doomvega")).toBe("https://mirlo.space/doomvega/support");
+    expect(mirloSupportUrl("doomvega")).toBe("https://mirlo.space/doomvega");
   });
 });

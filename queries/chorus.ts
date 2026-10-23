@@ -158,6 +158,8 @@ export function chorusTrackToRNTrack(
       url: l.href,
     }));
 
+  const artistSlugFromAlbumUrl = /^https?:\/\/[^/]+\/([^/]+)\/release\//.exec(album.url || "")?.[1] || "";
+
   const albumProps: AlbumProps = {
     id: albumId,
     trackGroupId: albumId,
@@ -166,6 +168,7 @@ export function chorusTrackToRNTrack(
     artist: {
       id: toNumericId(undefined, artistName),
       name: artistName,
+      urlSlug: artistSlugFromAlbumUrl,
       bio: "",
       activityPub: false,
       enabled: true,

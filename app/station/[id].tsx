@@ -111,7 +111,7 @@ export default function StationScreen() {
               accessibilityLabel={`Donate to ${station.name}`}
             >
               <Ionicons name="heart" size={16} color={theme.colors.playButtonIcon} />
-              <Text style={styles.donateText}>Donate to {station.name}</Text>
+              <Text style={styles.donateText}>Donate</Text>
             </Pressable>
           </View>
         }

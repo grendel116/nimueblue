@@ -23,15 +23,16 @@ async function main() {
     "User-Agent": "NimueBlue",
   };
 
-  const tagName = "v1.1.9";
-  const releaseName = "v1.1.9";
-  const releaseBody = `### What's Changed in NimueBlue 1.1.9
+  const tagName = "v1.2.0";
+  const releaseName = "v1.2.0";
+  const releaseBody = `### What's Changed in NimueBlue 1.2.0
 
-* **Search Genre Carousel**: Converted search genre tiles to a horizontal carousel matching the home screen card layout with tinted square icons and subtitles.
-* **Downloaded Track Selection on Album Page**: Consolidated track equality logic so songs played from downloads immediately show as selected on album pages across file URIs and online releases.
+* **International Radio Support**: Opened radio discovery and search to Thai, Chinese, and global broadcasts alongside English stations.
+* **Unified Support & Donate Links**: Aligned music support links with release purchase pages and simplified support/donate button labels to "Support" and "Donate".
+* **Search Stability & Polish**: Resolved a crash when Mirlo track searches return entries without titles (e.g. "Aqua") and removed the web focus outline on the search bar.
 * **Web App & Shell Updated**: Rebuilt Android native web shell bundle and GitHub Pages web app bundle.
 
-**Download:** [NimueBlue.1.1.9.apk](https://github.com/grendel116/nimueblue/releases/download/v1.1.9/NimueBlue.1.1.9.apk)`;
+**Download:** [NimueBlue.1.2.0.apk](https://github.com/grendel116/nimueblue/releases/download/v1.2.0/NimueBlue.1.2.0.apk)`;
 
   console.log("Checking if release already exists for", tagName);
   let releaseRes = await fetch(
@@ -72,7 +73,7 @@ async function main() {
     console.log("Created release ID:", releaseData.id);
   }
 
-  const apkPath = path.resolve(__dirname, "../NimueBlue.1.1.9.apk");
+  const apkPath = path.resolve(__dirname, "../NimueBlue.1.2.0.apk");
   if (!fs.existsSync(apkPath)) {
     throw new Error(`APK file not found at ${apkPath}`);
   }
@@ -81,7 +82,7 @@ async function main() {
   console.log(`Uploading ${apkPath} (${(apkStats.size / 1024 / 1024).toFixed(1)} MB)...`);
 
   const existingAsset = (releaseData.assets || []).find(
-    (a) => a.name === "NimueBlue.1.1.9.apk"
+    (a) => a.name === "NimueBlue.1.2.0.apk"
   );
   if (existingAsset) {
     console.log("Deleting existing asset ID:", existingAsset.id);
@@ -93,7 +94,7 @@ async function main() {
 
   const uploadUrl = releaseData.upload_url.replace(
     /\{(\?.*)?\}/,
-    "?name=NimueBlue.1.1.9.apk"
+    "?name=NimueBlue.1.2.0.apk"
   );
 
   const apkBuffer = fs.readFileSync(apkPath);

@@ -96,7 +96,7 @@ export default function SearchItem({ result }: SearchItemProps) {
 
         <View style={styles.textContainer}>
           <Text ellipsizeMode="tail" numberOfLines={1} style={styles.name}>
-            {result.name.trim()}
+            {(result.name || "").trim()}
           </Text>
 
           {result.subtitle ? (

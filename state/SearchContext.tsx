@@ -151,7 +151,10 @@ export function getFieldMatchStrength(
     `(?:^|\\s|\\(|\\[|/)${escapeRegExp(normQuery)}(?:$|\\s|\\)|\\]|/|[:,.])`,
     "i",
   );
-  if (wordBoundaryRegex.test(normCandidate)) {
+  if (
+    wordBoundaryRegex.test(normCandidate) ||
+    (/[^\x00-\x7F]/.test(normQuery) && normCandidate.includes(normQuery))
+  ) {
     return 0.82;
   }
 
@@ -528,7 +531,7 @@ export const SearchContextProvider: React.FC<{
   const getOptions = useCallback(
     async (searchString: string, signal?: AbortSignal): Promise<Result[]> => {
       const term = searchString.trim();
-      if (term.length < 2) return [];
+      if (!term || (term.length < 2 && /^[\x00-\x7F]*$/.test(term))) return [];
       const lowerTerm = term.toLowerCase().replace(/^#/, "");
       const queryTokens = lowerTerm.split(/[\s,/-]+/).filter(Boolean);
 
@@ -597,7 +600,11 @@ export const SearchContextProvider: React.FC<{
       const tagSet = new Set<string>();
 
       const upsertTrack = (candidate: Result) => {
-        const key = `${normalizeSearchText(candidate.artistName)}:${normalizeSearchText(candidate.name)}`;
+        const cleanName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+        const normName = normalizeSearchText(cleanName);
+        if (!normName) return;
+        candidate.name = cleanName;
+        const key = `${normalizeSearchText(candidate.artistName)}:${normName}`;
         const existing = trackMap.get(key);
         if (!existing) {
           trackMap.set(key, candidate);
@@ -616,7 +623,11 @@ export const SearchContextProvider: React.FC<{
       };
 
       const upsertAlbum = (candidate: Result) => {
-        const key = `${normalizeSearchText(candidate.artistName)}:${normalizeSearchText(candidate.name)}`;
+        const cleanName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+        const normName = normalizeSearchText(cleanName);
+        if (!normName) return;
+        candidate.name = cleanName;
+        const key = `${normalizeSearchText(candidate.artistName)}:${normName}`;
         const existing = albumMap.get(key);
         if (!existing) {
           albumMap.set(key, candidate);
@@ -634,8 +645,10 @@ export const SearchContextProvider: React.FC<{
       };
 
       const upsertArtist = (candidate: Result) => {
-        const key = normalizeSearchText(candidate.name);
+        const cleanName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+        const key = normalizeSearchText(cleanName);
         if (!key) return;
+        candidate.name = cleanName;
         if (!artistMap.has(key)) {
           artistMap.set(key, candidate);
         }
@@ -1051,6 +1064,7 @@ export const SearchContextProvider: React.FC<{
           imageUrl: station.artwork,
           category: "Radio",
           isStation: true,
+          tags: station.tags,
           matchedGenre: matchedGenres[0]?.name,
         });
       }
@@ -1082,7 +1096,7 @@ export const SearchContextProvider: React.FC<{
   useEffect(() => {
     const trimmed = searchValue.trim();
 
-    if (trimmed.length < 2) {
+    if (!trimmed || (trimmed.length < 2 && /^[\x00-\x7F]*$/.test(trimmed))) {
       abortControllerRef.current?.abort();
       lastCompletedQueryRef.current = "";
       setSearchResults([]);

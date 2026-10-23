@@ -1,9 +1,12 @@
 import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
+  liveTrack,
   RADICAL_RADIO_TAGS,
+  RADIO_STATIONS,
   type RadioStation,
   radioBrowserToRadioStation,
+  searchRadioStations,
 } from "@/queries/radio";
 
 describe("discovered radio stations", () => {
@@ -68,6 +71,48 @@ describe("discovered radio stations", () => {
     ).toEqual([curated, unique, sameNameDifferentLocation]);
   });
 
+  test("preserves distinct non-Latin (Thai and Chinese) station names in the same location", () => {
+    const makeStation = (overrides: Partial<RadioStation>): RadioStation => ({
+      id: "s1",
+      name: "Station",
+      liveName: "Station",
+      location: "China",
+      artwork: "https://example.com/art.jpg",
+      about: "",
+      streamUrl: "https://stream1.example.com/live",
+      playlistPage: "",
+      donatePage: "",
+      fetchPlays: async () => [],
+      ...overrides,
+    });
+
+    const chinese1 = makeStation({
+      id: "cn-1",
+      name: "北京音乐广播",
+      streamUrl: "https://stream1.example.com/live.m3u8",
+    });
+    const chinese2 = makeStation({
+      id: "cn-2",
+      name: "上海动感101",
+      streamUrl: "https://stream2.example.com/live.mp3",
+    });
+    const thai1 = makeStation({
+      id: "th-1",
+      name: "บ้านใหม่ เรดิโอ",
+      location: "Thailand",
+      streamUrl: "https://stream3.example.com/live.mp3",
+    });
+    const thai2 = makeStation({
+      id: "th-2",
+      name: "ลานนาเรดิโอ",
+      location: "Thailand",
+      streamUrl: "https://stream4.example.com/live.mp3",
+    });
+
+    const deduped = deduplicateRadioStations([chinese1, chinese2, thai1, thai2]);
+    expect(deduped.map((s) => s.id)).toEqual(["cn-1", "cn-2", "th-1", "th-2"]);
+  });
+
   test("uses the full Radio-Browser UUID for server-side short-link resolution", () => {
     const station = radioBrowserToRadioStation({
       stationuuid: "11111111-1111-1111-1111-111111111111",
@@ -77,6 +122,49 @@ describe("discovered radio stations", () => {
     });
 
     expect(station.id).toBe("rb-11111111111111111111111111111111");
+  });
+
+  test("assigns hls track type for .m3u8 radio streams and includes Thai and Chinese stations", () => {
+    const rthk = RADIO_STATIONS.find((s) => s.id === "rthk-radio-2");
+    const bcr = RADIO_STATIONS.find((s) => s.id === "bangkok-community-radio");
+    const imx = RADIO_STATIONS.find((s) => s.id === "imx-fm");
+
+    expect(rthk).toBeDefined();
+    expect(bcr).toBeDefined();
+    expect(imx).toBeDefined();
+    expect(liveTrack(rthk!).type).toBe("hls");
+    expect(liveTrack(bcr!).type).toBe("default");
+  });
+
+  test("searches curated and remote stations by language, country, and non-Latin script", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          stationuuid: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          name: "COOL Fahrenheit 93 FM",
+          url: "https://coolism-web.cdn.byteark.com/;stream/1",
+          favicon: "https://static.mytuner.mobi/media/tvos_radios/KvDHAwT62s.png",
+          country: "Thailand",
+          language: "thai",
+          tags: "thai,music",
+          lastcheckok: 1,
+          ssl_error: 0,
+        },
+      ],
+    } as Response);
+
+    try {
+      const thaiResults = await searchRadioStations("thai");
+      expect(thaiResults.some((s) => s.id === "bangkok-community-radio")).toBe(true);
+      expect(thaiResults.some((s) => s.name === "COOL Fahrenheit 93 FM")).toBe(true);
+
+      const chineseScriptResults = await searchRadioStations("中文");
+      expect(chineseScriptResults.some((s) => s.id === "imx-fm")).toBe(true);
+      expect(chineseScriptResults.some((s) => s.id === "rthk-radio-2")).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   test("searches all discovery tags, prioritizes recent clicks, and requires quality artwork", async () => {

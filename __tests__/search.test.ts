@@ -261,4 +261,19 @@ describe("Persistent Search Navigation", () => {
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/artist/nimue/album/blue-album/album-tracks");
   });
+
+  test("SearchItem safely renders when name is null or whitespace", () => {
+    const item = {
+      id: 10470,
+      name: null as unknown as string,
+      artistName: "Arthur Robostein",
+      albumTitle: "Walking, Thinking",
+      category: "Track",
+      isTrack: true,
+    } as Result;
+
+    expect(() =>
+      render(React.createElement(SearchItem, { result: item, index: 0 })),
+    ).not.toThrow();
+  });
 });

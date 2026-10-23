@@ -97,9 +97,11 @@ export function isQualityArtwork(rawUrl?: string): boolean {
     try {
       const parsed = new URL(trimmed);
       const path = parsed.pathname.toLowerCase();
-      const hasImageExt = /\.(jpg|jpeg|png|webp|svg|gif|avif)($|\?)/i.test(path);
+      const hasImageExt =
+        /\.(jpg|jpeg|png|webp|svg|gif|avif)(?:![a-z0-9_]+)?($|\?)/i.test(path) ||
+        /\.(jpg|jpeg|png|webp|svg|gif|avif)/i.test(parsed.search);
       const hasImagePath =
-        /(?:^|\/)(?:image|images|img|cover|covers|artwork|art|media|assets|uploads|photos|pictures|logos)(?:\/|$)/i.test(
+        /(?:^|\/)(?:image|images|img|cover|covers|artwork|art|media|assets|uploads|photos|pictures|logos|radio_icon)(?:\/|$)/i.test(
           path,
         );
       if (!hasImageExt && !hasImagePath) {
@@ -142,8 +144,9 @@ export function resolveArtworkUrl(rawUrl?: string): string {
 // The player's TrackType values are these same strings; a type-only import keeps the native
 // player module out of this file
 export function audioTrackType(url: string): TrackType {
-  if (url.endsWith(".m3u8")) return "hls" as TrackType;
-  if (url.endsWith(".mpd")) return "dash" as TrackType;
+  const clean = url.split("?")[0];
+  if (clean.endsWith(".m3u8")) return "hls" as TrackType;
+  if (clean.endsWith(".mpd")) return "dash" as TrackType;
   return "default" as TrackType;
 }
 

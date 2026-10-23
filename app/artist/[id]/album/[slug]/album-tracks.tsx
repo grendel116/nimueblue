@@ -197,7 +197,7 @@ export default function AlbumTracks() {
         const trackAlbumId = resolvedAlbumId || track.trackGroupId;
 
         const newTrack: RNTrack = {
-          title: track.title,
+          title: track.title || resolvedAlbum.title || `Track ${track.order ?? 1}`,
           artist: resolvedAlbum.artist?.name || "",
           artwork: resolvedAlbum.cover?.sizes?.[600] || resolvedAlbum.cover?.sizes?.[300],
           url: streamUrl,

@@ -1,6 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { TrackType } from "react-native-track-player";
-import { isQualityArtwork } from "@/scripts/utils";
+import { audioTrackType, isQualityArtwork } from "@/scripts/utils";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 // A station plays as a 10-minute set in the queue, then playback moves on to what's next
@@ -28,6 +27,7 @@ export type RadioStation = {
   streamUrl: string;
   playlistPage: string;
   donatePage: string;
+  tags?: string[];
   headers?: Record<string, string>;
   fetchPlays: (signal: AbortSignal) => Promise<RadioPlay[]>;
 };
@@ -303,6 +303,87 @@ const REFUGE: RadioStation = {
   },
 };
 
+// Bangkok Community Radio: independent Thai and Southeast Asian music and sound culture
+const BANGKOK_COMMUNITY_RADIO_LOGO =
+  "https://unify-fm-bucket.s3.us-west-2.amazonaws.com/bangkok_community_radio_logo.jpg";
+
+const BANGKOK_COMMUNITY_RADIO: RadioStation = {
+  id: "bangkok-community-radio",
+  name: "Bangkok Community Radio",
+  liveName: "Bangkok Community Radio",
+  location: "Bangkok, Thailand",
+  artwork: BANGKOK_COMMUNITY_RADIO_LOGO,
+  about:
+    "Independent community radio from Bangkok showcasing underground Thai and Southeast Asian music, DJs, and sound culture.",
+  streamUrl: "https://bcr.radiocult.fm/stream",
+  playlistPage: "https://bangkokcommunityradio.com",
+  donatePage: "https://bangkokcommunityradio.com",
+  tags: ["thai", "thailand", "bangkok", "southeast asia", "community radio", "ไทย"],
+  fetchPlays: async () => [
+    {
+      key: "bcr-live",
+      song: "Bangkok Community Radio",
+      artist: "Live from Bangkok",
+      airdate: new Date().toISOString(),
+      artwork: BANGKOK_COMMUNITY_RADIO_LOGO,
+    },
+  ],
+};
+
+// 听梦想FM (IMX.FM): 24-hour independent Chinese music broadcast
+const IMX_FM_LOGO = "https://imx.fm/wp-content/uploads/2025/09/logo.png";
+
+const IMX_FM: RadioStation = {
+  id: "imx-fm",
+  name: "听梦想FM (IMX.FM)",
+  liveName: "听梦想FM 24小时音乐",
+  location: "China",
+  artwork: IMX_FM_LOGO,
+  about:
+    "24-hour Chinese music broadcast featuring independent folk, rock, pop, and singer-songwriter voices across Mandarin and Cantonese.",
+  streamUrl: "https://lhttp-hw.qtfm.cn/live/4917/64k.mp3",
+  playlistPage: "https://imx.fm",
+  donatePage: "https://imx.fm",
+  tags: ["chinese", "china", "mandarin", "cantonese", "c-pop", "indie", "中文", "华语", "音乐"],
+  fetchPlays: async () => [
+    {
+      key: "imx-live",
+      song: "听梦想FM 24小时音乐不打烊",
+      artist: "IMX.FM",
+      airdate: new Date().toISOString(),
+      artwork: IMX_FM_LOGO,
+    },
+  ],
+};
+
+// 香港電台第二台 (RTHK Radio 2): Hong Kong public culture and Chinese music broadcast
+const RTHK_RADIO_2_LOGO =
+  "https://webstatic.rthk.hk/img/radio_icon/Player_Logo/R2_cNam_01.svg";
+
+const RTHK_RADIO_2: RadioStation = {
+  id: "rthk-radio-2",
+  name: "香港電台第二台 RTHK 2",
+  liveName: "香港電台第二台 (RTHK Radio 2)",
+  location: "Hong Kong",
+  artwork: RTHK_RADIO_2_LOGO,
+  about:
+    "Public broadcasting from Hong Kong championing local Cantonese and Mandarin music, youth culture, and arts.",
+  streamUrl:
+    "https://rthkradio2-live.akamaized.net/hls/live/2040078/radio2/index_64_a.m3u8",
+  playlistPage: "https://www.rthk.hk/radio/radio2",
+  donatePage: "https://www.rthk.hk/radio/radio2",
+  tags: ["chinese", "cantonese", "hong kong", "cantopop", "culture", "中文", "粵語", "香港"],
+  fetchPlays: async () => [
+    {
+      key: "rthk2-live",
+      song: "香港電台第二台",
+      artist: "Live from Hong Kong",
+      airdate: new Date().toISOString(),
+      artwork: RTHK_RADIO_2_LOGO,
+    },
+  ],
+};
+
 export const RADIO_STATIONS: RadioStation[] = [
   KEXP,
   CARBON_SOUND,
@@ -311,6 +392,9 @@ export const RADIO_STATIONS: RadioStation[] = [
   DDR,
   RESONANCE_FM,
   REFUGE,
+  BANGKOK_COMMUNITY_RADIO,
+  IMX_FM,
+  RTHK_RADIO_2,
 ];
 
 function normalizeStationName(name: string): string {
@@ -318,7 +402,7 @@ function normalizeStationName(name: string): string {
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
+    .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
@@ -364,6 +448,7 @@ export type RadioBrowserStation = {
   tags?: string;
   country?: string;
   state?: string;
+  language?: string;
   votes?: number;
   clicktimestamp?: string;
   codec?: string;
@@ -380,6 +465,9 @@ export const RADICAL_RADIO_TAGS = [
   "radio libre",
   "diy",
   "underground",
+  "thai",
+  "chinese",
+  "world music",
 ];
 
 export const DISCOVERED_STATIONS = new Map<string, RadioStation>();
@@ -393,16 +481,27 @@ export function radioBrowserToRadioStation(rb: RadioBrowserStation): RadioStatio
   const location = [rb.state, rb.country].filter(Boolean).join(", ") || "Autonomous / Global";
   const name = rb.name?.trim() || "Independent Broadcast";
   const artwork = isQualityArtwork(rb.favicon) ? rb.favicon!.trim() : "";
+  const rawTags = [
+    ...(rb.tags ? rb.tags.split(",") : []),
+    ...(rb.language ? rb.language.split(",") : []),
+    rb.country || "",
+    rb.state || "",
+  ]
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const tags = rawTags.length > 0 ? Array.from(new Set(rawTags)) : undefined;
+
   const station: RadioStation = {
     id: cleanId,
     name,
     liveName: name,
     location,
     artwork,
-    about: `${name} — Autonomous community & pirate radio broadcast from ${location}.`,
+    about: `${name} — Radio broadcast from ${location}.`,
     streamUrl: rb.url_resolved || rb.url,
     playlistPage: rb.homepage || "",
     donatePage: rb.homepage || "",
+    ...(tags ? { tags } : {}),
     fetchPlays: async () => [],
   };
   registerDiscoveredStation(station);
@@ -511,10 +610,66 @@ export function liveTrack(station: RadioStation): RNTrack {
     artwork: station.artwork,
     url: station.streamUrl,
     headers,
-    type: "default" as TrackType,
+    type: audioTrackType(station.streamUrl),
     duration: RADIO_SET_SECONDS,
     liveStation: station.id,
   } as RNTrack;
+}
+
+const REGION_SEARCH_EXPANSIONS: Record<
+  string,
+  { languages?: string[]; countries?: string[]; tags?: string[] }
+> = {
+  thai: { languages: ["thai"], countries: ["Thailand"], tags: ["thai", "thailand"] },
+  thailand: { languages: ["thai"], countries: ["Thailand"], tags: ["thai", "thailand"] },
+  "ไทย": { languages: ["thai"], countries: ["Thailand"], tags: ["thai"] },
+  bangkok: { languages: ["thai"], countries: ["Thailand"], tags: ["thai"] },
+  chinese: {
+    languages: ["chinese", "cantonese", "mandarin"],
+    countries: ["China", "Taiwan", "Hong Kong"],
+    tags: ["chinese", "c-pop"],
+  },
+  china: { languages: ["chinese"], countries: ["China"], tags: ["chinese"] },
+  taiwan: { languages: ["chinese"], countries: ["Taiwan"], tags: ["chinese", "taiwanese pop"] },
+  taiwanese: { languages: ["chinese"], countries: ["Taiwan"], tags: ["taiwanese pop"] },
+  "hong kong": { languages: ["cantonese"], countries: ["Hong Kong"], tags: ["cantonese", "hong kong music"] },
+  cantonese: { languages: ["cantonese"], countries: ["Hong Kong", "China"], tags: ["cantonese"] },
+  mandarin: { languages: ["mandarin", "chinese"], countries: ["China", "Taiwan"], tags: ["chinese"] },
+  "中文": { languages: ["chinese", "cantonese"], countries: ["China", "Taiwan", "Hong Kong"], tags: ["chinese"] },
+  "华语": { languages: ["chinese", "cantonese"], countries: ["China", "Taiwan", "Hong Kong"], tags: ["chinese"] },
+  "粵語": { languages: ["cantonese"], countries: ["Hong Kong"], tags: ["cantonese"] },
+  japanese: { languages: ["japanese"], countries: ["Japan"], tags: ["japanese", "j-pop"] },
+  japan: { languages: ["japanese"], countries: ["Japan"], tags: ["japanese"] },
+  korean: { languages: ["korean"], countries: ["South Korea"], tags: ["korean", "k-pop"] },
+  korea: { languages: ["korean"], countries: ["South Korea"], tags: ["korean"] },
+  vietnamese: { languages: ["vietnamese"], countries: ["Vietnam"], tags: ["vietnamese"] },
+  vietnam: { languages: ["vietnamese"], countries: ["Vietnam"], tags: ["vietnamese"] },
+  indonesian: { languages: ["indonesian"], countries: ["Indonesia"], tags: ["indonesian"] },
+  indonesia: { languages: ["indonesian"], countries: ["Indonesia"], tags: ["indonesian"] },
+  filipino: { languages: ["tagalog"], countries: ["The Philippines"], tags: ["philippines", "opm"] },
+  philippines: { languages: ["tagalog"], countries: ["The Philippines"], tags: ["philippines", "opm"] },
+};
+
+function matchesStationQuery(station: RadioStation, query: string): boolean {
+  return (
+    station.name.toLowerCase().includes(query) ||
+    station.liveName.toLowerCase().includes(query) ||
+    station.location.toLowerCase().includes(query) ||
+    station.about.toLowerCase().includes(query) ||
+    Boolean(station.tags?.some((t) => t.toLowerCase().includes(query)))
+  );
+}
+
+function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
+  const stream = (rb.url_resolved || rb.url || "").trim();
+  if (!stream || !rb.name?.trim()) return false;
+  if (!stream.toLowerCase().startsWith("https://")) return false;
+  if (rb.lastcheckok !== undefined && rb.lastcheckok !== 1) return false;
+  if (rb.ssl_error !== undefined && rb.ssl_error !== 0) return false;
+  if (!isQualityArtwork(rb.favicon)) return false;
+  const path = stream.split("?")[0].toLowerCase();
+  if (path.endsWith(".m3u") || path.endsWith(".pls") || path.endsWith(".asx")) return false;
+  return true;
 }
 
 export async function searchRadioStations(
@@ -524,46 +679,54 @@ export async function searchRadioStations(
   const query = term.trim().toLowerCase();
   if (!query) return [];
 
-  const curatedMatches = RADIO_STATIONS.filter(
-    (s) =>
-      s.name.toLowerCase().includes(query) ||
-      s.liveName.toLowerCase().includes(query) ||
-      s.location.toLowerCase().includes(query) ||
-      s.about.toLowerCase().includes(query),
+  const curatedMatches = RADIO_STATIONS.filter((s) => matchesStationQuery(s, query));
+  const cachedMatches = [...DISCOVERED_STATIONS.values()].filter((s) =>
+    matchesStationQuery(s, query),
   );
 
-  const cachedMatches = [...DISCOVERED_STATIONS.values()].filter(
-    (s) =>
-      s.name.toLowerCase().includes(query) ||
-      s.liveName.toLowerCase().includes(query) ||
-      s.location.toLowerCase().includes(query) ||
-      s.about.toLowerCase().includes(query),
-  );
+  const expansion = REGION_SEARCH_EXPANSIONS[query];
+  const endpoints = new Set<string>([
+    `https://de1.api.radio-browser.info/json/stations/byname/${encodeURIComponent(query)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+    `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(query)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+    `https://de1.api.radio-browser.info/json/stations/bylanguage/${encodeURIComponent(query)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+  ]);
+
+  if (expansion) {
+    for (const lang of expansion.languages || []) {
+      endpoints.add(
+        `https://de1.api.radio-browser.info/json/stations/bylanguage/${encodeURIComponent(lang)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+      );
+    }
+    for (const country of expansion.countries || []) {
+      endpoints.add(
+        `https://de1.api.radio-browser.info/json/stations/bycountry/${encodeURIComponent(country)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+      );
+    }
+    for (const tag of expansion.tags || []) {
+      endpoints.add(
+        `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?order=clickcount&reverse=true&hidebroken=true&limit=15`,
+      );
+    }
+  }
 
   let remoteStations: RadioStation[] = [];
   try {
-    const endpoint = `https://de1.api.radio-browser.info/json/stations/byname/${encodeURIComponent(query)}?order=clickcount&reverse=true&hidebroken=true&limit=15`;
-    const res = await fetch(endpoint, { signal });
-    if (res.ok) {
-      const data: RadioBrowserStation[] = await res.json();
-      if (Array.isArray(data)) {
-        remoteStations = data
-          .filter((rb) => {
-            const stream = (rb.url_resolved || rb.url || "").trim();
-            if (!stream || !rb.name?.trim()) return false;
-            if (!stream.toLowerCase().startsWith("https://")) return false;
-            if (!isQualityArtwork(rb.favicon)) return false;
-            const path = stream.split("?")[0].toLowerCase();
-            if (path.endsWith(".m3u") || path.endsWith(".pls") || path.endsWith(".asx")) return false;
-            return true;
-          })
-          .map(radioBrowserToRadioStation);
-      }
-    }
+    const settled = await Promise.allSettled(
+      [...endpoints].map(async (endpoint) => {
+        const res = await fetch(endpoint, { signal });
+        if (!res.ok) return [];
+        const data: RadioBrowserStation[] = await res.json();
+        return Array.isArray(data) ? data : [];
+      }),
+    );
+
+    const combined = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+    remoteStations = combined
+      .filter(isPlayableRadioBrowserStation)
+      .map(radioBrowserToRadioStation);
   } catch {
     // Return curated and cached matches if remote search fails
   }
 
   return deduplicateRadioStations([...curatedMatches, ...cachedMatches, ...remoteStations]);
 }
-
