@@ -89,13 +89,13 @@ export const RADIO_STATION_META = {
     web: "https://bangkokcommunityradio.com",
     app: "/station/bangkok-community-radio",
   },
-  "imx-fm": {
-    name: "听梦想FM (IMX.FM)",
-    artist: "Live from China",
-    art: "https://imx.fm/wp-content/uploads/2025/09/logo.png",
-    audio: "https://lhttp-hw.qtfm.cn/live/4917/64k.mp3",
-    web: "https://imx.fm",
-    app: "/station/imx-fm",
+  "cctv-15": {
+    name: "CCTV-15 音乐频道",
+    artist: "Live from Beijing, China",
+    art: "https://p4.img.cctvpic.com/photoAlbum/page/performance/img/2021/11/19/1637293545457_544.jpg",
+    audio: "https://piccpndali.v.myalicdn.com/audio/cctv15_2.m3u8",
+    web: "https://tv.cctv.com/live/cctv15/",
+    app: "/station/cctv-15",
   },
 };
 

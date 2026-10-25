@@ -128,19 +128,16 @@ describe("discovered radio stations", () => {
 
   test("assigns hls track type for .m3u8 radio streams and includes Thai and single curated Chinese station", () => {
     const bcr = RADIO_STATIONS.find((s) => s.id === "bangkok-community-radio");
+    const cctv15 = RADIO_STATIONS.find((s) => s.id === "cctv-15");
     const imx = RADIO_STATIONS.find((s) => s.id === "imx-fm");
     const rthk = RADIO_STATIONS.find((s) => s.id === "rthk-radio-2");
 
     expect(bcr).toBeDefined();
-    expect(imx).toBeDefined();
+    expect(cctv15).toBeDefined();
+    expect(imx).toBeUndefined();
     expect(rthk).toBeUndefined();
     expect(liveTrack(bcr!).type).toBe("default");
-    expect(
-      liveTrack({
-        ...imx!,
-        streamUrl: "https://example.com/live/index.m3u8",
-      }).type,
-    ).toBe("hls");
+    expect(liveTrack(cctv15!).type).toBe("hls");
   });
 
   test("worker metadata includes artwork for all curated radio stations", () => {
@@ -224,7 +221,8 @@ describe("discovered radio stations", () => {
       expect(thaiResults.some((s) => s.name === "Radio Azawan")).toBe(false);
 
       const chineseScriptResults = await searchRadioStations("中文");
-      expect(chineseScriptResults.some((s) => s.id === "imx-fm")).toBe(true);
+      expect(chineseScriptResults.some((s) => s.id === "cctv-15")).toBe(true);
+      expect(chineseScriptResults.some((s) => s.id === "imx-fm")).toBe(false);
       expect(chineseScriptResults.some((s) => s.id === "rthk-radio-2")).toBe(false);
     } finally {
       fetchSpy.mockRestore();

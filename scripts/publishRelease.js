@@ -30,11 +30,8 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Offline Library Organization & Universal Catalog (\`nimue-library.json\`)**: Create, rename, and delete albums, rename tracks, and move tracks between albums with full album and artist inheritance persisted to \`/music/nimue-library.json\` in a unified Faircamp/Mirlo schema.
-* **Downloaded Track Precedence & Faircamp/Mirlo Matching**: Downloaded tracks automatically pair with and take precedence over play-limited cloud preview tracks on matched albums (including contributor-tagged and accented titles).
-* **Streamlined Track Selection & Loading Indicators**: Long-press any downloaded track to enter bulk selection mode (rename, move to album, or delete) with the swirling droplet spinner during track and album updates.
-* **Audio Duration Parsing & Curated Radio**: Added native duration parsing across MP3, FLAC, M4A, Ogg/Opus, and WAV files, plus updated curated international radio streams.
-* **Web App & Shell Updated**: Rebuilt Android native web shell bundle, Cloudflare Worker, and GitHub Pages web app bundle.
+* **Curated Chinese Radio (CCTV-15 音乐频道)**: Replaced the commercial pop Chinese stream with CCTV-15 音乐频道 (China Music Channel), featuring live program schedules via CCTV's open EPG API, folk songs (*民歌·中国*), and traditional national instrumental ensembles (*风华国乐*, *CCTV音乐厅*).
+* **Web App & Native Shell Updated**: Rebuilt Android native web shell bundle, Cloudflare Worker metadata, and web app assets with updated curated stations.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

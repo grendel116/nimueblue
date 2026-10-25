@@ -315,42 +315,87 @@ const BANGKOK_COMMUNITY_RADIO: RadioStation = {
   ],
 };
 
-// 听梦想FM (IMX.FM): 24-hour independent Chinese music broadcast
-const IMX_FM_LOGO = "https://imx.fm/wp-content/uploads/2025/09/logo.png";
+// CCTV-15 音乐频道: public Chinese music broadcast featuring folk songs, national instrumental ensembles, and choral works
+type CctvEpgItem = {
+  title: string;
+  startTime: number;
+};
 
-const IMX_FM: RadioStation = {
-  id: "imx-fm",
-  name: "听梦想FM (IMX.FM)",
-  liveName: "听梦想FM 24小时音乐",
-  location: "China",
-  artwork: IMX_FM_LOGO,
+type CctvEpgResponse = {
+  data?: {
+    cctv15?: {
+      isLive?: string;
+      liveSt?: number;
+      list?: CctvEpgItem[];
+    };
+  };
+};
+
+const CCTV_15_LOGO =
+  "https://p4.img.cctvpic.com/photoAlbum/page/performance/img/2021/11/19/1637293545457_544.jpg";
+
+const CCTV_15: RadioStation = {
+  id: "cctv-15",
+  name: "CCTV-15 音乐频道",
+  liveName: "CCTV-15 音乐频道 (China Music)",
+  location: "Beijing, China",
+  artwork: CCTV_15_LOGO,
   about:
-    "24-hour Chinese music broadcast featuring independent folk, rock, pop, and singer-songwriter voices across Mandarin and Cantonese.",
-  streamUrl: "https://lhttp-hw.qtfm.cn/live/4917/64k.mp3",
-  playlistPage: "https://imx.fm",
-  donatePage: "https://imx.fm",
+    "Public Chinese music broadcast from Beijing featuring folk songs (民歌·中国), traditional Chinese instrumental ensembles (风华国乐), and choral works.",
+  streamUrl: "https://piccpndali.v.myalicdn.com/audio/cctv15_2.m3u8",
+  playlistPage: "https://tv.cctv.com/live/cctv15/",
+  donatePage: "https://tv.cctv.com/cctv15/",
   tags: [
     "chinese",
     "china",
+    "beijing",
     "mandarin",
-    "cantonese",
-    "c-pop",
-    "indie",
-    "underground",
+    "folk",
+    "traditional",
     "中文",
     "华语",
-    "粵語",
+    "中国",
+    "民歌",
+    "民乐",
     "音乐",
   ],
-  fetchPlays: async () => [
-    {
-      key: "imx-live",
-      song: "听梦想FM 24小时音乐不打烊",
-      artist: "IMX.FM",
-      airdate: new Date().toISOString(),
-      artwork: IMX_FM_LOGO,
-    },
-  ],
+  fetchPlays: async (signal) => {
+    const beijingDate = new Date(Date.now() + 8 * 3600_000)
+      .toISOString()
+      .slice(0, 10)
+      .replace(/-/g, "");
+    const data = await getJson<CctvEpgResponse>(
+      `https://api.cntv.cn/epg/getEpgInfoByChannelNew?c=cctv15&serviceId=tvcctv&d=${beijingDate}&t=json`,
+      signal,
+    );
+    const channel = data.data?.cctv15;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const aired = (channel?.list ?? [])
+      .filter((item) => item.title && item.startTime <= nowSec)
+      .reverse()
+      .slice(0, 15);
+    if (aired.length > 0) {
+      return aired.map((item) => ({
+        key: `${item.startTime}-${item.title}`,
+        song: item.title,
+        artist: "CCTV-15 音乐频道",
+        airdate: new Date(item.startTime * 1000).toISOString(),
+        artwork: CCTV_15_LOGO,
+      }));
+    }
+    if (channel?.isLive) {
+      return [
+        {
+          key: `${channel.liveSt ?? nowSec}-${channel.isLive}`,
+          song: channel.isLive,
+          artist: "CCTV-15 音乐频道",
+          airdate: new Date((channel.liveSt ?? nowSec) * 1000).toISOString(),
+          artwork: CCTV_15_LOGO,
+        },
+      ];
+    }
+    return [];
+  },
 };
 
 export const RADIO_STATIONS: RadioStation[] = [
@@ -362,7 +407,7 @@ export const RADIO_STATIONS: RadioStation[] = [
   RESONANCE_FM,
   REFUGE,
   BANGKOK_COMMUNITY_RADIO,
-  IMX_FM,
+  CCTV_15,
 ];
 
 function normalizeStationName(name: string): string {
