@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as api from "../../queries/fetch/fetchWrapper";
 import TrackGroupItem from "@/components/TrackGroupItem";
-import SearchItem from "@/components/SearchItem";
 import LoadingScreen from "@/components/LoadingScreen";
 import OfflineNotice from "@/components/OfflineNotice";
 import { openMainTab } from "@/components/Footer";
@@ -27,8 +26,7 @@ import { searchFairplayerAlbums } from "@/queries/fairplayer";
 import { usePlayer } from "@/state/PlayerContext";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
-import { audioTrackType, coverSizes, shuffle, trackStreamPath } from "@/scripts/utils";
-import { Result } from "@/state/SearchContext";
+import { audioTrackType, coverSizes, trackStreamPath } from "@/scripts/utils";
 import { theme } from "@/constants/theme";
 
 function toPlayableTrack(rawTrack: any, album: AlbumProps): RNTrack | undefined {
@@ -87,7 +85,6 @@ export default function TagsView() {
   const matchedGenre = useMemo(() => findGenreByTag(rawTag), [rawTag]);
   const expansionTags = useMemo(() => getGenreExpansionTags(rawTag), [rawTag]);
   const [selectedSubTag, setSelectedSubTag] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"releases" | "tracks">("releases");
 
   const activeQueryTag = selectedSubTag === "all" ? rawTag : selectedSubTag;
 
@@ -190,37 +187,26 @@ export default function TagsView() {
     return deduped;
   }, [data?.pages, extraCatalogAlbums]);
 
-  const { trackResults, playableTracks } = useMemo(() => {
-    const results: Result[] = [];
-    const tracks: RNTrack[] = [];
-    const seen = new Set<string>();
+  const playableAlbums = useMemo(() => {
+    const albums: { album: AlbumProps; tracks: RNTrack[] }[] = [];
 
     for (const album of trackGroups) {
+      const tracks: RNTrack[] = [];
       for (const rawTrack of album.tracks || []) {
         if (rawTrack.isPreview === false) continue;
         const rnTrack = toPlayableTrack(rawTrack, album);
-        if (!rnTrack) continue;
-        const key = `${rnTrack.artist}:${rnTrack.title}`.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        tracks.push(rnTrack);
-        results.push({
-          id: rnTrack.id,
-          name: rnTrack.title,
-          category: "Track",
-          isTrack: true,
-          artistId: album.artist?.urlSlug ?? album.artistId,
-          artistName: album.artist?.name,
-          albumTitle: album.title,
-          trackGroupId: album.urlSlug ?? album.id,
-          trackGroupCover: album.cover,
-          matchedTag: activeQueryTag,
-          track: rnTrack,
+        if (rnTrack) tracks.push(rnTrack);
+      }
+      if (tracks.length > 0) {
+        tracks.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        albums.push({
+          album,
+          tracks: tracks.map((t, idx) => ({ ...t, queueIndex: idx })),
         });
       }
     }
-    return { trackResults: results, playableTracks: tracks };
-  }, [trackGroups, activeQueryTag]);
+    return albums;
+  }, [trackGroups]);
 
   const handleBack = () => {
     if (router.canGoBack()) {
@@ -230,10 +216,10 @@ export default function TagsView() {
     }
   };
 
-  const handlePlayGenreMix = () => {
-    if (playableTracks.length === 0) return;
-    const shuffled = shuffle(playableTracks);
-    playTrack(shuffled[0], shuffled, matchedGenre?.name || `#${rawTag}`);
+  const handlePlayRandomAlbum = () => {
+    if (playableAlbums.length === 0) return;
+    const picked = playableAlbums[Math.floor(Math.random() * playableAlbums.length)];
+    playTrack(picked.tracks[0], picked.tracks);
   };
 
   if (isPending) {
@@ -278,18 +264,18 @@ export default function TagsView() {
           <Text style={styles.bannerSubtitle}>
             {matchedGenre
               ? matchedGenre.subtitle
-              : `${trackGroups.length} releases · ${playableTracks.length} playable tracks`}
+              : `${trackGroups.length} ${trackGroups.length === 1 ? "release" : "releases"}`}
           </Text>
         </View>
-        {playableTracks.length > 0 && (
+        {playableAlbums.length > 0 && (
           <TouchableOpacity
-            onPress={handlePlayGenreMix}
+            onPress={handlePlayRandomAlbum}
             style={[styles.playMixBtn, { backgroundColor: accentColor }]}
             accessibilityRole="button"
-            accessibilityLabel="Play genre mix"
+            accessibilityLabel="Play random album"
           >
             <Ionicons name="shuffle" size={18} color={theme.colors.playButtonIcon} />
-            <Text style={styles.playMixText}>Play Mix</Text>
+            <Text style={styles.playMixText}>Play</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -346,43 +332,6 @@ export default function TagsView() {
           })}
         </ScrollView>
       )}
-
-      {trackResults.length > 0 && (
-        <View style={styles.modeToggleRow}>
-          <Pressable
-            onPress={() => setViewMode("releases")}
-            style={[
-              styles.modeBtn,
-              viewMode === "releases" && styles.modeBtnActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.modeBtnText,
-                viewMode === "releases" && styles.modeBtnTextActive,
-              ]}
-            >
-              {`Releases (${trackGroups.length})`}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setViewMode("tracks")}
-            style={[
-              styles.modeBtn,
-              viewMode === "tracks" && styles.modeBtnActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.modeBtnText,
-                viewMode === "tracks" && styles.modeBtnTextActive,
-              ]}
-            >
-              {`Tracks (${trackResults.length})`}
-            </Text>
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 
@@ -407,48 +356,37 @@ export default function TagsView() {
         <View style={{ width: 36 }} />
       </View>
 
-      {viewMode === "tracks" ? (
-        <FlatList
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          data={trackResults}
-          keyExtractor={(item, index) => `track-${item.id}-${index}`}
-          ListHeaderComponent={listHeader}
-          renderItem={({ item, index }) => <SearchItem result={item} index={index} />}
-        />
-      ) : (
-        <FlatList
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          data={trackGroups}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
-          ListHeaderComponent={listHeader}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => {
-                const href = albumHref(item);
-                if (href) router.push(href);
-              }}
-            >
-              <TrackGroupItem
-                id={item.id}
-                cover={item.cover}
-                title={item.title}
-                artist={item.artist}
-                artistId={item.artistId}
-                urlSlug={item.urlSlug}
-                userTrackGroupPurchases={item.userTrackGroupPurchases}
-                releaseDate={item.releaseDate}
-                tracks={item.tracks}
-                trackGroupId={item.trackGroupId}
-              />
-            </Pressable>
-          )}
-          onEndReached={() => !isFetchingNextPage && fetchNextPage()}
-          onEndReachedThreshold={0.2}
-          ListFooterComponent={renderLoadingFooter}
-        />
-      )}
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={trackGroups}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
+        ListHeaderComponent={listHeader}
+        renderItem={({ item }) => (
+          <Pressable
+            onPress={() => {
+              const href = albumHref(item);
+              if (href) router.push(href);
+            }}
+          >
+            <TrackGroupItem
+              id={item.id}
+              cover={item.cover}
+              title={item.title}
+              artist={item.artist}
+              artistId={item.artistId}
+              urlSlug={item.urlSlug}
+              userTrackGroupPurchases={item.userTrackGroupPurchases}
+              releaseDate={item.releaseDate}
+              tracks={item.tracks}
+              trackGroupId={item.trackGroupId}
+            />
+          </Pressable>
+        )}
+        onEndReached={() => !isFetchingNextPage && fetchNextPage()}
+        onEndReachedThreshold={0.2}
+        ListFooterComponent={renderLoadingFooter}
+      />
     </View>
   );
 }
@@ -528,31 +466,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
-  },
-  modeToggleRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  modeBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceCardBorder,
-  },
-  modeBtnActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primarySoft,
-  },
-  modeBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: theme.colors.textSecondary,
-  },
-  modeBtnTextActive: {
-    color: theme.colors.primary,
-    fontWeight: "700",
   },
   list: {
     flex: 1,

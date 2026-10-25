@@ -30,10 +30,9 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Curated Chinese Radio (广东音乐之声)**: Replaced the CCTV-15 HLS stream with 广东音乐之声 (Guangdong Music FM 99.3), streaming direct uninterrupted MP3 audio from Guangzhou featuring Cantonese and Mandarin pop, classics, and regional Chinese sound culture.
-* **Refined Station Entry**: Streamlined radio station screens to focus on the single live On air track entry without inconsistent past broadcast history lists.
-* **Commercial Station Filter**: Filtered out commercial chart / spam stations containing "100" in their title (such as "#100 BEST IBIZA DEEP HOUSE").
-* **Web App & Native Shell Updated**: Rebuilt Android native web shell bundle, Cloudflare Worker metadata, and web app assets with updated curated stations.
+* **Album-Focused Search & Genre Browsing**: Removed the standalone track view from search results and genre/tag pages so browsing feels like exploring a record store, surfacing parent albums across Mirlo, Chorus, Faircamp, and local downloads.
+* **Random Album Playback on Genres & Tags**: Updated the genre/tag header action to **Play** (with the shuffle icon) to pick a random release and play its tracks in album order.
+* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

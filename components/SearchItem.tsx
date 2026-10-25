@@ -1,11 +1,8 @@
 import React from "react";
-import { View, Pressable, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Pressable, Text, Image, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Result } from "@/state/SearchContext";
-import { usePlayer } from "@/state/PlayerContext";
-import { isSameTrack } from "@/state/player/trackUtils";
-import AddToQueueButton from "./AddToQueueButton";
 import { theme } from "@/constants/theme";
 
 type SearchItemProps = {
@@ -15,17 +12,6 @@ type SearchItemProps = {
 
 export default function SearchItem({ result }: SearchItemProps) {
   const router = useRouter();
-  const { activeTrack, isPlaying, playTrack, togglePlayPause } = usePlayer(
-    "activeTrack",
-    "isPlaying",
-    "playTrack",
-    "togglePlayPause",
-  );
-
-  const playableTrack = result.track;
-  const isThisTrackActive = Boolean(
-    playableTrack && activeTrack && isSameTrack(activeTrack, playableTrack),
-  );
 
   const imageUri =
     result.imageUrl ||
@@ -47,16 +33,6 @@ export default function SearchItem({ result }: SearchItemProps) {
     }
   };
 
-  const handlePlayTrack = (e: any) => {
-    e?.stopPropagation?.();
-    if (!playableTrack) return;
-    if (isThisTrackActive) {
-      togglePlayPause();
-    } else {
-      playTrack(playableTrack, [playableTrack]);
-    }
-  };
-
   const accentColor = result.accent || theme.colors.primary;
   const isGenreOrTag = Boolean(result.isGenre || result.isTag);
 
@@ -67,7 +43,6 @@ export default function SearchItem({ result }: SearchItemProps) {
         onPress={handlePress}
         style={({ pressed }) => [
           styles.pressable,
-          isThisTrackActive && styles.activePressable,
           pressed && styles.pressed,
         ]}
       >
@@ -107,11 +82,7 @@ export default function SearchItem({ result }: SearchItemProps) {
             <Text ellipsizeMode="tail" numberOfLines={1} style={styles.artistName}>
               {result.isStation
                 ? result.artistName.trim()
-                : `by ${result.artistName.trim()}${
-                    result.isTrack && result.albumTitle
-                      ? ` · ${result.albumTitle.trim()}`
-                      : ""
-                  }`}
+                : `by ${result.artistName.trim()}`}
             </Text>
           ) : null}
 
@@ -143,39 +114,12 @@ export default function SearchItem({ result }: SearchItemProps) {
           </View>
         </View>
 
-        {result.isTrack && playableTrack ? (
-          <View style={styles.trackActions}>
-            <AddToQueueButton track={playableTrack} size={20} />
-            <TouchableOpacity
-              onPress={handlePlayTrack}
-              style={styles.playBtn}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isThisTrackActive && isPlaying
-                  ? `Pause ${result.name}`
-                  : `Play ${result.name}`
-              }
-            >
-              <Ionicons
-                name={isThisTrackActive && isPlaying ? "pause" : "play"}
-                size={16}
-                color={theme.colors.playButtonIcon}
-                style={
-                  !(isThisTrackActive && isPlaying)
-                    ? { transform: [{ translateX: 1 }] }
-                    : undefined
-                }
-              />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color={theme.colors.textMuted}
-            style={styles.chevron}
-          />
-        )}
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={theme.colors.textMuted}
+          style={styles.chevron}
+        />
       </Pressable>
     </View>
   );
@@ -193,11 +137,6 @@ export const constructUrl = (r: Result) => {
     return { pathname: "/station/[id]", params: { id: String(r.id) } } as const;
   } else if (r.isPodcast) {
     return { pathname: "/podcast/[id]", params: { id: String(r.id) } } as const;
-  } else if (r.isTrack) {
-    if (r.artistId && r.trackGroupId) {
-      return `/artist/${r.artistId}/album/${r.trackGroupId}/album-tracks` as const;
-    }
-    return `/artist/${r.artistId}/artist-page` as const;
   } else if (r.isTrackGroup) {
     return `/artist/${r.artistId}/album/${r.trackGroupId}/album-tracks` as const;
   } else if (r.isArtist) {
@@ -219,9 +158,6 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.surfaceCardBorder,
-  },
-  activePressable: {
-    borderColor: theme.colors.surfaceGlassBorder,
   },
   pressed: {
     opacity: 0.82,
@@ -286,20 +222,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.colors.primary,
     fontWeight: "600",
-  },
-  trackActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginLeft: 8,
-  },
-  playBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
   },
   chevron: {
     marginLeft: 6,

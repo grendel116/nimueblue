@@ -1606,10 +1606,14 @@ export async function searchFairplayerCatalog(
     const titleLower = (known.title || "").toLowerCase();
     const artistLower = (known.artist?.name || "").toLowerCase();
     const aboutLower = (known.about || "").toLowerCase();
+    const trackMatches = (known.tracks || []).some((tr) =>
+      tr.title?.toLowerCase().includes(query),
+    );
     if (
       titleLower.includes(query) ||
       artistLower.includes(query) ||
-      aboutLower.includes(query)
+      aboutLower.includes(query) ||
+      trackMatches
     ) {
       if (!albumsBySlug.has(known.urlSlug)) {
         albumsBySlug.set(known.urlSlug, known);

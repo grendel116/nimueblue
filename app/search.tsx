@@ -24,9 +24,8 @@ import { dragScroll } from "@/scripts/dragScroll";
 
 const CATEGORY_TABS: { key: SearchCategoryFilter; label: string }[] = [
   { key: "All", label: "All" },
-  { key: "Track", label: "Tracks" },
-  { key: "Artist", label: "Artists" },
   { key: "Album", label: "Albums" },
+  { key: "Artist", label: "Artists" },
   { key: "Genre", label: "Genres & Tags" },
   { key: "Radio", label: "Radio" },
   { key: "Podcast", label: "Podcasts" },
@@ -34,9 +33,8 @@ const CATEGORY_TABS: { key: SearchCategoryFilter; label: string }[] = [
 
 function matchesCategoryFilter(item: Result, filter: SearchCategoryFilter): boolean {
   if (filter === "All") return true;
-  if (filter === "Track") return Boolean(item.isTrack);
-  if (filter === "Artist") return Boolean(item.isArtist);
   if (filter === "Album") return Boolean(item.isTrackGroup);
+  if (filter === "Artist") return Boolean(item.isArtist);
   if (filter === "Genre") return Boolean(item.isGenre || item.isTag);
   if (filter === "Radio") return Boolean(item.isStation);
   if (filter === "Podcast") return Boolean(item.isPodcast);
@@ -112,17 +110,15 @@ export default function SearchPage() {
   const categoryCounts = useMemo(() => {
     const counts: Record<SearchCategoryFilter, number> = {
       All: searchResults.length,
-      Track: 0,
-      Artist: 0,
       Album: 0,
+      Artist: 0,
       Genre: 0,
       Radio: 0,
       Podcast: 0,
     };
     for (const item of searchResults) {
-      if (item.isTrack) counts.Track++;
+      if (item.isTrackGroup) counts.Album++;
       else if (item.isArtist) counts.Artist++;
-      else if (item.isTrackGroup) counts.Album++;
       else if (item.isGenre || item.isTag) counts.Genre++;
       else if (item.isStation) counts.Radio++;
       else if (item.isPodcast) counts.Podcast++;
@@ -166,7 +162,7 @@ export default function SearchPage() {
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeader}>Browse Genres</Text>
               <Text style={styles.sectionSubheader}>
-                Explore tracks, releases, and community broadcasts across genres
+                Explore releases, artists, and community broadcasts across genres
               </Text>
             </View>
             <FlatList
@@ -260,7 +256,7 @@ export default function SearchPage() {
             <View style={styles.emptyContainer}>
               <Ionicons name="search" size={40} color={theme.colors.textMuted} />
               <Text style={styles.emptyText}>
-                {`Couldn't find anything for "${searchValue.trim()}". Try another track, artist, or genre!`}
+                {`Couldn't find anything for "${searchValue.trim()}". Try another album, artist, or genre!`}
               </Text>
             </View>
           ) : null}

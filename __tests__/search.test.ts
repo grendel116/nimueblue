@@ -39,7 +39,7 @@ jest.mock("@/state/PlayerContext", () => ({
   }),
 }));
 
-describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () => {
+describe("Search Accuracy Ranking (album title > artist name > genre > tag)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -56,7 +56,7 @@ describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () 
     expect(substring).toBeGreaterThan(0);
   });
 
-  test("strictly orders results by Track Name > Artist Name > Genre > Tag", () => {
+  test("strictly orders results by Album Title > Artist Name > Genre > Tag", () => {
     const tagMatchedAlbum: Result = {
       id: "alb-tag",
       name: "Midnight Horizon",
@@ -86,12 +86,12 @@ describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () 
       matchedGenre: " disco ",
     };
 
-    const artistMatchedTrack: Result = {
-      id: "trk-artist",
+    const artistMatchedAlbum: Result = {
+      id: "alb-artist",
       name: "Starlight",
       artistName: "Disco Tigers",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
 
     const artistProfile: Result = {
@@ -101,41 +101,41 @@ describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () 
       isArtist: true,
     };
 
-    const trackSubstring: Result = {
-      id: "trk-sub",
+    const albumSubstring: Result = {
+      id: "alb-sub",
       name: "Silent Discotheque",
       artistName: "Lunar",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
 
-    const trackExact: Result = {
-      id: "trk-exact",
+    const albumExact: Result = {
+      id: "alb-exact",
       name: "Disco",
       artistName: "Solar",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
 
     const unsorted: Result[] = [
       tagMatchedAlbum,
       genreCard,
-      artistMatchedTrack,
+      artistMatchedAlbum,
       tagPill,
-      trackSubstring,
+      albumSubstring,
       artistProfile,
-      trackExact,
+      albumExact,
     ];
 
     const sorted = sortResultsByAccuracy(unsorted, "disco");
 
-    // 1. Track Name matches come first (exact track name before substring track name)
-    expect(sorted[0].id).toBe("trk-exact");
-    expect(sorted[1].id).toBe("trk-sub");
+    // 1. Album Title matches come first (exact album title before substring album title)
+    expect(sorted[0].id).toBe("alb-exact");
+    expect(sorted[1].id).toBe("alb-sub");
 
-    // 2. Artist Name matches come second (exact artist before prefix artist track)
+    // 2. Artist Name matches come second (exact artist before prefix artist album)
     expect(sorted[2].id).toBe("art-1");
-    expect(sorted[3].id).toBe("trk-artist");
+    expect(sorted[3].id).toBe("alb-artist");
 
     // 3. Genre match comes third
     expect(sorted[4].id).toBe("genre-synth");
@@ -145,20 +145,20 @@ describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () 
     expect(sorted[6].id).toBe("alb-tag");
   });
 
-  test("boosts multi-word track + artist queries to the top", () => {
-    const targetTrack: Result = {
+  test("boosts multi-word album + artist queries to the top", () => {
+    const targetAlbum: Result = {
       id: 1,
-      name: "Windowlicker",
+      name: "Selected Ambient Works",
       artistName: "Aphex Twin",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
-    const otherTrackByArtist: Result = {
+    const otherAlbumByArtist: Result = {
       id: 2,
-      name: "Avril 14th",
+      name: "Drukqs",
       artistName: "Aphex Twin",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
     const artistItem: Result = {
       id: 3,
@@ -168,13 +168,13 @@ describe("Search Accuracy Ranking (track name > artist name > genre > tag)", () 
     };
 
     const sorted = sortResultsByAccuracy(
-      [otherTrackByArtist, artistItem, targetTrack],
-      "aphex twin windowlicker",
+      [otherAlbumByArtist, artistItem, targetAlbum],
+      "aphex twin selected ambient works",
     );
 
     expect(sorted[0].id).toBe(1);
-    expect(scoreSearchResult(targetTrack, "aphex twin windowlicker")).toBeGreaterThan(
-      scoreSearchResult(otherTrackByArtist, "aphex twin windowlicker"),
+    expect(scoreSearchResult(targetAlbum, "aphex twin selected ambient works")).toBeGreaterThan(
+      scoreSearchResult(otherAlbumByArtist, "aphex twin selected ambient works"),
     );
   });
 });
@@ -214,7 +214,7 @@ describe("Persistent Search Navigation", () => {
     jest.clearAllMocks();
   });
 
-  test("constructs routes for tracks, genres, tags, albums, artists, radio, and podcasts", () => {
+  test("constructs routes for genres, tags, albums, artists, radio, and podcasts", () => {
     expect(
       constructUrl({
         id: "g1",
@@ -236,10 +236,10 @@ describe("Persistent Search Navigation", () => {
     expect(
       constructUrl({
         id: 42,
-        name: "My Song",
+        name: "My Album",
         artistId: "sockpuppet",
         trackGroupId: "sjx",
-        isTrack: true,
+        isTrackGroup: true,
       }),
     ).toBe("/artist/sockpuppet/album/sjx/album-tracks");
   });
@@ -247,16 +247,16 @@ describe("Persistent Search Navigation", () => {
   test("pressing a search result pushes the destination onto the stack without dismissing search", () => {
     const item: Result = {
       id: 99,
-      name: "Nightwing Theme",
+      name: "Blue Album",
       artistName: "Nimue",
       artistId: "nimue",
       trackGroupId: "blue-album",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     };
 
     const { getByText } = render(React.createElement(SearchItem, { result: item, index: 0 }));
-    fireEvent.press(getByText("Nightwing Theme"));
+    fireEvent.press(getByText("Blue Album"));
 
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/artist/nimue/album/blue-album/album-tracks");
@@ -267,9 +267,8 @@ describe("Persistent Search Navigation", () => {
       id: 10470,
       name: null as unknown as string,
       artistName: "Arthur Robostein",
-      albumTitle: "Walking, Thinking",
-      category: "Track",
-      isTrack: true,
+      category: "Album",
+      isTrackGroup: true,
     } as Result;
 
     expect(() =>

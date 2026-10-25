@@ -32,7 +32,7 @@ export default function SearchInput() {
         <TextInput
           ref={inputRef}
           style={styles.input}
-          placeholder="Search tracks, artists, genres, tags..."
+          placeholder="Search albums, artists, genres, tags..."
           placeholderTextColor={theme.colors.textMuted}
           value={searchValue}
           onChangeText={onChangeValue}

@@ -20,18 +20,14 @@ import {
   savedAlbumSlug,
   SAVED_SOURCE,
 } from "@/scripts/downloadManager";
-import { API_ROOT } from "@/constants/api-root";
-import { API_KEY } from "@/constants/api-key";
-import { audioTrackType, coverSizes, trackStreamPath } from "@/scripts/utils";
 
 const ALBUMS_PER_TAG = 14;
 const MAX_TAG_FANOUT = 8;
 
 export type SearchCategoryFilter =
   | "All"
-  | "Track"
-  | "Artist"
   | "Album"
+  | "Artist"
   | "Genre"
   | "Radio"
   | "Podcast";
@@ -43,11 +39,9 @@ export type Result = {
   artistId?: number | string;
   trackGroupId?: number | string;
   artistName?: string;
-  albumTitle?: string;
   imageUrl?: string;
   isStation?: boolean;
   isPodcast?: boolean;
-  isTrack?: boolean;
   isTrackGroup?: boolean;
   isArtist?: boolean;
   isGenre?: boolean;
@@ -60,7 +54,6 @@ export type Result = {
   matchedGenre?: string;
   matchedTag?: string;
   source?: string;
-  track?: RNTrack;
   firstInCategory?: boolean;
   score?: number;
   avatar?: {
@@ -187,8 +180,8 @@ export function getFieldMatchStrength(
 
 /**
  * Scores a search result according to the strict accuracy hierarchy:
- *   Tier 1 (4000+): Track Name accuracy
- *   Tier 2 (3000+): Artist Name accuracy (plus direct Album/Station/Show title matches)
+ *   Tier 1 (4000+): Album Title accuracy
+ *   Tier 2 (3000+): Artist Name accuracy (plus direct Station/Show title matches)
  *   Tier 3 (2000+): Genre accuracy
  *   Tier 4 (1000+): Tag accuracy
  * Within each tier, higher string match strength (exact > prefix > word > substring) wins.
@@ -228,28 +221,27 @@ export function scoreSearchResult(result: Result, query: string): number {
 
   let bestScore = 0;
 
-  // 1. TRACK NAME MATCH (4000 - 4999)
-  if (result.isTrack) {
-    let effectiveTrackStrength = nameStrength;
+  // 1. ALBUM TITLE MATCH (4000 - 4999)
+  if (result.isTrackGroup) {
+    let effectiveAlbumStrength = nameStrength;
     if (tokens.length > 1 && result.artistName) {
       const combined = `${result.name} ${result.artistName}`;
       const combinedStrength = getFieldMatchStrength(combined, cleanQuery, tokens);
-      const hasTrackToken = tokens.some((tok) =>
+      const hasAlbumToken = tokens.some((tok) =>
         normalizeSearchText(result.name).includes(tok),
       );
-      if (hasTrackToken && combinedStrength > effectiveTrackStrength) {
-        effectiveTrackStrength = combinedStrength;
+      if (hasAlbumToken && combinedStrength > effectiveAlbumStrength) {
+        effectiveAlbumStrength = combinedStrength;
       }
     }
 
-    if (effectiveTrackStrength > 0) {
-      const trackScore =
+    if (effectiveAlbumStrength > 0) {
+      const albumScore =
         4000 +
-        effectiveTrackStrength * 800 +
+        effectiveAlbumStrength * 800 +
         artistStrength * 120 +
-        (result.track ? 15 : 0) +
         concisenessBonus;
-      bestScore = Math.max(bestScore, trackScore);
+      bestScore = Math.max(bestScore, albumScore);
     }
   }
 
@@ -257,25 +249,19 @@ export function scoreSearchResult(result: Result, query: string): number {
   if (artistStrength > 0) {
     const entityOrderBonus = result.isArtist
       ? 140
-      : result.isTrack
+      : result.isTrackGroup
         ? 115
-        : result.isTrackGroup
-          ? 85
-          : 50;
+        : 50;
     const artistScore =
       3000 + artistStrength * 800 + entityOrderBonus + concisenessBonus * 0.5;
     bestScore = Math.max(bestScore, artistScore);
   }
 
-  // Direct Album / Station / Podcast title match when not already higher
-  if (
-    (result.isTrackGroup || result.isStation || result.isPodcast) &&
-    nameStrength > 0
-  ) {
-    const entityBonus = result.isTrackGroup ? 70 : 40;
-    const albumTitleScore =
-      2600 + nameStrength * 750 + artistStrength * 80 + entityBonus + concisenessBonus * 0.5;
-    bestScore = Math.max(bestScore, albumTitleScore);
+  // Direct Station / Podcast title match when not already higher
+  if ((result.isStation || result.isPodcast) && nameStrength > 0) {
+    const stationShowScore =
+      2600 + nameStrength * 750 + artistStrength * 80 + 40 + concisenessBonus * 0.5;
+    bestScore = Math.max(bestScore, stationShowScore);
   }
 
   // 3. GENRE MATCH (2000 - 2599)
@@ -283,11 +269,9 @@ export function scoreSearchResult(result: Result, query: string): number {
     const effectiveGenre = Math.max(genreStrength, result.isGenre ? 0.65 : 0);
     const genreEntityBonus = result.isGenre
       ? 130
-      : result.isTrack
+      : result.isTrackGroup
         ? 95
-        : result.isTrackGroup
-          ? 65
-          : 40;
+        : 40;
     const genreScore = 2000 + effectiveGenre * 450 + genreEntityBonus;
     bestScore = Math.max(bestScore, genreScore);
   }
@@ -297,18 +281,16 @@ export function scoreSearchResult(result: Result, query: string): number {
     const effectiveTag = Math.max(tagStrength, result.isTag ? 0.65 : 0);
     const tagEntityBonus = result.isTag
       ? 130
-      : result.isTrack
+      : result.isTrackGroup
         ? 95
-        : result.isTrackGroup
-          ? 65
-          : 40;
+        : 40;
     const tagScore = 1000 + effectiveTag * 450 + tagEntityBonus;
     bestScore = Math.max(bestScore, tagScore);
   }
 
-  // Fallback for items returned by upstream search (e.g. description or partial match)
+  // Fallback for items returned by upstream search (e.g. track match, description, or partial match)
   if (bestScore === 0) {
-    const fallbackTypeBonus = result.isTrack
+    const fallbackTypeBonus = result.isTrackGroup
       ? 400
       : result.isArtist
         ? 300
@@ -316,9 +298,7 @@ export function scoreSearchResult(result: Result, query: string): number {
           ? 250
           : result.isTag
             ? 200
-            : result.isTrackGroup
-              ? 180
-              : 100;
+            : 100;
     bestScore = fallbackTypeBonus + concisenessBonus;
   }
 
@@ -347,76 +327,6 @@ export function sortResultsByAccuracy(results: Result[], query: string): Result[
       firstInCategory: first,
     };
   });
-}
-
-function buildMirloRNTrack(
-  rawTrack: any,
-  album?: Partial<AlbumProps>,
-): RNTrack | undefined {
-  const trackGroup = rawTrack?.trackGroup || album;
-  const trackId = rawTrack?.id;
-  if (!trackId || !rawTrack?.title) return undefined;
-
-  const rawAudioUrl =
-    rawTrack?.audio?.url || rawTrack?.url || trackStreamPath(trackId);
-  const streamUrl = /^(https?|file):\/\//.test(rawAudioUrl)
-    ? rawAudioUrl
-    : `${API_ROOT}${rawAudioUrl.startsWith("/") ? "" : "/"}${rawAudioUrl}`;
-
-  const artistObj = trackGroup?.artist || {
-    id: trackGroup?.artistId || 0,
-    name: rawTrack?.artist || "Unknown Artist",
-    bio: "",
-    activityPub: false,
-    enabled: true,
-    createdAt: "",
-    trackGroups: [],
-    userId: 0,
-  };
-  const artistName = artistObj.name || rawTrack?.artist || "";
-  const cover = trackGroup?.cover || { sizes: coverSizes(rawTrack?.artwork || "") };
-  const artwork =
-    cover?.sizes?.[600] ||
-    cover?.sizes?.[300] ||
-    cover?.sizes?.[120] ||
-    rawTrack?.artwork ||
-    "";
-  const albumId = trackGroup?.id || trackGroup?.trackGroupId || rawTrack?.trackGroupId || 0;
-
-  return {
-    id: Number(trackId),
-    title: rawTrack.title,
-    artist: artistName,
-    artwork,
-    url: streamUrl,
-    allowIndividualSale: Boolean(rawTrack.allowIndividualSale),
-    queueIndex: rawTrack.order ?? 0,
-    trackGroupId: albumId,
-    trackGroup: {
-      id: albumId,
-      trackGroupId: albumId,
-      title: trackGroup?.title || "",
-      artist: artistObj as Artist,
-      artistId: trackGroup?.artistId || artistObj.id || 0,
-      urlSlug: String(trackGroup?.urlSlug || albumId || ""),
-      cover,
-      releaseDate: trackGroup?.releaseDate || "",
-      userTrackGroupPurchases: trackGroup?.userTrackGroupPurchases || [],
-      source: "Mirlo Space",
-      sourceUrl: "https://mirlo.space",
-    },
-    audio: {
-      url: streamUrl,
-      duration: rawTrack?.audio?.duration ?? rawTrack?.duration,
-    },
-    duration: rawTrack?.audio?.duration ?? rawTrack?.duration,
-    isPreview: rawTrack.isPreview ?? true,
-    order: rawTrack.order ?? 1,
-    headers: { "mirlo-api-key": API_KEY },
-    type: audioTrackType(streamUrl),
-    source: "Mirlo Space",
-    sourceUrl: "https://mirlo.space",
-  };
 }
 
 type TaggedLookupResult = {
@@ -594,33 +504,9 @@ export const SearchContextProvider: React.FC<{
         downloadsSettled.status === "fulfilled" ? downloadsSettled.value || [] : [];
 
       const results: Result[] = [];
-      const trackMap = new Map<string, Result>();
       const albumMap = new Map<string, Result>();
       const artistMap = new Map<string, Result>();
       const tagSet = new Set<string>();
-
-      const upsertTrack = (candidate: Result) => {
-        const cleanName = typeof candidate.name === "string" ? candidate.name.trim() : "";
-        const normName = normalizeSearchText(cleanName);
-        if (!normName) return;
-        candidate.name = cleanName;
-        const key = `${normalizeSearchText(candidate.artistName)}:${normName}`;
-        const existing = trackMap.get(key);
-        if (!existing) {
-          trackMap.set(key, candidate);
-          return;
-        }
-        if (!existing.track && candidate.track) existing.track = candidate.track;
-        if (!existing.matchedGenre && candidate.matchedGenre) {
-          existing.matchedGenre = candidate.matchedGenre;
-        }
-        if (!existing.matchedTag && candidate.matchedTag) {
-          existing.matchedTag = candidate.matchedTag;
-        }
-        if (candidate.tags?.length) {
-          existing.tags = Array.from(new Set([...(existing.tags || []), ...candidate.tags]));
-        }
-      };
 
       const upsertAlbum = (candidate: Result) => {
         const cleanName = typeof candidate.name === "string" ? candidate.name.trim() : "";
@@ -689,22 +575,22 @@ export const SearchContextProvider: React.FC<{
         });
       }
 
-      // 3. Direct Mirlo Tracks
+      // 3. Albums surfaced from Direct Mirlo Track Matches
       for (const tr of directTracks) {
-        if (!tr?.trackGroup) continue;
-        const rnTrack = buildMirloRNTrack(tr, tr.trackGroup);
-        upsertTrack({
-          id: tr.id,
-          name: tr.title,
-          category: "Track",
-          isTrack: true,
-          trackGroupId: tr.trackGroup.urlSlug ?? tr.trackGroupId,
-          artistId: tr.trackGroup.artist?.urlSlug ?? tr.trackGroup.artistId,
-          artistName: tr.trackGroup.artist?.name,
-          albumTitle: tr.trackGroup.title,
-          trackGroupCover: tr.trackGroup.cover,
+        const tg = tr?.trackGroup;
+        if (!tg) continue;
+        const artistSlug = tg.artist?.urlSlug ?? tg.artistId;
+        const artistName = tg.artist?.name || "";
+        upsertAlbum({
+          id: tg.urlSlug ?? tg.id,
+          trackGroupId: tg.urlSlug ?? tg.id,
+          artistId: artistSlug,
+          artistName,
+          trackGroupCover: tg.cover,
+          name: tg.title,
+          category: "Album",
+          isTrackGroup: true,
           source: "Mirlo",
-          track: rnTrack,
         });
       }
 
@@ -735,31 +621,10 @@ export const SearchContextProvider: React.FC<{
             tags: tg.tags,
             source: "Mirlo",
           });
-
-          for (const tr of tg.tracks || []) {
-            const rnTrack = buildMirloRNTrack(tr, {
-              ...tg,
-              artist: tg.artist || artist,
-              artistId: tg.artistId || artist.id,
-            });
-            upsertTrack({
-              id: tr.id,
-              name: tr.title,
-              category: "Track",
-              isTrack: true,
-              trackGroupId: tg.urlSlug ?? tg.id,
-              artistId: albumArtistSlug,
-              artistName: albumArtistName,
-              albumTitle: tg.title,
-              trackGroupCover: tg.cover,
-              source: "Mirlo",
-              track: rnTrack,
-            });
-          }
         }
       }
 
-      // 5. Mirlo Direct Albums (and embedded tracks)
+      // 5. Mirlo Direct Albums
       for (const tg of trackGroups) {
         const artistSlug = tg.artist?.urlSlug ?? tg.artistId;
         const artistName = tg.artist?.name || "";
@@ -775,27 +640,9 @@ export const SearchContextProvider: React.FC<{
           tags: tg.tags,
           source: "Mirlo",
         });
-
-        for (const tr of tg.tracks || []) {
-          const rnTrack = buildMirloRNTrack(tr, tg);
-          upsertTrack({
-            id: tr.id,
-            name: tr.title,
-            category: "Track",
-            isTrack: true,
-            trackGroupId: tg.urlSlug ?? tg.id,
-            artistId: artistSlug,
-            artistName,
-            albumTitle: tg.title,
-            trackGroupCover: tg.cover,
-            tags: tg.tags,
-            source: "Mirlo",
-            track: rnTrack,
-          });
-        }
       }
 
-      // 6. Mirlo Tagged Albums & Playable Tracks from Tagged Albums
+      // 6. Mirlo Tagged Albums
       for (const { album: tg, matchedTag, matchedGenre } of taggedData.albums) {
         const artistSlug = tg.artist?.urlSlug ?? tg.artistId;
         const artistName = tg.artist?.name || "";
@@ -813,30 +660,9 @@ export const SearchContextProvider: React.FC<{
           matchedGenre,
           source: "Mirlo",
         });
-
-        for (const tr of tg.tracks || []) {
-          if (tr.isPreview === false) continue;
-          const rnTrack = buildMirloRNTrack(tr, tg);
-          upsertTrack({
-            id: tr.id,
-            name: tr.title,
-            category: "Track",
-            isTrack: true,
-            trackGroupId: tg.urlSlug ?? tg.id,
-            artistId: artistSlug,
-            artistName,
-            albumTitle: tg.title,
-            trackGroupCover: tg.cover,
-            tags: tg.tags || [matchedTag],
-            matchedTag,
-            matchedGenre,
-            source: "Mirlo",
-            track: rnTrack,
-          });
-        }
       }
 
-      // 7. Federated Chorus Catalog (Tracks, Artists, Albums, Tags)
+      // 7. Federated Chorus Catalog (Artists, Albums, Tags)
       for (const album of chorusAlbums) {
         const artistName = album.artist?.name || "";
         const artistSlug = album.artist?.urlSlug || album.artistId;
@@ -851,6 +677,9 @@ export const SearchContextProvider: React.FC<{
           matchedGenres.find((g) => albumTags.some((t) => g.tags.includes(t.toLowerCase())));
         const artistMatch = getFieldMatchStrength(artistName, lowerTerm, queryTokens) > 0;
         const albumTitleMatch = getFieldMatchStrength(album.title, lowerTerm, queryTokens) > 0;
+        const trackMatch = (album.tracks || []).some(
+          (tr) => getFieldMatchStrength(tr.title, lowerTerm, queryTokens) > 0,
+        );
 
         for (const t of albumTags) {
           const cleanT = t.toLowerCase().trim();
@@ -886,7 +715,7 @@ export const SearchContextProvider: React.FC<{
           });
         }
 
-        if (albumTitleMatch || artistMatch || matchedTag || matchedGenreObj) {
+        if (albumTitleMatch || artistMatch || matchedTag || matchedGenreObj || trackMatch) {
           upsertAlbum({
             id: album.urlSlug || album.id,
             trackGroupId: album.urlSlug || album.id,
@@ -902,31 +731,9 @@ export const SearchContextProvider: React.FC<{
             source: album.source || resolveFeedSourceName(album.sourceUrl),
           });
         }
-
-        for (const tr of album.tracks || []) {
-          const trackMatch = getFieldMatchStrength(tr.title, lowerTerm, queryTokens) > 0;
-          if (trackMatch || artistMatch || matchedTag || matchedGenreObj) {
-            upsertTrack({
-              id: tr.id,
-              name: tr.title,
-              category: "Track",
-              isTrack: true,
-              trackGroupId: album.urlSlug || album.id,
-              artistId: artistSlug,
-              artistName,
-              albumTitle: album.title,
-              trackGroupCover: album.cover,
-              tags: albumTags,
-              matchedTag,
-              matchedGenre: matchedGenreObj?.name,
-              source: album.source || "Chorus",
-              track: tr,
-            });
-          }
-        }
       }
 
-      // 8. Faircamp / Fairplayer Catalog (Artists, Albums, Tracks)
+      // 8. Faircamp / Fairplayer Catalog (Artists, Albums)
       for (const fairArtist of fairplayerData.artists) {
         upsertArtist({
           id: fairArtist.id,
@@ -954,22 +761,6 @@ export const SearchContextProvider: React.FC<{
         });
       }
 
-      for (const fairTrack of fairplayerData.tracks) {
-        upsertTrack({
-          id: fairTrack.id,
-          name: fairTrack.title,
-          category: "Track",
-          isTrack: true,
-          trackGroupId: fairTrack.albumSlug,
-          artistId: fairTrack.artistSlug,
-          artistName: fairTrack.artistName,
-          imageUrl: fairTrack.imageUrl,
-          matchedGenre: matchedGenres[0]?.name,
-          source: "Faircamp",
-          track: fairTrack.track,
-        });
-      }
-
       // 9. Local Saved / Downloaded Music
       if (downloadedTracks.length > 0) {
         const savedAlbums = groupTracksIntoAlbums(downloadedTracks);
@@ -979,8 +770,11 @@ export const SearchContextProvider: React.FC<{
             getFieldMatchStrength(savedAlbum.title, lowerTerm, queryTokens) > 0;
           const artistMatch =
             getFieldMatchStrength(savedAlbum.artist, lowerTerm, queryTokens) > 0;
+          const trackMatch = savedAlbum.tracks.some(
+            (dt) => getFieldMatchStrength(dt.title, lowerTerm, queryTokens) > 0,
+          );
 
-          if (albumMatch || artistMatch) {
+          if (albumMatch || artistMatch || trackMatch) {
             upsertAlbum({
               id: slug,
               trackGroupId: slug,
@@ -992,65 +786,6 @@ export const SearchContextProvider: React.FC<{
               isTrackGroup: true,
               source: SAVED_SOURCE,
             });
-          }
-
-          for (const dt of savedAlbum.tracks) {
-            const trackMatch =
-              getFieldMatchStrength(dt.title, lowerTerm, queryTokens) > 0;
-            if (trackMatch || artistMatch || albumMatch) {
-              const rnTrack: RNTrack = {
-                id: dt.id,
-                title: dt.title,
-                artist: dt.artist,
-                artwork: dt.artwork,
-                url: dt.url,
-                allowIndividualSale: false,
-                queueIndex: (dt.order ?? 1) - 1,
-                trackGroupId: dt.id,
-                trackGroup: {
-                  id: dt.id,
-                  trackGroupId: dt.id,
-                  title: savedAlbum.title,
-                  artist: {
-                    id: 0,
-                    name: savedAlbum.artist,
-                    bio: "",
-                    activityPub: false,
-                    enabled: true,
-                    createdAt: "",
-                    trackGroups: [],
-                    userId: 0,
-                  },
-                  artistId: 0,
-                  urlSlug: slug,
-                  cover: { sizes: coverSizes(dt.artwork || "") },
-                  releaseDate: "",
-                  source: SAVED_SOURCE,
-                },
-                audio: { url: dt.url, duration: dt.duration },
-                duration: dt.duration,
-                isPreview: true,
-                order: dt.order ?? 1,
-                headers: {},
-                type: audioTrackType(dt.url),
-                source: SAVED_SOURCE,
-                downloadAlbum: savedAlbum.key,
-              };
-
-              upsertTrack({
-                id: dt.id,
-                name: dt.title,
-                category: "Track",
-                isTrack: true,
-                trackGroupId: slug,
-                artistId: slug,
-                artistName: dt.artist,
-                albumTitle: savedAlbum.title,
-                imageUrl: dt.artwork,
-                source: SAVED_SOURCE,
-                track: rnTrack,
-              });
-            }
           }
         }
       }
@@ -1081,7 +816,6 @@ export const SearchContextProvider: React.FC<{
       }
 
       results.push(
-        ...trackMap.values(),
         ...artistMap.values(),
         ...albumMap.values(),
       );
