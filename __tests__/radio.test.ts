@@ -2,6 +2,7 @@ import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
   isExcludedColonialStation,
+  isPlayableRadioBrowserStation,
   liveTrack,
   RADICAL_RADIO_TAGS,
   RADIO_STATIONS,
@@ -115,6 +116,51 @@ describe("discovered radio stations", () => {
     expect(deduped.map((s) => s.id)).toEqual(["cn-1", "cn-2", "th-1", "th-2"]);
   });
 
+  test("removes stations with '100' in the title to drop commercial chart stations like #100 BEST IBIZA DEEP HOUSE", () => {
+    const makeStation = (overrides: Partial<RadioStation>): RadioStation => ({
+      id: "s1",
+      name: "Nice Community Radio",
+      liveName: "Nice Community Radio",
+      location: "Global",
+      artwork: "https://example.com/art.jpg",
+      about: "",
+      streamUrl: "https://stream.example.com/live.mp3",
+      playlistPage: "",
+      donatePage: "",
+      fetchPlays: async () => [],
+      ...overrides,
+    });
+
+    const goodStation = makeStation({ id: "good", name: "Community Sound", liveName: "Community Sound" });
+    const ibiza100 = makeStation({ id: "ibiza", name: "#100 BEST IBIZA DEEP HOUSE", liveName: "#100 BEST IBIZA DEEP HOUSE" });
+    const top100 = makeStation({ id: "top100", name: "Top 100 Hits Radio", liveName: "Top 100 Hits Radio" });
+
+    const deduped = deduplicateRadioStations([goodStation, ibiza100, top100]);
+    expect(deduped).toEqual([goodStation]);
+
+    expect(
+      isPlayableRadioBrowserStation({
+        stationuuid: "111",
+        name: "#100 BEST IBIZA DEEP HOUSE",
+        url: "https://stream.example.com/live.mp3",
+        favicon: "https://example.com/art.jpg",
+        lastcheckok: 1,
+        ssl_error: 0,
+      }),
+    ).toBe(false);
+
+    expect(
+      isPlayableRadioBrowserStation({
+        stationuuid: "222",
+        name: "Eclectic Community Radio",
+        url: "https://stream.example.com/live.mp3",
+        favicon: "https://example.com/art.jpg",
+        lastcheckok: 1,
+        ssl_error: 0,
+      }),
+    ).toBe(true);
+  });
+
   test("uses the full Radio-Browser UUID for server-side short-link resolution", () => {
     const station = radioBrowserToRadioStation({
       stationuuid: "11111111-1111-1111-1111-111111111111",
@@ -126,18 +172,18 @@ describe("discovered radio stations", () => {
     expect(station.id).toBe("rb-11111111111111111111111111111111");
   });
 
-  test("assigns hls track type for .m3u8 radio streams and includes Thai and single curated Chinese station", () => {
+  test("assigns default track type for mp3 radio streams and includes Thai and open curated Chinese station", () => {
     const bcr = RADIO_STATIONS.find((s) => s.id === "bangkok-community-radio");
-    const cctv15 = RADIO_STATIONS.find((s) => s.id === "cctv-15");
+    const guangdong = RADIO_STATIONS.find((s) => s.id === "guangdong-music-fm");
     const imx = RADIO_STATIONS.find((s) => s.id === "imx-fm");
     const rthk = RADIO_STATIONS.find((s) => s.id === "rthk-radio-2");
 
     expect(bcr).toBeDefined();
-    expect(cctv15).toBeDefined();
+    expect(guangdong).toBeDefined();
     expect(imx).toBeUndefined();
     expect(rthk).toBeUndefined();
     expect(liveTrack(bcr!).type).toBe("default");
-    expect(liveTrack(cctv15!).type).toBe("hls");
+    expect(liveTrack(guangdong!).type).toBe("default");
   });
 
   test("worker metadata includes artwork for all curated radio stations", () => {
@@ -221,7 +267,7 @@ describe("discovered radio stations", () => {
       expect(thaiResults.some((s) => s.name === "Radio Azawan")).toBe(false);
 
       const chineseScriptResults = await searchRadioStations("中文");
-      expect(chineseScriptResults.some((s) => s.id === "cctv-15")).toBe(true);
+      expect(chineseScriptResults.some((s) => s.id === "guangdong-music-fm")).toBe(true);
       expect(chineseScriptResults.some((s) => s.id === "imx-fm")).toBe(false);
       expect(chineseScriptResults.some((s) => s.id === "rthk-radio-2")).toBe(false);
     } finally {

@@ -3,7 +3,7 @@ import {
   Text,
   View,
   StyleSheet,
-  FlatList,
+  ScrollView,
   Image,
   TouchableOpacity,
   Pressable,
@@ -23,8 +23,7 @@ import {
   resolveArtworkUrl,
 } from "@/scripts/utils";
 
-// A station's screen, laid out like an album: the cover is what's on air, and the track
-// list is the station's play history, newest first
+// A station's screen, displaying the live broadcast, current on-air track entry, and station details
 export default function StationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const station = findStation(id);
@@ -53,69 +52,66 @@ export default function StationScreen() {
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </Pressable>
       </View>
-      <FlatList
+      <ScrollView
         style={styles.container}
         contentContainerStyle={styles.listContainer}
-        data={plays}
-        keyExtractor={(play) => play.key}
-        renderItem={({ item, index }) => (
-          <PlayRow play={item} onAir={index === 0} highlighted={index === 0 && isPlaying} />
+      >
+        <View style={styles.headerSection}>
+          <View style={styles.coverWrapper}>
+            {!imgError && isQualityArtwork(rawArt) && (
+              <Image
+                source={{ uri: resolveArtworkUrl(rawArt) }}
+                style={styles.coverImage}
+                resizeMode="cover"
+                onError={() => setImgError(true)}
+              />
+            )}
+          </View>
+          <View style={styles.metaRow}>
+            <View style={styles.metaTitles}>
+              <Text style={styles.mainTitle} numberOfLines={1}>
+                {station.liveName}
+              </Text>
+              <Text style={styles.locationText}>Live from {station.location}</Text>
+            </View>
+            <View style={styles.actions}>
+              <AddToQueueButton track={liveTrack(station)} size={28} />
+              <FavoriteTrackButton
+                track={liveTrack(station)}
+                size={28}
+                style={{ marginHorizontal: 8 }}
+              />
+              <StationPlayButton station={station} />
+            </View>
+          </View>
+        </View>
+
+        {onAir && (
+          <PlayRow play={onAir} onAir={true} highlighted={isPlaying} />
         )}
-        ListHeaderComponent={
-          <View style={styles.headerSection}>
-            <View style={styles.coverWrapper}>
-              {!imgError && isQualityArtwork(rawArt) && (
-                <Image
-                  source={{ uri: resolveArtworkUrl(rawArt) }}
-                  style={styles.coverImage}
-                  resizeMode="cover"
-                  onError={() => setImgError(true)}
-                />
-              )}
-            </View>
-            <View style={styles.metaRow}>
-              <View style={styles.metaTitles}>
-                <Text style={styles.mainTitle} numberOfLines={1}>
-                  {station.liveName}
-                </Text>
-                <Text style={styles.locationText}>Live from {station.location}</Text>
-              </View>
-              <View style={styles.actions}>
-                <AddToQueueButton track={liveTrack(station)} size={28} />
-                <FavoriteTrackButton
-                  track={liveTrack(station)}
-                  size={28}
-                  style={{ marginHorizontal: 8 }}
-                />
-                <StationPlayButton station={station} />
-              </View>
-            </View>
-          </View>
-        }
-        ListFooterComponent={
-          <View style={styles.footerSection}>
-            <Text style={styles.aboutHeader}>About</Text>
-            <Text style={styles.aboutText}>{station.about}</Text>
-            <Pressable
-              onPress={() => openInBrowser(station.playlistPage)}
-              accessibilityRole="link"
-              style={styles.footerLink}
-            >
-              <Text style={styles.linkText}>Full Playlist</Text>
-              <Ionicons name="open-outline" size={14} color={theme.colors.textCyan} />
-            </Pressable>
-            <Pressable
-              onPress={() => openInBrowser(station.donatePage)}
-              style={styles.donateButton}
-              accessibilityRole="button"
-              accessibilityLabel={`Donate to ${station.name}`}
-            >
-              <Ionicons name="heart" size={16} color={theme.colors.playButtonIcon} />
-              <Text style={styles.donateText}>Donate</Text>
-            </Pressable>
-          </View>
-        }
-      />
+
+        <View style={styles.footerSection}>
+          <Text style={styles.aboutHeader}>About</Text>
+          <Text style={styles.aboutText}>{station.about}</Text>
+          <Pressable
+            onPress={() => openInBrowser(station.playlistPage)}
+            accessibilityRole="link"
+            style={styles.footerLink}
+          >
+            <Text style={styles.linkText}>Full Playlist</Text>
+            <Ionicons name="open-outline" size={14} color={theme.colors.textCyan} />
+          </Pressable>
+          <Pressable
+            onPress={() => openInBrowser(station.donatePage)}
+            style={styles.donateButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Donate to ${station.name}`}
+          >
+            <Ionicons name="heart" size={16} color={theme.colors.playButtonIcon} />
+            <Text style={styles.donateText}>Donate</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -154,8 +150,7 @@ function StationPlayButton({ station }: { station: RadioStation }) {
   );
 }
 
-// A song from the play history, shaped like an album's track row with the airtime in place
-// of the length
+// The single on-air track entry for the current broadcast
 function PlayRow({ play, onAir, highlighted }: { play: RadioPlay; onAir: boolean; highlighted: boolean }) {
   const [imgError, setImgError] = useState(false);
   const airtime = new Date(play.airdate).toLocaleTimeString([], {

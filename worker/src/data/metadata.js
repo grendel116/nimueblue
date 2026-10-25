@@ -89,13 +89,13 @@ export const RADIO_STATION_META = {
     web: "https://bangkokcommunityradio.com",
     app: "/station/bangkok-community-radio",
   },
-  "cctv-15": {
-    name: "CCTV-15 音乐频道",
-    artist: "Live from Beijing, China",
-    art: "https://p4.img.cctvpic.com/photoAlbum/page/performance/img/2021/11/19/1637293545457_544.jpg",
-    audio: "https://piccpndali.v.myalicdn.com/audio/cctv15_2.m3u8",
-    web: "https://tv.cctv.com/live/cctv15/",
-    app: "/station/cctv-15",
+  "guangdong-music-fm": {
+    name: "广东音乐之声",
+    artist: "Live from Guangzhou, China",
+    art: "https://img.gdtv.cn/image/202109/0.070466864478565984968adb1bd6e36150OSS1630576772.png",
+    audio: "https://lhttp.qtfm.cn/live/1260/64k.mp3",
+    web: "https://www.gdtv.cn/",
+    app: "/station/guangdong-music-fm",
   },
 };
 

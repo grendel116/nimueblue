@@ -71,18 +71,20 @@ const KEXP: RadioStation = {
   donatePage: "https://www.kexp.org/donate/",
   fetchPlays: async (signal) => {
     const data = await getJson<{ results: KexpPlay[] }>(
-      "https://api.kexp.org/v2/plays/?format=json&limit=30",
+      "https://api.kexp.org/v2/plays/?format=json&limit=5",
       signal,
     );
-    return data.results
-      .filter((p) => p.play_type === "trackplay")
-      .map((p) => ({
-        key: String(p.id),
-        song: p.song,
-        artist: p.artist,
-        airdate: p.airdate,
-        artwork: toArtworkUrl(p.image_uri) || toArtworkUrl(p.thumbnail_uri),
-      }));
+    const track = data.results.find((p) => p.play_type === "trackplay");
+    if (!track) return [];
+    return [
+      {
+        key: String(track.id),
+        song: track.song,
+        artist: track.artist,
+        airdate: track.airdate,
+        artwork: toArtworkUrl(track.image_uri) || toArtworkUrl(track.thumbnail_uri),
+      },
+    ];
   },
 };
 
@@ -112,13 +114,17 @@ const CARBON_SOUND: RadioStation = {
       "https://nowplaying.publicradio.org/carbon-sound/playlist",
       signal,
     );
-    return data.data.songs.map((s) => ({
-      key: `${s.song_id}-${s.played_at}`,
-      song: s.title,
-      artist: s.artist,
-      airdate: s.played_at,
-      artwork: toArtworkUrl(s.art_url),
-    }));
+    const song = data.data?.songs?.[0];
+    if (!song) return [];
+    return [
+      {
+        key: `${song.song_id}-${song.played_at}`,
+        song: song.title,
+        artist: song.artist,
+        airdate: song.played_at,
+        artwork: toArtworkUrl(song.art_url),
+      },
+    ];
   },
 };
 
@@ -315,87 +321,48 @@ const BANGKOK_COMMUNITY_RADIO: RadioStation = {
   ],
 };
 
-// CCTV-15 音乐频道: public Chinese music broadcast featuring folk songs, national instrumental ensembles, and choral works
-type CctvEpgItem = {
-  title: string;
-  startTime: number;
-};
+// 广东音乐之声 (Guangdong Music FM): China's pioneering music radio broadcast from Guangzhou (FM 99.3)
+const GUANGDONG_MUSIC_LOGO =
+  "https://img.gdtv.cn/image/202109/0.070466864478565984968adb1bd6e36150OSS1630576772.png";
 
-type CctvEpgResponse = {
-  data?: {
-    cctv15?: {
-      isLive?: string;
-      liveSt?: number;
-      list?: CctvEpgItem[];
-    };
-  };
-};
-
-const CCTV_15_LOGO =
-  "https://p4.img.cctvpic.com/photoAlbum/page/performance/img/2021/11/19/1637293545457_544.jpg";
-
-const CCTV_15: RadioStation = {
-  id: "cctv-15",
-  name: "CCTV-15 音乐频道",
-  liveName: "CCTV-15 音乐频道 (China Music)",
-  location: "Beijing, China",
-  artwork: CCTV_15_LOGO,
+const GUANGDONG_MUSIC: RadioStation = {
+  id: "guangdong-music-fm",
+  name: "广东音乐之声",
+  liveName: "广东音乐之声 (FM 99.3)",
+  location: "Guangzhou, China",
+  artwork: GUANGDONG_MUSIC_LOGO,
   about:
-    "Public Chinese music broadcast from Beijing featuring folk songs (民歌·中国), traditional Chinese instrumental ensembles (风华国乐), and choral works.",
-  streamUrl: "https://piccpndali.v.myalicdn.com/audio/cctv15_2.m3u8",
-  playlistPage: "https://tv.cctv.com/live/cctv15/",
-  donatePage: "https://tv.cctv.com/cctv15/",
+    "Pioneering music radio broadcast from Guangzhou (FM 99.3), showcasing Cantonese and Mandarin pop, classic golden hits, and regional Chinese sound culture.",
+  streamUrl: "https://lhttp.qtfm.cn/live/1260/64k.mp3",
+  playlistPage: "https://www.gdtv.cn/",
+  donatePage: "https://www.gdtv.cn/",
   tags: [
     "chinese",
     "china",
-    "beijing",
+    "guangzhou",
+    "guangdong",
+    "cantonese",
     "mandarin",
+    "c-pop",
+    "cantopop",
+    "indie",
     "folk",
-    "traditional",
     "中文",
     "华语",
-    "中国",
-    "民歌",
-    "民乐",
+    "粵語",
+    "广东",
+    "广州",
     "音乐",
   ],
-  fetchPlays: async (signal) => {
-    const beijingDate = new Date(Date.now() + 8 * 3600_000)
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, "");
-    const data = await getJson<CctvEpgResponse>(
-      `https://api.cntv.cn/epg/getEpgInfoByChannelNew?c=cctv15&serviceId=tvcctv&d=${beijingDate}&t=json`,
-      signal,
-    );
-    const channel = data.data?.cctv15;
-    const nowSec = Math.floor(Date.now() / 1000);
-    const aired = (channel?.list ?? [])
-      .filter((item) => item.title && item.startTime <= nowSec)
-      .reverse()
-      .slice(0, 15);
-    if (aired.length > 0) {
-      return aired.map((item) => ({
-        key: `${item.startTime}-${item.title}`,
-        song: item.title,
-        artist: "CCTV-15 音乐频道",
-        airdate: new Date(item.startTime * 1000).toISOString(),
-        artwork: CCTV_15_LOGO,
-      }));
-    }
-    if (channel?.isLive) {
-      return [
-        {
-          key: `${channel.liveSt ?? nowSec}-${channel.isLive}`,
-          song: channel.isLive,
-          artist: "CCTV-15 音乐频道",
-          airdate: new Date((channel.liveSt ?? nowSec) * 1000).toISOString(),
-          artwork: CCTV_15_LOGO,
-        },
-      ];
-    }
-    return [];
-  },
+  fetchPlays: async () => [
+    {
+      key: "guangdong-music-live",
+      song: "广东音乐之声 FM 99.3",
+      artist: "Live from Guangzhou",
+      airdate: new Date().toISOString(),
+      artwork: GUANGDONG_MUSIC_LOGO,
+    },
+  ],
 };
 
 export const RADIO_STATIONS: RadioStation[] = [
@@ -407,7 +374,7 @@ export const RADIO_STATIONS: RadioStation[] = [
   RESONANCE_FM,
   REFUGE,
   BANGKOK_COMMUNITY_RADIO,
-  CCTV_15,
+  GUANGDONG_MUSIC,
 ];
 
 function normalizeStationName(name: string): string {
@@ -435,6 +402,10 @@ export function deduplicateRadioStations(
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
+    // Drop commercial chart / spam stations with "100" in the title (e.g. "#100 BEST IBIZA DEEP HOUSE")
+    if (station.name.includes("100") || station.liveName.includes("100")) {
+      return false;
+    }
     const identities = [
       `id:${station.id}`,
       `name-location:${normalizeStationName(station.name)}:${normalizeStationName(station.location)}`,
@@ -529,10 +500,14 @@ export function isExcludedColonialStation(rb: RadioBrowserStation): boolean {
   return false;
 }
 
-function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
+export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
   if (isExcludedColonialStation(rb)) return false;
+  const name = rb.name || "";
+  if (!name.trim()) return false;
+  // Drop commercial chart / spam stations with "100" in the title (e.g. "#100 BEST IBIZA DEEP HOUSE")
+  if (name.includes("100")) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
-  if (!stream || !rb.name?.trim()) return false;
+  if (!stream) return false;
   // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
   if (!stream.toLowerCase().startsWith("https://")) return false;
   // Reject playlist files which are not direct playable audio streams

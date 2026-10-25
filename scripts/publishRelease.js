@@ -30,7 +30,9 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Curated Chinese Radio (CCTV-15 音乐频道)**: Replaced the commercial pop Chinese stream with CCTV-15 音乐频道 (China Music Channel), featuring live program schedules via CCTV's open EPG API, folk songs (*民歌·中国*), and traditional national instrumental ensembles (*风华国乐*, *CCTV音乐厅*).
+* **Curated Chinese Radio (广东音乐之声)**: Replaced the CCTV-15 HLS stream with 广东音乐之声 (Guangdong Music FM 99.3), streaming direct uninterrupted MP3 audio from Guangzhou featuring Cantonese and Mandarin pop, classics, and regional Chinese sound culture.
+* **Refined Station Entry**: Streamlined radio station screens to focus on the single live On air track entry without inconsistent past broadcast history lists.
+* **Commercial Station Filter**: Filtered out commercial chart / spam stations containing "100" in their title (such as "#100 BEST IBIZA DEEP HOUSE").
 * **Web App & Native Shell Updated**: Rebuilt Android native web shell bundle, Cloudflare Worker metadata, and web app assets with updated curated stations.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
@@ -45,6 +47,21 @@ async function main() {
   if (releaseRes.ok) {
     releaseData = await releaseRes.json();
     console.log("Found existing release ID:", releaseData.id);
+    await fetch(
+      `https://api.github.com/repos/grendel116/nimueblue/releases/${releaseData.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: releaseName,
+          body: releaseBody,
+        }),
+      }
+    );
+    console.log("Updated release details.");
   } else {
     console.log("Creating new GitHub release for", tagName);
     const createRes = await fetch(

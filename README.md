@@ -24,7 +24,7 @@ NimueBlue does not re-host audio. Every track, broadcast, and episode streams di
 
 ### 2. Live Radio
 
-- **Curated Independent Stations:** Includes listener-supported and community stations with live streams and now-playing feeds: KEXP (Seattle), Carbon Sound (Minneapolis), WFMU (Jersey City), Radio alHara (Bethlehem), Dublin Digital Radio (Dublin), Resonance FM (London), Refuge Worldwide (Berlin), Bangkok Community Radio (Bangkok), and CCTV-15 音乐频道 (Beijing, China).
+- **Curated Independent Stations:** Includes listener-supported and community stations with live streams and now-playing feeds: KEXP (Seattle), Carbon Sound (Minneapolis), WFMU (Jersey City), Radio alHara (Bethlehem), Dublin Digital Radio (Dublin), Resonance FM (London), Refuge Worldwide (Berlin), Bangkok Community Radio (Bangkok), and 广东音乐之声 (Guangzhou, China).
 - **Radio-Browser Discovery & Search:** Queries the open [Radio-Browser](https://www.radio-browser.info/) directory across community, pirate, free radio, DIY, underground, Thai, Chinese, and world music tags, with multi-language and regional search expansions (including Thai, Mandarin, Cantonese, Japanese, Korean, Vietnamese, Indonesian, and Tagalog).
 - **Stream Verification:** Discovered stations are filtered for active `https://` direct audio streams (excluding raw `.m3u`/`.pls`/`.asx` playlist files), passing SSL and health checks (`lastcheckok = 1`, `ssl_error = 0`), and high-resolution artwork. In the queue, radio stations play as 10-minute live sets before advancing to the next track.
 
