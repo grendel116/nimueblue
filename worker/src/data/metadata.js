@@ -92,7 +92,7 @@ export const RADIO_STATION_META = {
   "guangdong-music-fm": {
     name: "广东音乐之声",
     artist: "Live from Guangzhou, China",
-    art: "https://img.gdtv.cn/image/202109/0.070466864478565984968adb1bd6e36150OSS1630576772.png",
+    art: "https://grendel116.github.io/nimueblue/guangdong-music-fm.png",
     audio: "https://lhttp.qtfm.cn/live/1260/64k.mp3",
     web: "https://www.gdtv.cn/",
     app: "/station/guangdong-music-fm",

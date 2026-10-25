@@ -323,7 +323,7 @@ const BANGKOK_COMMUNITY_RADIO: RadioStation = {
 
 // 广东音乐之声 (Guangdong Music FM): China's pioneering music radio broadcast from Guangzhou (FM 99.3)
 const GUANGDONG_MUSIC_LOGO =
-  "https://img.gdtv.cn/image/202109/0.070466864478565984968adb1bd6e36150OSS1630576772.png";
+  "https://grendel116.github.io/nimueblue/guangdong-music-fm.png";
 
 const GUANGDONG_MUSIC: RadioStation = {
   id: "guangdong-music-fm",
