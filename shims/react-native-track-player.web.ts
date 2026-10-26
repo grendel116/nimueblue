@@ -266,9 +266,13 @@ const TrackPlayer = {
   updateOptions: async (_options?: any) => undefined,
   emit,
   registerPlaybackService: () => {},
+  // Each listener hears only the event type it subscribed to, as in the native player
   addEventListener: (event: Event, listener: (data: any) => void) => {
-    listeners.add(listener);
-    return { remove: () => listeners.delete(listener) };
+    const forType = (e: any) => {
+      if (e.type === event) listener(e);
+    };
+    listeners.add(forType);
+    return { remove: () => listeners.delete(forType) };
   },
   setQueue: async (newQueue: any[]) => {
     queue = [...newQueue];
