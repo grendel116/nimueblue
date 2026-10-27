@@ -2,3 +2,7 @@ name = "nimueblue-share"
 main = "src/index.js"
 compatibility_date = "2024-10-01"
 preview_urls = false
+
+# Converts share card artwork to JPEG
+[images]
+binding = "IMAGES"

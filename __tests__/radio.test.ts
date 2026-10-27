@@ -161,6 +161,69 @@ describe("discovered radio stations", () => {
     ).toBe(true);
   });
 
+  test("removes '- 0 N -' network and K-Pop stations by name or tag", () => {
+    const station = (name: string, tags = "") => ({
+      stationuuid: name,
+      name,
+      tags,
+      url: "https://stream.example.com/live.mp3",
+      favicon: "https://example.com/art.jpg",
+      lastcheckok: 1,
+      ssl_error: 0,
+    });
+
+    expect(isPlayableRadioBrowserStation(station("- 0 N - 2000s on Radio"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Seoul Hits", "k-pop,dance"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Seoul Hits", "kpop"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Best K-Pop Radio"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Eclectic Community Radio", "pop,indie"))).toBe(true);
+  });
+
+  test("removes dashed networks, chart formats, and advertising copy", () => {
+    const station = (name: string, tags = "") => ({
+      stationuuid: name,
+      name,
+      tags,
+      url: "https://stream.example.com/live.mp3",
+      favicon: "https://example.com/art.jpg",
+      lastcheckok: 1,
+      ssl_error: 0,
+    });
+
+    expect(isPlayableRadioBrowserStation(station("- 1 A - Schlager von 1A Radio"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Top Hits FM"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Dance Radio", "dance,top 40"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Club Radio", "singlecharts,club"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("DJ & CLUB CHARTS ---> Club Classics"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("* RAVE * STARTS HERE @ Technolovers.fm"))).toBe(false);
+    expect(isPlayableRadioBrowserStation(station("Laptop Orchestra Radio", "experimental"))).toBe(true);
+    expect(isPlayableRadioBrowserStation(station("Rock - The Best - Radio"))).toBe(true);
+    expect(isPlayableRadioBrowserStation(station("Super45.fm", "post-rock"))).toBe(true);
+  });
+
+  test("keeps one stream of a station offered at several qualities", () => {
+    const makeStation = (id: string, name: string): RadioStation => ({
+      id,
+      name,
+      liveName: name,
+      location: "California, USA",
+      artwork: "https://example.com/art.jpg",
+      about: "",
+      streamUrl: `https://stream.example.com/${id}`,
+      playlistPage: "",
+      donatePage: "",
+      fetchPlays: async () => [],
+    });
+
+    const deduped = deduplicateRadioStations([
+      makeStation("a", "Radio Paradise Main Mix 320k AAC"),
+      makeStation("b", "Radio Paradise Main Mix FLAC+meta"),
+      makeStation("c", "Radio Paradise Main Mix 192 MP3"),
+      makeStation("d", "Radio Paradise Mellow Mix 128k AAC"),
+    ]);
+    expect(deduped.map((s) => s.id)).toEqual(["a", "d"]);
+  });
+
   test("uses the full Radio-Browser UUID for server-side short-link resolution", () => {
     const station = radioBrowserToRadioStation({
       stationuuid: "11111111-1111-1111-1111-111111111111",

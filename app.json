@@ -2,7 +2,7 @@
   "expo": {
     "name": "NimueBlue",
     "slug": "nimueblue",
-    "version": "1.2.4",
+    "version": "1.2.5",
     "orientation": "portrait",
     "icon": "./assets/images/nimue-blue-icon.png",
     "scheme": "nimueblue",
@@ -29,7 +29,7 @@
       ],
       "backgroundColor": "#070b14",
       "package": "space.mirlo.blue",
-      "versionCode": 51
+      "versionCode": 52
     },
     "web": {
       "bundler": "metro",

@@ -241,7 +241,13 @@ export async function handlePodcastsApi(url, corsHeaders) {
   }
 }
 
-export async function handleImageProxy(url) {
+// Formats every link preview service keeps after a post is published
+const SOCIAL_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
+
+// Delivers share card artwork in a format link preview services keep. JPEG, PNG, and GIF pass
+// through; other formats, such as Mirlo's WebP covers, become JPEG, because Threads and Facebook
+// drop them from a post after publishing
+export async function handleImageProxy(url, env) {
   const targetUrl = url.searchParams.get("url");
   if (!targetUrl || !targetUrl.startsWith("http")) {
     return new Response("Missing target image URL", { status: 400 });
@@ -251,32 +257,36 @@ export async function handleImageProxy(url) {
     const imageRes = await fetch(targetUrl, {
       headers: {
         "User-Agent": "NimueBlueSocialBot/1.0",
-        Accept: "image/webp,image/jpeg,image/png,*/*",
+        Accept: "image/*",
       },
+      cf: { cacheTtl: 86400, cacheEverything: true },
     });
 
-    if (!imageRes.ok) {
-      return new Response("Upstream image fetch failed", { status: imageRes.status });
+    if (!imageRes.ok || !imageRes.body) {
+      return new Response("Upstream image fetch failed", { status: imageRes.status || 502 });
     }
 
-    let contentType = imageRes.headers.get("content-type") || "";
-    if (!contentType || contentType.startsWith("application/octet-stream") || contentType.startsWith("binary/octet-stream")) {
-      const lower = targetUrl.toLowerCase();
-      if (lower.includes(".webp")) contentType = "image/webp";
-      else if (lower.includes(".png")) contentType = "image/png";
-      else if (lower.includes(".jpg") || lower.includes(".jpeg")) contentType = "image/jpeg";
-      else contentType = "image/jpeg";
+    const headers = {
+      "Content-Disposition": "inline",
+      "Cache-Control": "public, max-age=86400, s-maxage=604800",
+      "Access-Control-Allow-Origin": "*",
+    };
+
+    const contentType = (imageRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (SOCIAL_IMAGE_TYPES.includes(contentType)) {
+      return new Response(imageRes.body, {
+        status: 200,
+        headers: { ...headers, "Content-Type": contentType },
+      });
     }
 
-    const headers = new Headers();
-    headers.set("Content-Type", contentType);
-    headers.set("Content-Disposition", "inline");
-    headers.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
-    headers.set("Access-Control-Allow-Origin", "*");
+    const jpeg = await env.IMAGES.input(imageRes.body)
+      .transform({ width: 1200, height: 1200, fit: "scale-down", background: "#ffffff" })
+      .output({ format: "image/jpeg", quality: 85 });
 
-    return new Response(imageRes.body, {
+    return new Response(jpeg.image(), {
       status: 200,
-      headers,
+      headers: { ...headers, "Content-Type": "image/jpeg" },
     });
   } catch (err) {
     return new Response(`Error proxying image: ${err.message}`, { status: 502 });
@@ -322,7 +332,7 @@ export async function handleStreamProxy(request, url) {
   }
 }
 
-export async function handleProxy(request, url, corsHeaders) {
+export async function handleProxy(request, url, env, corsHeaders) {
   if (url.pathname.startsWith("/mirlo/")) {
     return proxyMirloApi(request, url);
   }
@@ -333,7 +343,7 @@ export async function handleProxy(request, url, corsHeaders) {
     return handlePodcastsApi(url, corsHeaders);
   }
   if (url.pathname === "/image" || url.pathname.endsWith("/image")) {
-    return handleImageProxy(url);
+    return handleImageProxy(url, env);
   }
   if (url.pathname.startsWith("/stream/")) {
     return handleStreamProxy(request, url);

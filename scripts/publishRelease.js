@@ -30,8 +30,9 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Album-Focused Search & Genre Browsing**: Removed the standalone track view from search results and genre/tag pages so browsing feels like exploring a record store, surfacing parent albums across Mirlo, Chorus, Faircamp, and local downloads.
-* **Random Album Playback on Genres & Tags**: Updated the genre/tag header action to **Play** (with the shuffle icon) to pick a random release and play its tracks in album order.
+* **Share Cards Keep Their Artwork on Threads**: The share worker converts WebP artwork (such as Mirlo covers and avatars) to JPEG, so link previews keep their artwork after a post is published. JPEG, PNG, and GIF artwork passes through unchanged.
+* **Cleaner Radio Lineup**: Radio stations from dashed commercial networks (such as "- 0 N -" and "- 1 A -"), chart formats ("top", "charts", "hot ac"), K-Pop, and names written as advertising copy are left out of the lineup.
+* **One Stream per Station**: Stations offered at several stream qualities (such as "320k AAC" and "FLAC+meta") appear once.
 * **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;

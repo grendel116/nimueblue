@@ -2,11 +2,11 @@
 
 This worker allows every track, radio station, and podcast shared from NimueBlue to generate rich OpenGraph preview cards on **Threads**, **Bluesky**, **Twitter/X**, **WhatsApp**, and **iMessage**.
 
-It also fixes upstream Mirlo issue [#2494](https://github.com/funmusicplace/mirlo/issues/2494) by delivering album artwork with proper `Content-Type: image/webp` headers instead of `application/octet-stream`.
+It also delivers share card artwork through `/image?url=`, which passes JPEG, PNG, and GIF through and converts other formats to JPEG with the Cloudflare Images binding (`IMAGES` in `wrangler.toml`). Threads and Facebook drop WebP artwork (such as Mirlo covers) from a post after publishing. Converting only those formats keeps usage well inside the free 5,000 unique conversions per month.
 
 Podcast discovery reads Castopod Index's public catalog through `/api/podcasts`. It matches topic terms in show titles, descriptions, author names, and categories, then requires a valid publisher RSS URL and quality artwork. Podcast share links include episode audio and artwork when available, or use the latest audio enclosure in the show's RSS feed. Music, radio, and podcast share pages limit playback to 10 seconds. Curated shows remain available independently. To recommend a show that is missing from the index, submit its public RSS feed, show page, and artwork through a [NimueBlue issue](https://github.com/grendel116/nimueblue/issues). Radio and podcast preview requests without a usable artwork URL return `404` instead of showing a generic image.
 
-Faircamp catalog requests use fixed Fairplayer routes under `/fairplayer/` to provide browser CORS access. The proxy exposes Fairplayer's public hub, release listing, search, individual release pages, numeric song pages, and a single-pass `/fairplayer/album` bundle endpoint that caches full album details, liner notes, and shop pages at the edge; it does not accept arbitrary upstream URLs. Faircamp track shares use the same compact `/t/f{track-id}` format as other track shares, verify the catalog against Fairplayer's hub, and render the selected song, its artwork MIME type, and a 10-second preview.
+Faircamp catalog requests use fixed Fairplayer routes under `/fairplayer/` to provide browser CORS access. The proxy exposes Fairplayer's public hub, release listing, search, individual release pages, numeric song pages, and a single-pass `/fairplayer/album` bundle endpoint that caches full album details, liner notes, and shop pages at the edge; it does not accept arbitrary upstream URLs. Faircamp track shares use the same compact `/t/f{track-id}` format as other track shares, verify the catalog against Fairplayer's hub, and render the selected song, its artwork, and a 10-second preview.
 
 ---
 

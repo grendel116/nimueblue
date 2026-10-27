@@ -377,8 +377,16 @@ export const RADIO_STATIONS: RadioStation[] = [
   GUANGDONG_MUSIC,
 ];
 
+// Stream quality labels that tell copies of one station apart, such as "320k AAC", "FLAC+meta",
+// and "192 MP3" in "Radio Paradise Main Mix 320k AAC"
+const STREAM_QUALITY_LABEL =
+  /\b(?:\d+\s*k(?:bps)?\b|(?:\d+\s*)?(?:flac|aac|acc|mp3|ogg|opus)\b)(?:\s*\+\s*meta\b)?/gi;
+
+// Reduces a station name to its letters and digits, without stream quality labels, so every
+// stream of one station shares a name
 function normalizeStationName(name: string): string {
   return name
+    .replace(STREAM_QUALITY_LABEL, "")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -397,13 +405,48 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
   }
 }
 
+// Words that keep a station out of the lineup when they appear in its name or tags:
+// commercial chart formats ("#100 BEST IBIZA DEEP HOUSE", "top 40", "singlecharts") and K-Pop
+export const EXCLUDED_STATION_TERMS = [
+  "100",
+  "top",
+  "chart",
+  "charts",
+  "singlecharts",
+  "partycharts",
+  "hot ac",
+  "k-pop",
+  "kpop",
+  "k pop",
+  "korean pop",
+];
+
+// Matches a listed term as a whole word, so "top" catches "Top 40" and leaves "laptop"
+const EXCLUDED_TERM_PATTERN = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${EXCLUDED_STATION_TERMS.join("|")})(?![\\p{L}\\p{N}])`,
+  "iu",
+);
+
+// Commercial networks named like "- 0 N - 2000s on Radio" and "- 1 A - Schlager"
+const DASHED_NETWORK_NAME = /(?:^|\s)-\s+\S{1,2}\s+\S{1,2}\s+-(?:\s|$)/;
+
+// Advertising copy in a name, such as "CHARTS ---> Club Classics" or "STARTS HERE @ Technolovers.fm"
+const ADVERTISING_NAME = /->|→|»|>>|@/;
+
+export function isExcludedStation(names: (string | undefined)[], tags: string[]): boolean {
+  const cleanNames = names.map((name) => name || "");
+  return (
+    cleanNames.some((name) => DASHED_NETWORK_NAME.test(name) || ADVERTISING_NAME.test(name)) ||
+    [...cleanNames, ...tags].some((text) => EXCLUDED_TERM_PATTERN.test(text))
+  );
+}
+
 export function deduplicateRadioStations(
   stations: RadioStation[],
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
-    // Drop commercial chart / spam stations with "100" in the title (e.g. "#100 BEST IBIZA DEEP HOUSE")
-    if (station.name.includes("100") || station.liveName.includes("100")) {
+    if (isExcludedStation([station.name, station.liveName], station.tags ?? [])) {
       return false;
     }
     const identities = [
@@ -504,8 +547,7 @@ export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean 
   if (isExcludedColonialStation(rb)) return false;
   const name = rb.name || "";
   if (!name.trim()) return false;
-  // Drop commercial chart / spam stations with "100" in the title (e.g. "#100 BEST IBIZA DEEP HOUSE")
-  if (name.includes("100")) return false;
+  if (isExcludedStation([name], (rb.tags || "").split(","))) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
   if (!stream) return false;
   // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web

@@ -23,15 +23,9 @@ describe("Faircamp short share links", () => {
     jest.clearAllMocks();
   });
 
-  test("renders Faircamp track metadata, correct artwork MIME, and a 10-second preview", async () => {
+  test("renders Faircamp track metadata, artwork, and a 10-second preview", async () => {
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "https://images.example/cover.jpg") {
-        return new Response(null, {
-          status: 200,
-          headers: { "Content-Type": "image/webp" },
-        });
-      }
       return new Response(
         url.endsWith("/hub/") ? verifiedHub : releasePage,
         { status: 200, headers: { "Content-Type": "text/html" } },
@@ -52,7 +46,6 @@ describe("Faircamp short share links", () => {
     expect(html).toContain(
       "https://share.example/image?url=https%3A%2F%2Fimages.example%2Fcover.jpg",
     );
-    expect(html).toContain('og:image:type" content="image/webp"');
     expect(html).toContain("SAMPLE_LIMIT = 10");
     expect(html).toContain("Visit Faircamp Catalog");
     expect(html).toContain(

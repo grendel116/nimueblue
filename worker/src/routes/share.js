@@ -233,7 +233,6 @@ export async function handleShare(request, url) {
   let artist = url.searchParams.get("artist") || "";
   let album = url.searchParams.get("album") || "";
   let artwork = url.searchParams.get("art") || "";
-  let resolvedImageMime = "";
   let audioUrl = url.searchParams.get("audio") || "";
   let webUrl = url.searchParams.get("web") || "";
   let appRoute = url.searchParams.get("app") || "/";
@@ -322,7 +321,6 @@ export async function handleShare(request, url) {
     audioUrl = share.audioUrl;
     webUrl = share.sourceUrl;
     appRoute = share.appRoute;
-    resolvedImageMime = share.imageMime;
   } else if (artistMatch) {
     let slug;
     try {
@@ -399,14 +397,6 @@ export async function handleShare(request, url) {
     return new Response("This station or discussion has no quality artwork.", { status: 404 });
   }
 
-  let imageMime = resolvedImageMime || "image/jpeg";
-  if (artwork && !resolvedImageMime) {
-    const lower = artwork.toLowerCase();
-    if (lower.includes(".webp")) imageMime = "image/webp";
-    else if (lower.includes(".png")) imageMime = "image/png";
-    else if (lower.includes(".jpg") || lower.includes(".jpeg")) imageMime = "image/jpeg";
-  }
-
   const proxiedArtwork = artwork
     ? `${url.origin}/image?url=${encodeURIComponent(artwork)}`
     : "https://grendel116.github.io/nimueblue/preview-v8.png";
@@ -417,7 +407,6 @@ export async function handleShare(request, url) {
     album,
     artwork,
     proxiedArtwork,
-    imageMime,
     audioUrl,
     webUrl,
     appRoute,

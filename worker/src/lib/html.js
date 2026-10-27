@@ -196,7 +196,7 @@ export function isQualityArtwork(rawUrl) {
 }
 
 export function renderHtml(meta) {
-  const { title, artist, album, artwork, proxiedArtwork, imageMime, audioUrl, webUrl, appRoute, type } = meta;
+  const { title, artist, album, artwork, proxiedArtwork, audioUrl, webUrl, appRoute, type } = meta;
   const isArtistCard = type === "artist";
   const isLiveLocation = Boolean(artist && artist.toLowerCase().startsWith("live from"));
   const label = artist && !isLiveLocation && !isArtistCard ? `${artist} - ${title}` : title;
@@ -224,7 +224,6 @@ export function renderHtml(meta) {
       : isArtistCard
         ? "profile"
         : "website";
-  const safeMime = escapeHtml(imageMime || "image/jpeg");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -241,7 +240,6 @@ export function renderHtml(meta) {
     <meta property="og:image" content="${safeImage}" />
     <meta property="og:image:secure_url" content="${safeImage}" />
     <meta property="og:image:alt" content="${safeLabel}" />
-    <meta property="og:image:type" content="${safeMime}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${safeImage}" />
     <meta name="twitter:title" content="${safeLabel} | NIMUEBLUE" />

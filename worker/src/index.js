@@ -28,7 +28,7 @@ export default {
     }
 
     // Proxy routes: /mirlo/*, /feed-proxy, /api/podcasts, /image, /stream/*
-    const proxyResponse = await handleProxy(request, url, CORS_HEADERS);
+    const proxyResponse = await handleProxy(request, url, env, CORS_HEADERS);
     if (proxyResponse) return proxyResponse;
 
     // Fairplayer routes: /fairplayer/* (album, artist, page, hub, search, etc.)

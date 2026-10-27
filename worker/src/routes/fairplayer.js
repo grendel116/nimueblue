@@ -114,21 +114,6 @@ export function getFairplayerSongElements(html) {
     .map((match) => match[0]);
 }
 
-export async function getFaircampArtworkMime(artworkUrl) {
-  try {
-    const imageResponse = await fetch(artworkUrl, { method: "HEAD" });
-    if (imageResponse.ok) {
-      const contentType = imageResponse.headers.get("Content-Type") || "";
-      if (/^image\/[a-z0-9.+-]+(?:\s*;|$)/i.test(contentType)) {
-        return contentType.split(";", 1)[0].trim().toLowerCase();
-      }
-    }
-  } catch (error) {
-    console.warn("Could not inspect Faircamp artwork content type:", error);
-  }
-  return "";
-}
-
 export function deriveReleaseUrlFromAudioUrl(audioUrl) {
   try {
     const parsed = new URL(audioUrl);
@@ -446,7 +431,6 @@ export async function resolveFaircampShare(releaseId, trackNumber) {
     artwork: artwork.href,
     audioUrl: audioUrl.href,
     sourceUrl,
-    imageMime: await getFaircampArtworkMime(artwork.href),
     appRoute: `/artist/fairplayer/album/${fairplayerSlug}/album-tracks`,
   };
 }
@@ -533,7 +517,6 @@ export async function resolveFaircampSongShare(trackId) {
     artwork: artwork.href,
     audioUrl: audioUrl.href,
     sourceUrl,
-    imageMime: await getFaircampArtworkMime(artwork.href),
     appRoute: `/artist/fairplayer/album/${fairplayerSlug}/album-tracks`,
   };
 }
