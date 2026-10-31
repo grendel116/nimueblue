@@ -239,6 +239,9 @@ export function renderHtml(meta) {
     <meta property="og:type" content="${ogType}" />
     <meta property="og:image" content="${safeImage}" />
     <meta property="og:image:secure_url" content="${safeImage}" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="640" />
+    <meta property="og:image:height" content="640" />
     <meta property="og:image:alt" content="${safeLabel}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="${safeImage}" />

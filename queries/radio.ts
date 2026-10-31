@@ -590,7 +590,13 @@ export function radioBrowserToRadioStation(rb: RadioBrowserStation): RadioStatio
   const cleanId = `rb-${rb.stationuuid.replace(/-/g, "").toLowerCase()}`;
   const location = [rb.state, rb.country].filter(Boolean).join(", ") || "Autonomous / Global";
   const name = rb.name?.trim() || "Independent Broadcast";
-  const artwork = isQualityArtwork(rb.favicon) ? rb.favicon!.trim() : "";
+  let artwork = isQualityArtwork(rb.favicon) ? rb.favicon!.trim() : "";
+  if (
+    cleanId === "rb-0dfae06a5e7b438aa509aaacd94bc6b2" ||
+    artwork.includes("output-onlinepngtools-1-150x150.png")
+  ) {
+    artwork = "https://liveradios.in/wp-content/uploads/ks-chitra.jpg";
+  }
   const rawTags = [
     ...(rb.tags ? rb.tags.split(",") : []),
     ...(rb.language ? rb.language.split(",") : []),
@@ -625,7 +631,10 @@ export async function fetchDiscoveredRadioStations(
   const results = await Promise.allSettled(
     RADICAL_RADIO_TAGS.map(async (tag) => {
       const endpoint = `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?order=clicktimestamp&reverse=true&hidebroken=true&limit=${limit * 3}`;
-      const res = await fetch(endpoint, { signal });
+      const res = await fetch(endpoint, {
+        headers: { "User-Agent": "NimueBlue/1.2.7" },
+        signal,
+      });
       if (!res.ok) throw new Error(`Radio-Browser tag search failed (${tag}): ${res.status}`);
       const data: RadioBrowserStation[] = await res.json();
       if (!Array.isArray(data)) {
@@ -675,9 +684,75 @@ export function queryDiscoveredRadioStations(limit: number = 8) {
   });
 }
 
+export const KS_CHITRA_STATION: RadioStation = {
+  id: "rb-0dfae06a5e7b438aa509aaacd94bc6b2",
+  name: "KS CHITRA",
+  liveName: "KS CHITRA",
+  location: "Tamil India, India",
+  artwork: "https://liveradios.in/wp-content/uploads/ks-chitra.jpg",
+  about: "KS CHITRA — Radio broadcast from Tamil India, India.",
+  streamUrl: "https://stream-46.zeno.fm/aad4e51qz7zuv?zs=KFvl1-YuQkuqY2m7VeO4hQ",
+  playlistPage: "https://liveradios.in/ks-chitra-radio.html",
+  donatePage: "https://liveradios.in/ks-chitra-radio.html",
+  tags: ["chitra", "south india", "tamil"],
+  fetchPlays: async () => [],
+};
+
 export function findStation(id: string | undefined): RadioStation | undefined {
   if (!id) return undefined;
+  if (id === "rb-0dfae06a5e7b438aa509aaacd94bc6b2") {
+    registerDiscoveredStation(KS_CHITRA_STATION);
+    return KS_CHITRA_STATION;
+  }
   return RADIO_STATIONS.find((s) => s.id === id) || DISCOVERED_STATIONS.get(id);
+}
+
+export async function fetchRadioStationById(
+  id: string,
+  signal?: AbortSignal,
+): Promise<RadioStation | undefined> {
+  const existing = findStation(id);
+  if (existing) return existing;
+
+  if (id === "rb-0dfae06a5e7b438aa509aaacd94bc6b2") {
+    registerDiscoveredStation(KS_CHITRA_STATION);
+    return KS_CHITRA_STATION;
+  }
+
+  if (id.startsWith("rb-")) {
+    const rawUuid = id.replace(/^rb-/, "");
+    const uuid = rawUuid.replace(
+      /^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/i,
+      "$1-$2-$3-$4-$5",
+    );
+    try {
+      const endpoint = `https://de1.api.radio-browser.info/json/stations/byuuid/${encodeURIComponent(uuid)}`;
+      const res = await fetch(endpoint, {
+        headers: { "User-Agent": "NimueBlue/1.2.7" },
+        signal,
+      });
+      if (res.ok) {
+        const data: RadioBrowserStation[] = await res.json();
+        if (Array.isArray(data) && data.length > 0 && isPlayableRadioBrowserStation(data[0])) {
+          return radioBrowserToRadioStation(data[0]);
+        }
+      }
+    } catch {
+      // Return undefined if network lookup fails
+    }
+  }
+
+  return undefined;
+}
+
+export function queryRadioStation(id: string | undefined) {
+  return queryOptions({
+    queryKey: ["radioStation", id],
+    queryFn: ({ signal }) => (id ? fetchRadioStationById(id, signal) : Promise.resolve(undefined)),
+    enabled: Boolean(id),
+    staleTime: 60 * 60 * 1000,
+    initialData: () => findStation(id),
+  });
 }
 
 // Recently played songs, refreshed every minute. Idle when no station is given
@@ -799,7 +874,10 @@ export async function searchRadioStations(
   try {
     const settled = await Promise.allSettled(
       [...endpoints].map(async (endpoint) => {
-        const res = await fetch(endpoint, { signal });
+        const res = await fetch(endpoint, {
+          headers: { "User-Agent": "NimueBlue/1.2.7" },
+          signal,
+        });
         if (!res.ok) return [];
         const data: RadioBrowserStation[] = await res.json();
         return Array.isArray(data) ? data : [];

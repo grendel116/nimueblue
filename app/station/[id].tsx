@@ -13,7 +13,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { usePlayer } from "@/state/PlayerContext";
-import { findStation, liveTrack, queryRadioPlays, RadioPlay, RadioStation } from "@/queries/radio";
+import {
+  findStation,
+  liveTrack,
+  queryRadioPlays,
+  queryRadioStation,
+  RadioPlay,
+  RadioStation,
+} from "@/queries/radio";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
 import AddToQueueButton from "@/components/AddToQueueButton";
 import { openInBrowser } from "@/scripts/openInBrowser";
@@ -26,14 +33,47 @@ import {
 // A station's screen, displaying the live broadcast, current on-air track entry, and station details
 export default function StationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const station = findStation(id);
+  const { data: station, isLoading } = useQuery(queryRadioStation(id));
   const router = useRouter();
   const { data: plays = [] } = useQuery(queryRadioPlays(station));
   const { activeTrack } = usePlayer("activeTrack");
   const [imgError, setImgError] = useState(false);
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.topNav}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!station || !isQualityArtwork(station.artwork)) {
-    return null;
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.topNav}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>Station not found</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
   const onAir = plays[0];
   const isPlaying = activeTrack?.liveStation === station.id;

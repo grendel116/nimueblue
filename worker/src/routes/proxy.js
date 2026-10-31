@@ -270,53 +270,25 @@ export async function handleImageProxy(url, env) {
     };
 
     const contentType = (imageRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    const isJpeg = contentType === "image/jpeg";
+    const buffer = await imageRes.arrayBuffer();
 
-    if (isJpeg && env?.IMAGES) {
-      const buffer = await imageRes.arrayBuffer();
-      let isTiny = false;
-      const bytes = new Uint8Array(buffer);
-      let offset = 2;
-      while (offset < bytes.length - 8) {
-        if (bytes[offset] !== 0xff) break;
-        const marker = bytes[offset + 1];
-        if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
-          const h = (bytes[offset + 5] << 8) | bytes[offset + 6];
-          const w = (bytes[offset + 7] << 8) | bytes[offset + 8];
-          if (w < 200 || h < 200) isTiny = true;
-          break;
-        }
-        const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
-        offset += 2 + length;
-      }
-      if (!isTiny) {
-        return new Response(buffer, {
+    if (env?.IMAGES) {
+      try {
+        const jpeg = await env.IMAGES.input(buffer)
+          .transform({ width: 640, height: 640, fit: "contain", background: "#0f141c" })
+          .output({ format: "image/jpeg", quality: 85 });
+
+        const imageBuffer = await jpeg.image();
+        return new Response(imageBuffer, {
           status: 200,
           headers: { ...headers, "Content-Type": "image/jpeg" },
         });
+      } catch (transformErr) {
+        console.error("Cloudflare Images transform failed:", transformErr);
       }
-      const jpeg = await env.IMAGES.input(buffer)
-        .transform({ width: 640, height: 640, fit: "contain", background: "#ffffff" })
-        .output({ format: "image/jpeg", quality: 85 });
-
-      return new Response(jpeg.image(), {
-        status: 200,
-        headers: { ...headers, "Content-Type": "image/jpeg" },
-      });
     }
 
-    if (env?.IMAGES) {
-      const jpeg = await env.IMAGES.input(imageRes.body)
-        .transform({ width: 640, height: 640, fit: "contain", background: "#ffffff" })
-        .output({ format: "image/jpeg", quality: 85 });
-
-      return new Response(jpeg.image(), {
-        status: 200,
-        headers: { ...headers, "Content-Type": "image/jpeg" },
-      });
-    }
-
-    return new Response(imageRes.body, {
+    return new Response(buffer, {
       status: 200,
       headers: { ...headers, "Content-Type": contentType || "image/jpeg" },
     });

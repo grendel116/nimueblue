@@ -185,4 +185,40 @@ describe("buildBookmarks", () => {
     expect(items[1].kind).toBe("station");
     expect((items[1] as { track: RNTrack }).track.title).toBe("KEXP 90.3 FM");
   });
+
+  test("preserves KS CHITRA bookmark even with minimal legacy like data", () => {
+    const items = buildBookmarks({
+      stationLikes: [{ stationId: "rb-0dfae06a5e7b438aa509aaacd94bc6b2", likedAt: 3000 }],
+    });
+
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("station");
+    const track = (items[0] as { track: RNTrack }).track;
+    expect(track.title).toBe("KS CHITRA");
+    expect(track.artwork).toBe("https://liveradios.in/wp-content/uploads/ks-chitra.jpg");
+    expect(track.url).toContain("zeno.fm");
+  });
+
+  test("preserves discovered station bookmarks using persisted metadata", () => {
+    const items = buildBookmarks({
+      stationLikes: [
+        {
+          stationId: "rb-discovered-xyz",
+          name: "Community FM",
+          location: "Lisbon, Portugal",
+          artwork: "https://example.com/art.jpg",
+          streamUrl: "https://example.com/stream.mp3",
+          likedAt: 4000,
+        },
+      ],
+    });
+
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("station");
+    const track = (items[0] as { track: RNTrack }).track;
+    expect(track.title).toBe("Community FM");
+    expect(track.artist).toBe("Live from Lisbon, Portugal");
+    expect(track.artwork).toBe("https://example.com/art.jpg");
+    expect(track.url).toBe("https://example.com/stream.mp3");
+  });
 });

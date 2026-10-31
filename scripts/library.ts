@@ -4,8 +4,9 @@ import {
 } from "@/scripts/downloadManager";
 import { resolveArtworkUrl } from "@/scripts/utils";
 import { PodcastShowBookmark } from "@/scripts/podcastLikes";
+import { StationLike } from "@/scripts/stationLikes";
 import { FaircampSaves } from "@/scripts/faircampSaves";
-import { findStation, liveTrack } from "@/queries/radio";
+import { findStation, liveTrack, registerDiscoveredStation, KS_CHITRA_STATION } from "@/queries/radio";
 import { FollowedArtist } from "@/queries/listener";
 
 export function albumCover(tg: any): string {
@@ -69,13 +70,33 @@ export function buildBookmarks({
   stationLikes,
   podcastShows = [],
 }: {
-  stationLikes: { stationId: string; likedAt: number }[];
+  stationLikes: StationLike[];
   podcastShows?: PodcastShowBookmark[];
 }): BookmarkItem[] {
-  const stations = stationLikes.flatMap(({ stationId, likedAt }) => {
-    const station = findStation(stationId);
+  const stations = stationLikes.flatMap((like) => {
+    let station = findStation(like.stationId);
+    if (!station && like.name && like.streamUrl) {
+      station = {
+        id: like.stationId,
+        name: like.name,
+        liveName: like.liveName || like.name,
+        location: like.location || "Autonomous / Global",
+        artwork: like.artwork || "",
+        about: like.about || `${like.name} — Radio broadcast from ${like.location || "Autonomous / Global"}.`,
+        streamUrl: like.streamUrl,
+        playlistPage: like.playlistPage || "",
+        donatePage: like.playlistPage || "",
+        tags: like.tags,
+        fetchPlays: async () => [],
+      };
+      registerDiscoveredStation(station);
+    }
+    if (!station && like.stationId === "rb-0dfae06a5e7b438aa509aaacd94bc6b2") {
+      station = KS_CHITRA_STATION;
+      registerDiscoveredStation(station);
+    }
     return station
-      ? [{ item: { kind: "station", track: liveTrack(station) } as BookmarkItem, savedAt: likedAt }]
+      ? [{ item: { kind: "station", track: liveTrack(station) } as BookmarkItem, savedAt: like.likedAt }]
       : [];
   });
   const shows = podcastShows.map((show) => ({

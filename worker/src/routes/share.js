@@ -398,7 +398,7 @@ export async function handleShare(request, url) {
   }
 
   const proxiedArtwork = artwork
-    ? `${url.origin}/image?url=${encodeURIComponent(artwork)}`
+    ? `${url.origin}/image?url=${encodeURIComponent(artwork)}&v=640`
     : "https://grendel116.github.io/nimueblue/preview-v8.png";
 
   const html = renderHtml({

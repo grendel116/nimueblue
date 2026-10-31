@@ -22,7 +22,14 @@ export default function FavoriteTrackButton({
   size,
 }: FavoriteTrackButtonProps) {
   if (track.liveStation) {
-    return <StationBookmark stationId={track.liveStation} style={style} size={size} />;
+    return (
+      <StationBookmark
+        track={track}
+        stationId={track.liveStation}
+        style={style}
+        size={size}
+      />
+    );
   }
   if (track.podcastEpisodeId) {
     return <PodcastEpisodeBookmark track={track} style={style} size={size} />;
@@ -53,10 +60,12 @@ function TrackHeart({
 }
 
 function StationBookmark({
+  track,
   stationId,
   style,
   size,
 }: {
+  track?: RNTrack;
   stationId: string;
   style?: ViewStyle;
   size?: number;
@@ -67,7 +76,7 @@ function StationBookmark({
     <LikeButton
       kind="bookmark"
       liked={liked}
-      onPress={() => toggleStationLike(stationId)}
+      onPress={() => toggleStationLike(stationId, track)}
       style={style}
       size={size}
     />
