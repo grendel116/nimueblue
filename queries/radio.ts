@@ -406,7 +406,7 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
 }
 
 // Words that keep a station out of the lineup when they appear in its name or tags:
-// commercial chart formats ("#100 BEST IBIZA DEEP HOUSE", "top 40", "singlecharts") and K-Pop
+// commercial chart formats ("#100 BEST IBIZA DEEP HOUSE", "top 40", "singlecharts"), K-Pop, and Forbes
 export const EXCLUDED_STATION_TERMS = [
   "100",
   "top",
@@ -419,6 +419,7 @@ export const EXCLUDED_STATION_TERMS = [
   "kpop",
   "k pop",
   "korean pop",
+  "forbes",
 ];
 
 // Matches a listed term as a whole word, so "top" catches "Top 40" and leaves "laptop"
@@ -446,7 +447,12 @@ export function deduplicateRadioStations(
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
-    if (isExcludedStation([station.name, station.liveName], station.tags ?? [])) {
+    if (
+      isExcludedStation(
+        [station.name, station.liveName, station.about, station.location],
+        station.tags ?? [],
+      )
+    ) {
       return false;
     }
     const identities = [

@@ -241,12 +241,9 @@ export async function handlePodcastsApi(url, corsHeaders) {
   }
 }
 
-// Formats every link preview service keeps after a post is published
-const SOCIAL_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
-
-// Delivers share card artwork in a format link preview services keep. JPEG, PNG, and GIF pass
-// through; other formats, such as Mirlo's WebP covers, become JPEG, because Threads and Facebook
-// drop them from a post after publishing
+// Delivers share card artwork in JPEG format for link preview services (Threads, Facebook, Twitter, iMessage).
+// Non-JPEG formats (WebP, PNG, GIF) and undersized images (< 200px) are converted to JPEGs (640x640,
+// fit: "contain") with the Cloudflare Images binding (IMAGES in wrangler.toml) so social platforms do not discard them.
 export async function handleImageProxy(url, env) {
   const targetUrl = url.searchParams.get("url");
   if (!targetUrl || !targetUrl.startsWith("http")) {
@@ -273,20 +270,55 @@ export async function handleImageProxy(url, env) {
     };
 
     const contentType = (imageRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    if (SOCIAL_IMAGE_TYPES.includes(contentType)) {
-      return new Response(imageRes.body, {
+    const isJpeg = contentType === "image/jpeg";
+
+    if (isJpeg && env?.IMAGES) {
+      const buffer = await imageRes.arrayBuffer();
+      let isTiny = false;
+      const bytes = new Uint8Array(buffer);
+      let offset = 2;
+      while (offset < bytes.length - 8) {
+        if (bytes[offset] !== 0xff) break;
+        const marker = bytes[offset + 1];
+        if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
+          const h = (bytes[offset + 5] << 8) | bytes[offset + 6];
+          const w = (bytes[offset + 7] << 8) | bytes[offset + 8];
+          if (w < 200 || h < 200) isTiny = true;
+          break;
+        }
+        const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+        offset += 2 + length;
+      }
+      if (!isTiny) {
+        return new Response(buffer, {
+          status: 200,
+          headers: { ...headers, "Content-Type": "image/jpeg" },
+        });
+      }
+      const jpeg = await env.IMAGES.input(buffer)
+        .transform({ width: 640, height: 640, fit: "contain", background: "#ffffff" })
+        .output({ format: "image/jpeg", quality: 85 });
+
+      return new Response(jpeg.image(), {
         status: 200,
-        headers: { ...headers, "Content-Type": contentType },
+        headers: { ...headers, "Content-Type": "image/jpeg" },
       });
     }
 
-    const jpeg = await env.IMAGES.input(imageRes.body)
-      .transform({ width: 1200, height: 1200, fit: "scale-down", background: "#ffffff" })
-      .output({ format: "image/jpeg", quality: 85 });
+    if (env?.IMAGES) {
+      const jpeg = await env.IMAGES.input(imageRes.body)
+        .transform({ width: 640, height: 640, fit: "contain", background: "#ffffff" })
+        .output({ format: "image/jpeg", quality: 85 });
 
-    return new Response(jpeg.image(), {
+      return new Response(jpeg.image(), {
+        status: 200,
+        headers: { ...headers, "Content-Type": "image/jpeg" },
+      });
+    }
+
+    return new Response(imageRes.body, {
       status: 200,
-      headers: { ...headers, "Content-Type": "image/jpeg" },
+      headers: { ...headers, "Content-Type": contentType || "image/jpeg" },
     });
   } catch (err) {
     return new Response(`Error proxying image: ${err.message}`, { status: 502 });

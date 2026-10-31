@@ -30,9 +30,8 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Share Cards Keep Their Artwork on Threads**: The share worker converts WebP artwork (such as Mirlo covers and avatars) to JPEG, so link previews keep their artwork after a post is published. JPEG, PNG, and GIF artwork passes through unchanged.
-* **Cleaner Radio Lineup**: Radio stations from dashed commercial networks (such as "- 0 N -" and "- 1 A -"), chart formats ("top", "charts", "hot ac"), K-Pop, and names written as advertising copy are left out of the lineup.
-* **One Stream per Station**: Stations offered at several stream qualities (such as "320k AAC" and "FLAC+meta") appear once.
+* **Exclude Forbes from Podcasts and Radio**: Filtered out Forbes podcasts and radio stations along with commercial chart spam, K-Pop formats, dashed networks, and advertising copy from podcast discovery and search results.
+* **Normalize Social Share Artwork to 640x640 JPEG**: Converted all share card artwork (including WebP, PNG, and GIF) to JPEG and upscaled undersized station artwork (such as KS CHITRA) via Cloudflare Images so link preview cards display reliably on Threads, Facebook, and Twitter/X.
 * **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;

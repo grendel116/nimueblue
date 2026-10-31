@@ -2,6 +2,7 @@ import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
   isExcludedColonialStation,
+  isExcludedStation,
   isPlayableRadioBrowserStation,
   liveTrack,
   RADICAL_RADIO_TAGS,
@@ -9,6 +10,7 @@ import {
   type RadioStation,
   radioBrowserToRadioStation,
   searchRadioStations,
+  EXCLUDED_STATION_TERMS,
 } from "@/queries/radio";
 import { RADIO_STATION_META } from "../worker/src/data/metadata.js";
 
@@ -388,5 +390,19 @@ describe("discovered radio stations", () => {
     } finally {
       fetchSpy.mockRestore();
     }
+  });
+});
+
+describe("excluded station terms and filters", () => {
+  test("contains forbes in EXCLUDED_STATION_TERMS", () => {
+    expect(EXCLUDED_STATION_TERMS).toContain("forbes");
+  });
+
+  test("excludes Forbes, commercial chart formats, and networks", () => {
+    expect(isExcludedStation(["Forbes Radio"], [])).toBe(true);
+    expect(isExcludedStation(["Business News"], ["forbes"])).toBe(true);
+    expect(isExcludedStation(["Top 40 Dance"], [])).toBe(true);
+    expect(isExcludedStation(["K-Pop Central"], [])).toBe(true);
+    expect(isExcludedStation(["KEXP"], ["community radio"])).toBe(false);
   });
 });

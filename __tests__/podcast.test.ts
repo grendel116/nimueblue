@@ -9,6 +9,9 @@ import {
   PodcastEpisode,
   castopodPodcastToShow,
   fetchDiscoveredPodcasts,
+  isExcludedPodcast,
+  searchPodcastShows,
+  EXCLUDED_PODCAST_TERMS,
 } from "@/queries/podcast";
 
 describe("decodeXml", () => {
@@ -277,5 +280,67 @@ describe("queryDiscussionLatestDates", () => {
     const options = queryDiscussionLatestDates(shows as any);
     expect(options.queryKey).toEqual(["discussionLatestDates", "show-a,show-b"]);
     expect(options.enabled).toBe(true);
+  });
+});
+
+describe("podcast exclusion filters", () => {
+  test("contains forbes in EXCLUDED_PODCAST_TERMS", () => {
+    expect(EXCLUDED_PODCAST_TERMS).toContain("forbes");
+  });
+
+  test("excludes Forbes, charts, top 40, and commercial network names", () => {
+    expect(isExcludedPodcast(["Forbes Daily", "Forbes"])).toBe(true);
+    expect(isExcludedPodcast(["What's Ahead", "Steve Forbes"])).toBe(true);
+    expect(isExcludedPodcast(["Top 40 Weekly Hits"])).toBe(true);
+    expect(isExcludedPodcast(["Billboard Hot 100 Chart"])).toBe(true);
+    expect(isExcludedPodcast(["K-Pop Universe"])).toBe(true);
+    expect(isExcludedPodcast(["- 0 N - 2000s Network"])).toBe(true);
+    expect(isExcludedPodcast(["Listen Now -> Click Here"])).toBe(true);
+
+    expect(isExcludedPodcast(["Working Class History", "Working Class History", "Labor struggles"])).toBe(false);
+    expect(isExcludedPodcast(["Srsly Wrong", "Shawn Vulliez"])).toBe(false);
+  });
+
+  test("searchPodcastShows excludes shows matching excluded terms from search results", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            collectionId: 101,
+            collectionName: "Forbes Books Podcast",
+            artistName: "Forbes Media",
+            genres: ["Business", "News"],
+            feedUrl: "https://example.com/forbes.xml",
+            artworkUrl600: "https://example.com/forbes.jpg",
+          },
+          {
+            collectionId: 102,
+            collectionName: "Top 100 Business Leaders",
+            artistName: "Corporate Daily",
+            genres: ["Business"],
+            feedUrl: "https://example.com/top100.xml",
+            artworkUrl600: "https://example.com/top100.jpg",
+          },
+          {
+            collectionId: 103,
+            collectionName: "Radical Economics",
+            artistName: "Community Voice",
+            genres: ["News"],
+            feedUrl: "https://example.com/radical.xml",
+            artworkUrl600: "https://example.com/radical.jpg",
+          },
+        ],
+      }),
+    } as Response);
+
+    try {
+      const results = await searchPodcastShows("economics");
+      expect(results.some((s) => s.name.toLowerCase().includes("forbes"))).toBe(false);
+      expect(results.some((s) => s.name.toLowerCase().includes("top 100"))).toBe(false);
+      expect(results.some((s) => s.name === "Radical Economics")).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
