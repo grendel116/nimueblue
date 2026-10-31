@@ -34,9 +34,9 @@ async function main() {
 * **KS CHITRA Portrait & Stream Resolution**: Added permanent resolution for KS CHITRA (\`rb-0dfae06a5e7b438aa509aaacd94bc6b2\`), ensuring its high-resolution portrait and live stream always load across the station screen, player, and bookmarks.
 * **Social Share Link Artwork Normalized to 640x640 JPEG**: All social share cards (OpenGraph and Twitter summary cards) now serve normalized 640x640 JPEGs via Cloudflare Images with cache busting so previews render reliably across Threads, Facebook, iMessage, and Twitter/X.
 * **Exclude Forbes from Podcasts and Radio**: Filtered out Forbes podcasts and radio stations along with commercial chart spam, K-Pop formats, dashed networks, and advertising copy from podcast discovery and search results.
-* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v\${version}.
+* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
-**Download:** [\${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/\${tagName}/\${apkFileName})\`;
+**Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 
   console.log("Checking if release already exists for", tagName);
   let releaseRes = await fetch(
