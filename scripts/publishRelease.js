@@ -30,10 +30,8 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Radio Station Bookmarks & Offline Preservation**: Fixed radio station bookmarks disappearing from the Bookmarks library when restarting the app or navigating away. Stations now persist full metadata (name, live stream URL, location, and portrait artwork) locally upon bookmarking and seamlessly register into the player and library.
-* **KS CHITRA Portrait & Stream Resolution**: Added permanent resolution for KS CHITRA (\`rb-0dfae06a5e7b438aa509aaacd94bc6b2\`), ensuring its high-resolution portrait and live stream always load across the station screen, player, and bookmarks.
-* **Social Share Link Artwork Normalized to 640x640 JPEG**: All social share cards (OpenGraph and Twitter summary cards) now serve normalized 640x640 JPEGs via Cloudflare Images with cache busting so previews render reliably across Threads, Facebook, iMessage, and Twitter/X.
-* **Exclude Forbes from Podcasts and Radio**: Filtered out Forbes podcasts and radio stations along with commercial chart spam, K-Pop formats, dashed networks, and advertising copy from podcast discovery and search results.
+* **Radio Station Bookmarks Fixed**: Bookmarked stations now appear in the Library's Bookmarks tab immediately and after restarting the app. Any station, curated or discovered, is saved with its full details.
+* **Cleaner Content Filtering**: Forbes, chart formats, K-Pop and advertising-style names are filtered from radio and podcasts by one shared rule. Podcast descriptions and station locations no longer cause good shows to be hidden.
 * **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;

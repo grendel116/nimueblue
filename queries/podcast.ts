@@ -5,6 +5,7 @@ import { coverSizes, decodeHtmlEntities, isQualityArtwork } from "@/scripts/util
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
+import { isExcludedContent } from "@/queries/excludedContent";
 
 // Podcast and talk shows shown under Discussion on Home. Episodes are parsed from
 // standard open podcast RSS feeds with direct audio enclosures.
@@ -272,39 +273,6 @@ export const PODCAST_SHOWS: PodcastShow[] = [
   BLACK_AUTONOMY,
 ];
 
-// Words that keep a podcast show out of the lineup when they appear in its title, author, or description:
-// commercial chart formats ("#100", "top 40", "singlecharts"), K-Pop, and Forbes
-export const EXCLUDED_PODCAST_TERMS = [
-  "100",
-  "top",
-  "chart",
-  "charts",
-  "singlecharts",
-  "partycharts",
-  "hot ac",
-  "k-pop",
-  "kpop",
-  "k pop",
-  "korean pop",
-  "forbes",
-];
-
-const EXCLUDED_PODCAST_PATTERN = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:100|top|chart|charts|singlecharts|partycharts|hot ac|k-pop|kpop|k pop|korean pop|forbes)(?![\\p{L}\\p{N}])`,
-  "iu",
-);
-
-const DASHED_NETWORK_NAME = /(?:^|\s)-\s+\S{1,2}\s+\S{1,2}\s+-(?:\s|$)/;
-const ADVERTISING_NAME = /->|→|»|>>|@/;
-
-export function isExcludedPodcast(fields: (string | undefined)[]): boolean {
-  const cleanFields = fields.map((f) => f || "");
-  return (
-    cleanFields.some((text) => DASHED_NETWORK_NAME.test(text) || ADVERTISING_NAME.test(text)) ||
-    cleanFields.some((text) => EXCLUDED_PODCAST_PATTERN.test(text))
-  );
-}
-
 type CastopodPodcast = {
   id: string | number;
   podcastGuid?: string;
@@ -360,7 +328,7 @@ export async function fetchDiscoveredPodcasts(
         typeof item.feedUrl === "string" &&
         /^https?:\/\//i.test(item.feedUrl) &&
         isQualityArtwork(item.artwork) &&
-        !isExcludedPodcast([item.title, item.author, item.description]),
+        !isExcludedContent([item.title, item.author]),
     )
     .map(castopodPodcastToShow);
 }
@@ -529,11 +497,7 @@ export async function searchPodcastShows(
               typeof item.feedUrl === "string" &&
               /^https?:\/\//i.test(item.feedUrl) &&
               isQualityArtwork(item.artworkUrl600 || item.artworkUrl100) &&
-              !isExcludedPodcast([
-                item.collectionName,
-                item.artistName,
-                ...(Array.isArray(item.genres) ? item.genres : []),
-              ]),
+              !isExcludedContent([item.collectionName, item.artistName]),
           )
           .map((item: any) => {
             const id = `pod-${item.collectionId}`;
@@ -557,7 +521,7 @@ export async function searchPodcastShows(
 
   const seen = new Set<string>();
   return [...curatedMatches, ...cachedMatches, ...remoteShows].filter((show) => {
-    if (isExcludedPodcast([show.name, show.author, show.description])) return false;
+    if (isExcludedContent([show.name, show.author])) return false;
     const key = show.id.toLowerCase();
     const feedKey = (show.feedUrl || "").toLowerCase();
     if (seen.has(key) || (feedKey && seen.has(feedKey))) return false;

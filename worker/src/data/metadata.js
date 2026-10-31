@@ -97,14 +97,6 @@ export const RADIO_STATION_META = {
     web: "https://www.gdtv.cn/",
     app: "/station/guangdong-music-fm",
   },
-  "rb-0dfae06a5e7b438aa509aaacd94bc6b2": {
-    name: "KS CHITRA",
-    artist: "Live from Tamil Nadu, India",
-    art: "https://liveradios.in/wp-content/uploads/ks-chitra.jpg",
-    audio: "https://stream-46.zeno.fm/aad4e51qz7zuv?zs=KFvl1-YuQkuqY2m7VeO4hQ",
-    web: "https://liveradios.in/ks-chitra-radio.html",
-    app: "/station/rb-0dfae06a5e7b438aa509aaacd94bc6b2",
-  },
 };
 
 // Canonical movement podcasts from queries/podcast.ts

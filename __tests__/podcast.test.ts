@@ -9,10 +9,9 @@ import {
   PodcastEpisode,
   castopodPodcastToShow,
   fetchDiscoveredPodcasts,
-  isExcludedPodcast,
   searchPodcastShows,
-  EXCLUDED_PODCAST_TERMS,
 } from "@/queries/podcast";
+import { isExcludedContent } from "@/queries/excludedContent";
 
 describe("decodeXml", () => {
   test("strips CDATA blocks", () => {
@@ -284,21 +283,17 @@ describe("queryDiscussionLatestDates", () => {
 });
 
 describe("podcast exclusion filters", () => {
-  test("contains forbes in EXCLUDED_PODCAST_TERMS", () => {
-    expect(EXCLUDED_PODCAST_TERMS).toContain("forbes");
-  });
-
   test("excludes Forbes, charts, top 40, and commercial network names", () => {
-    expect(isExcludedPodcast(["Forbes Daily", "Forbes"])).toBe(true);
-    expect(isExcludedPodcast(["What's Ahead", "Steve Forbes"])).toBe(true);
-    expect(isExcludedPodcast(["Top 40 Weekly Hits"])).toBe(true);
-    expect(isExcludedPodcast(["Billboard Hot 100 Chart"])).toBe(true);
-    expect(isExcludedPodcast(["K-Pop Universe"])).toBe(true);
-    expect(isExcludedPodcast(["- 0 N - 2000s Network"])).toBe(true);
-    expect(isExcludedPodcast(["Listen Now -> Click Here"])).toBe(true);
+    expect(isExcludedContent(["Forbes Daily", "Forbes"])).toBe(true);
+    expect(isExcludedContent(["What's Ahead", "Steve Forbes"])).toBe(true);
+    expect(isExcludedContent(["Top 40 Weekly Hits"])).toBe(true);
+    expect(isExcludedContent(["Billboard Hot 100 Chart"])).toBe(true);
+    expect(isExcludedContent(["K-Pop Universe"])).toBe(true);
+    expect(isExcludedContent(["- 0 N - 2000s Network"])).toBe(true);
+    expect(isExcludedContent(["Listen Now -> Click Here"])).toBe(true);
 
-    expect(isExcludedPodcast(["Working Class History", "Working Class History", "Labor struggles"])).toBe(false);
-    expect(isExcludedPodcast(["Srsly Wrong", "Shawn Vulliez"])).toBe(false);
+    expect(isExcludedContent(["Working Class History", "Working Class History"])).toBe(false);
+    expect(isExcludedContent(["Srsly Wrong", "Shawn Vulliez"])).toBe(false);
   });
 
   test("searchPodcastShows excludes shows matching excluded terms from search results", async () => {

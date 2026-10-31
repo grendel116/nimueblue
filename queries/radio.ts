@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { audioTrackType, decodeHtmlEntities, isQualityArtwork } from "@/scripts/utils";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
+import { isExcludedContent } from "@/queries/excludedContent";
 // A station plays as a 10-minute set in the queue, then playback moves on to what's next
 import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 
@@ -405,53 +406,13 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
   }
 }
 
-// Words that keep a station out of the lineup when they appear in its name or tags:
-// commercial chart formats ("#100 BEST IBIZA DEEP HOUSE", "top 40", "singlecharts"), K-Pop, and Forbes
-export const EXCLUDED_STATION_TERMS = [
-  "100",
-  "top",
-  "chart",
-  "charts",
-  "singlecharts",
-  "partycharts",
-  "hot ac",
-  "k-pop",
-  "kpop",
-  "k pop",
-  "korean pop",
-  "forbes",
-];
-
-// Matches a listed term as a whole word, so "top" catches "Top 40" and leaves "laptop"
-const EXCLUDED_TERM_PATTERN = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:${EXCLUDED_STATION_TERMS.join("|")})(?![\\p{L}\\p{N}])`,
-  "iu",
-);
-
-// Commercial networks named like "- 0 N - 2000s on Radio" and "- 1 A - Schlager"
-const DASHED_NETWORK_NAME = /(?:^|\s)-\s+\S{1,2}\s+\S{1,2}\s+-(?:\s|$)/;
-
-// Advertising copy in a name, such as "CHARTS ---> Club Classics" or "STARTS HERE @ Technolovers.fm"
-const ADVERTISING_NAME = /->|→|»|>>|@/;
-
-export function isExcludedStation(names: (string | undefined)[], tags: string[]): boolean {
-  const cleanNames = names.map((name) => name || "");
-  return (
-    cleanNames.some((name) => DASHED_NETWORK_NAME.test(name) || ADVERTISING_NAME.test(name)) ||
-    [...cleanNames, ...tags].some((text) => EXCLUDED_TERM_PATTERN.test(text))
-  );
-}
-
 export function deduplicateRadioStations(
   stations: RadioStation[],
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
     if (
-      isExcludedStation(
-        [station.name, station.liveName, station.about, station.location],
-        station.tags ?? [],
-      )
+      isExcludedContent([station.name, station.liveName], station.tags ?? [])
     ) {
       return false;
     }
@@ -553,7 +514,7 @@ export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean 
   if (isExcludedColonialStation(rb)) return false;
   const name = rb.name || "";
   if (!name.trim()) return false;
-  if (isExcludedStation([name], (rb.tags || "").split(","))) return false;
+  if (isExcludedContent([name], (rb.tags || "").split(","))) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
   if (!stream) return false;
   // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
@@ -580,6 +541,9 @@ export const RADICAL_RADIO_TAGS = [
   "world music",
 ];
 
+// Radio Browser asks every client to identify itself
+const RADIO_BROWSER_HEADERS = { "User-Agent": "NimueBlue" };
+
 export const DISCOVERED_STATIONS = new Map<string, RadioStation>();
 
 export function registerDiscoveredStation(station: RadioStation) {
@@ -590,13 +554,7 @@ export function radioBrowserToRadioStation(rb: RadioBrowserStation): RadioStatio
   const cleanId = `rb-${rb.stationuuid.replace(/-/g, "").toLowerCase()}`;
   const location = [rb.state, rb.country].filter(Boolean).join(", ") || "Autonomous / Global";
   const name = rb.name?.trim() || "Independent Broadcast";
-  let artwork = isQualityArtwork(rb.favicon) ? rb.favicon!.trim() : "";
-  if (
-    cleanId === "rb-0dfae06a5e7b438aa509aaacd94bc6b2" ||
-    artwork.includes("output-onlinepngtools-1-150x150.png")
-  ) {
-    artwork = "https://liveradios.in/wp-content/uploads/ks-chitra.jpg";
-  }
+  const artwork = isQualityArtwork(rb.favicon) ? rb.favicon!.trim() : "";
   const rawTags = [
     ...(rb.tags ? rb.tags.split(",") : []),
     ...(rb.language ? rb.language.split(",") : []),
@@ -632,7 +590,7 @@ export async function fetchDiscoveredRadioStations(
     RADICAL_RADIO_TAGS.map(async (tag) => {
       const endpoint = `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?order=clicktimestamp&reverse=true&hidebroken=true&limit=${limit * 3}`;
       const res = await fetch(endpoint, {
-        headers: { "User-Agent": "NimueBlue/1.2.7" },
+        headers: RADIO_BROWSER_HEADERS,
         signal,
       });
       if (!res.ok) throw new Error(`Radio-Browser tag search failed (${tag}): ${res.status}`);
@@ -684,26 +642,8 @@ export function queryDiscoveredRadioStations(limit: number = 8) {
   });
 }
 
-export const KS_CHITRA_STATION: RadioStation = {
-  id: "rb-0dfae06a5e7b438aa509aaacd94bc6b2",
-  name: "KS CHITRA",
-  liveName: "KS CHITRA",
-  location: "Tamil India, India",
-  artwork: "https://liveradios.in/wp-content/uploads/ks-chitra.jpg",
-  about: "KS CHITRA — Radio broadcast from Tamil India, India.",
-  streamUrl: "https://stream-46.zeno.fm/aad4e51qz7zuv?zs=KFvl1-YuQkuqY2m7VeO4hQ",
-  playlistPage: "https://liveradios.in/ks-chitra-radio.html",
-  donatePage: "https://liveradios.in/ks-chitra-radio.html",
-  tags: ["chitra", "south india", "tamil"],
-  fetchPlays: async () => [],
-};
-
 export function findStation(id: string | undefined): RadioStation | undefined {
   if (!id) return undefined;
-  if (id === "rb-0dfae06a5e7b438aa509aaacd94bc6b2") {
-    registerDiscoveredStation(KS_CHITRA_STATION);
-    return KS_CHITRA_STATION;
-  }
   return RADIO_STATIONS.find((s) => s.id === id) || DISCOVERED_STATIONS.get(id);
 }
 
@@ -714,11 +654,6 @@ export async function fetchRadioStationById(
   const existing = findStation(id);
   if (existing) return existing;
 
-  if (id === "rb-0dfae06a5e7b438aa509aaacd94bc6b2") {
-    registerDiscoveredStation(KS_CHITRA_STATION);
-    return KS_CHITRA_STATION;
-  }
-
   if (id.startsWith("rb-")) {
     const rawUuid = id.replace(/^rb-/, "");
     const uuid = rawUuid.replace(
@@ -728,7 +663,7 @@ export async function fetchRadioStationById(
     try {
       const endpoint = `https://de1.api.radio-browser.info/json/stations/byuuid/${encodeURIComponent(uuid)}`;
       const res = await fetch(endpoint, {
-        headers: { "User-Agent": "NimueBlue/1.2.7" },
+        headers: RADIO_BROWSER_HEADERS,
         signal,
       });
       if (res.ok) {
@@ -875,7 +810,7 @@ export async function searchRadioStations(
     const settled = await Promise.allSettled(
       [...endpoints].map(async (endpoint) => {
         const res = await fetch(endpoint, {
-          headers: { "User-Agent": "NimueBlue/1.2.7" },
+          headers: RADIO_BROWSER_HEADERS,
           signal,
         });
         if (!res.ok) return [];

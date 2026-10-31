@@ -4,7 +4,7 @@ jest.mock("@react-native-async-storage/async-storage", () =>
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { toggleStationLike, useStationLikes } from "@/scripts/stationLikes";
-import { findStation } from "@/queries/radio";
+import { findStation, registerDiscoveredStation } from "@/queries/radio";
 
 describe("stationLikes", () => {
   beforeEach(async () => {
@@ -12,21 +12,26 @@ describe("stationLikes", () => {
     jest.clearAllMocks();
   });
 
-  test("saving KS CHITRA populates complete station metadata and registers station", async () => {
-    await toggleStationLike("rb-0dfae06a5e7b438aa509aaacd94bc6b2");
+  test("saving a station that is already known stores its full metadata", async () => {
+    registerDiscoveredStation({
+      id: "rb-known-1",
+      name: "Known FM",
+      liveName: "Known FM",
+      location: "Oslo, Norway",
+      artwork: "https://example.com/known.jpg",
+      about: "",
+      streamUrl: "https://example.com/known.mp3",
+      playlistPage: "",
+      donatePage: "",
+      fetchPlays: async () => [],
+    });
+    await toggleStationLike("rb-known-1");
 
     const raw = await AsyncStorage.getItem("mirlo_blue_station_likes_v1");
-    expect(raw).toBeTruthy();
     const likes = JSON.parse(raw!);
     expect(likes).toHaveLength(1);
-    expect(likes[0].stationId).toBe("rb-0dfae06a5e7b438aa509aaacd94bc6b2");
-    expect(likes[0].name).toBe("KS CHITRA");
-    expect(likes[0].artwork).toBe("https://liveradios.in/wp-content/uploads/ks-chitra.jpg");
-    expect(likes[0].streamUrl).toContain("zeno.fm");
-
-    const registered = findStation("rb-0dfae06a5e7b438aa509aaacd94bc6b2");
-    expect(registered).toBeDefined();
-    expect(registered?.name).toBe("KS CHITRA");
+    expect(likes[0].name).toBe("Known FM");
+    expect(likes[0].streamUrl).toBe("https://example.com/known.mp3");
   });
 
   test("saving discovered station with track details persists full metadata", async () => {
