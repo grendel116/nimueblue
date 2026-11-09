@@ -30,9 +30,9 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Radio Station Bookmarks Fixed**: Bookmarked stations now appear in the Library's Bookmarks tab immediately and after restarting the app. Any station, curated or discovered, is saved with its full details.
-* **Cleaner Content Filtering**: Forbes, chart formats, K-Pop and advertising-style names are filtered from radio and podcasts by one shared rule. Podcast descriptions and station locations no longer cause good shows to be hidden.
-* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
+* **Radio Station Blocking**: Stations with the word "America" in their name are blocked from the lineup, search and discovery.
+* **Valid Station Artwork Required**: Stations without a valid image are now blocked everywhere, including search results.
+* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle and GitHub Pages web app for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

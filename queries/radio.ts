@@ -406,12 +406,22 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
   }
 }
 
+// Stations whose name carries the word "America" are blocked as propaganda. The match is a
+// whole word, so "Americana" is untouched
+const BLOCKED_STATION_NAME = /(?<![\p{L}\p{N}])america(?![\p{L}\p{N}])/iu;
+
+function hasBlockedStationName(...names: (string | undefined)[]): boolean {
+  return names.some((name) => BLOCKED_STATION_NAME.test(name || ""));
+}
+
 export function deduplicateRadioStations(
   stations: RadioStation[],
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
     if (
+      hasBlockedStationName(station.name, station.liveName) ||
+      !isQualityArtwork(station.artwork) ||
       isExcludedContent([station.name, station.liveName], station.tags ?? [])
     ) {
       return false;
@@ -514,6 +524,7 @@ export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean 
   if (isExcludedColonialStation(rb)) return false;
   const name = rb.name || "";
   if (!name.trim()) return false;
+  if (hasBlockedStationName(name)) return false;
   if (isExcludedContent([name], (rb.tags || "").split(","))) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
   if (!stream) return false;
