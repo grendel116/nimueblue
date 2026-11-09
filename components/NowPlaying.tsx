@@ -306,12 +306,14 @@ function NowPlayingBody({ visible, close }: { visible: boolean; close: () => voi
             </View>
           </View>
 
-          <View style={styles.artistGroupRow}>
-            <Text style={styles.infoLabel}>by </Text>
-            <Text style={styles.cyanLink} numberOfLines={1}>
-              {onAir?.artist || activeTrack?.artist}
-            </Text>
-          </View>
+          {onAir?.artist && !onAir.artist.toLowerCase().startsWith("live from") ? (
+            <View style={styles.artistGroupRow}>
+              <Text style={styles.infoLabel}>by </Text>
+              <Text style={styles.cyanLink} numberOfLines={1}>
+                {onAir.artist}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.artistGroupRow}>
             <Text style={styles.infoLabel}>On </Text>

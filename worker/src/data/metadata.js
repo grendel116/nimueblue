@@ -97,6 +97,22 @@ export const RADIO_STATION_META = {
     web: "https://www.gdtv.cn/",
     app: "/station/guangdong-music-fm",
   },
+  "worldwide-fm": {
+    name: "Worldwide FM",
+    artist: "Live from London, UK",
+    art: "https://grendel116.github.io/nimueblue/worldwide-fm.png",
+    audio: "https://worldwide-fm.radiocult.fm/stream",
+    web: "https://www.worldwidefm.net/",
+    app: "/station/worldwide-fm",
+  },
+  "rb-1651c32f55d84429995d872ea0dcf520": {
+    name: "Worldwide FM",
+    artist: "Live from London, UK",
+    art: "https://grendel116.github.io/nimueblue/worldwide-fm.png",
+    audio: "https://worldwide-fm.radiocult.fm/stream",
+    web: "https://www.worldwidefm.net/",
+    app: "/station/worldwide-fm",
+  },
 };
 
 // Canonical movement podcasts from queries/podcast.ts

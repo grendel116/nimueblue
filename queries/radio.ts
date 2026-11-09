@@ -366,6 +366,33 @@ const GUANGDONG_MUSIC: RadioStation = {
   ],
 };
 
+// Worldwide FM: award-winning independent radio and cultural platform founded by Gilles Peterson
+const WORLDWIDE_FM_LOGO = "https://grendel116.github.io/nimueblue/worldwide-fm.png";
+
+const WORLDWIDE_FM: RadioStation = {
+  id: "worldwide-fm",
+  name: "Worldwide FM",
+  liveName: "Worldwide FM",
+  location: "London, UK",
+  artwork: WORLDWIDE_FM_LOGO,
+  about:
+    "Award-winning independent radio and cultural platform founded by Gilles Peterson, broadcasting jazz, underground sounds, and global music culture from London.",
+  streamUrl: "https://worldwide-fm.radiocult.fm/stream",
+  playlistPage: "https://www.worldwidefm.net/",
+  donatePage: "https://www.worldwidefm.net/support",
+  tags: [
+    "jazz",
+    "world music",
+    "electronica",
+    "underground",
+    "london",
+    "uk",
+    "community radio",
+    "progressive",
+  ],
+  fetchPlays: async () => [],
+};
+
 export const RADIO_STATIONS: RadioStation[] = [
   KEXP,
   CARBON_SOUND,
@@ -376,6 +403,7 @@ export const RADIO_STATIONS: RadioStation[] = [
   REFUGE,
   BANGKOK_COMMUNITY_RADIO,
   GUANGDONG_MUSIC,
+  WORLDWIDE_FM,
 ];
 
 // Stream quality labels that tell copies of one station apart, such as "320k AAC", "FLAC+meta",
@@ -406,21 +434,12 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
   }
 }
 
-// Stations whose name carries the word "America" are blocked as propaganda. The match is a
-// whole word, so "Americana" is untouched
-const BLOCKED_STATION_NAME = /(?<![\p{L}\p{N}])america(?![\p{L}\p{N}])/iu;
-
-function hasBlockedStationName(...names: (string | undefined)[]): boolean {
-  return names.some((name) => BLOCKED_STATION_NAME.test(name || ""));
-}
-
 export function deduplicateRadioStations(
   stations: RadioStation[],
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
     if (
-      hasBlockedStationName(station.name, station.liveName) ||
       !isQualityArtwork(station.artwork) ||
       isExcludedContent([station.name, station.liveName], station.tags ?? [])
     ) {
@@ -524,7 +543,6 @@ export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean 
   if (isExcludedColonialStation(rb)) return false;
   const name = rb.name || "";
   if (!name.trim()) return false;
-  if (hasBlockedStationName(name)) return false;
   if (isExcludedContent([name], (rb.tags || "").split(","))) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
   if (!stream) return false;
@@ -655,6 +673,9 @@ export function queryDiscoveredRadioStations(limit: number = 8) {
 
 export function findStation(id: string | undefined): RadioStation | undefined {
   if (!id) return undefined;
+  if (id === "worldwide-fm" || id === "rb-1651c32f55d84429995d872ea0dcf520") {
+    return WORLDWIDE_FM;
+  }
   return RADIO_STATIONS.find((s) => s.id === id) || DISCOVERED_STATIONS.get(id);
 }
 

@@ -189,7 +189,21 @@ export function decodeHtmlAttribute(value) {
 export function isQualityArtwork(rawUrl) {
   if (!rawUrl) return false;
   const lower = rawUrl.toLowerCase();
-  if (lower.includes("placeholder") || lower.includes("default_cover") || lower.includes("default-avatar")) {
+  if (
+    lower.includes("placeholder") ||
+    lower.includes("default_cover") ||
+    lower.includes("default-avatar") ||
+    lower.includes("no-image") ||
+    lower.includes("no_image")
+  ) {
+    return false;
+  }
+  if (
+    /(?:^|\.)(?:fbcdn\.net|facebook\.com|cdninstagram\.com|licdn\.com)(?:$|\/)/i.test(lower) ||
+    lower.includes("twimg.com/profile_images") ||
+    lower.includes("discordapp.com/avatars") ||
+    /[?&]oe=[0-9a-f]+/i.test(lower)
+  ) {
     return false;
   }
   return true;

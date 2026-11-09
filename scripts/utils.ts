@@ -61,6 +61,27 @@ export function isQualityArtwork(rawUrl?: string): boolean {
 
   const lower = trimmed.toLowerCase();
 
+  // Reject generic placeholders and default silhouettes
+  if (
+    lower.includes("placeholder") ||
+    lower.includes("default_cover") ||
+    lower.includes("default-avatar") ||
+    lower.includes("no-image") ||
+    lower.includes("no_image")
+  ) {
+    return false;
+  }
+
+  // Reject ephemeral social media and temporary signed CDN links that expire or break
+  if (
+    /(?:^|\.)(?:fbcdn\.net|facebook\.com|cdninstagram\.com|licdn\.com)(?:$|\/)/i.test(lower) ||
+    lower.includes("twimg.com/profile_images") ||
+    lower.includes("discordapp.com/avatars") ||
+    /[?&]oe=[0-9a-f]+/i.test(lower)
+  ) {
+    return false;
+  }
+
   // Reject microscopic browser .ico files and generic favicons
   if (
     lower.endsWith(".ico") ||

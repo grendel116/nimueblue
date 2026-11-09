@@ -792,6 +792,7 @@ export const SearchContextProvider: React.FC<{
 
       // 10. Radio Stations & Podcasts
       for (const station of radioStations) {
+        if (!isQualityArtwork(station.artwork)) continue;
         results.push({
           id: station.id,
           name: station.name,

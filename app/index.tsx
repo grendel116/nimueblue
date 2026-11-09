@@ -207,13 +207,15 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     );
   }, [releaseSourcesSettled, recentData?.results, chorusAlbums, fairplayerAlbums]);
 
+  const [failedStationIds, setFailedStationIds] = useState<Set<string>>(new Set());
+
   // Shuffled curated and discovered radio stations
   const radioStations = useMemo(() => {
-    const combined = [...RADIO_STATIONS, ...discoveredRadio].filter((station) =>
-      isQualityArtwork(station.artwork),
+    const combined = [...RADIO_STATIONS, ...discoveredRadio].filter(
+      (station) => isQualityArtwork(station.artwork) && !failedStationIds.has(station.id),
     );
     return shuffle(deduplicateRadioStations(combined)).slice(0, CAROUSEL_LIMIT);
-  }, [discoveredRadio, shuffleSeed]);
+  }, [discoveredRadio, shuffleSeed, failedStationIds]);
 
   // Curated and Castopod-indexed discussion shows, ordered by latest episode
   const podcastShows = useMemo(() => {
@@ -419,7 +421,14 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.carouselContent}
                 renderItem={({ item }) => (
-                  <StationCard station={item} cardWidth={cardWidth} active={active} />
+                  <StationCard
+                    station={item}
+                    cardWidth={cardWidth}
+                    active={active}
+                    onFailedArtwork={(stationId) =>
+                      setFailedStationIds((prev) => new Set(prev).add(stationId))
+                    }
+                  />
                 )}
               />
             </View>
@@ -456,10 +465,12 @@ function StationCard({
   station,
   cardWidth,
   active,
+  onFailedArtwork,
 }: {
   station: RadioStation;
   cardWidth: number;
   active: boolean;
+  onFailedArtwork: (stationId: string) => void;
 }) {
   const router = useRouter();
   const { data: plays } = useQuery({
@@ -468,10 +479,9 @@ function StationCard({
     meta: { home: true },
   });
   const onAir = plays?.[0];
-  const [failedArtwork, setFailedArtwork] = useState<string>();
   const onAirArtwork = onAir?.artwork;
   const rawImage = isQualityArtwork(onAirArtwork) ? onAirArtwork : station.artwork;
-  const hasValidArtwork = isQualityArtwork(rawImage) && failedArtwork !== rawImage;
+  if (!isQualityArtwork(rawImage)) return null;
 
   return (
     <Pressable
@@ -481,18 +491,12 @@ function StationCard({
       style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
     >
       <View style={styles.cardImageContainer}>
-        {hasValidArtwork ? (
-          <Image
-            source={{ uri: resolveArtworkUrl(rawImage) }}
-            style={styles.cardCoverImage}
-            resizeMode="cover"
-            onError={() => setFailedArtwork(rawImage)}
-          />
-        ) : (
-          <View style={[styles.cardCoverImage, styles.placeholderCover]}>
-            <Ionicons name="radio" size={32} color={theme.colors.textMuted} />
-          </View>
-        )}
+        <Image
+          source={{ uri: resolveArtworkUrl(rawImage) }}
+          style={styles.cardCoverImage}
+          resizeMode="cover"
+          onError={() => onFailedArtwork(station.id)}
+        />
         <View style={styles.glassSheen} />
         <Text style={styles.airtimeBadge}>LIVE</Text>
       </View>

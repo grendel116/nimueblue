@@ -56,7 +56,7 @@ export default function StationScreen() {
     );
   }
 
-  if (!station || !isQualityArtwork(station.artwork)) {
+  if (!station || !isQualityArtwork(station.artwork) || imgError) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.topNav}>

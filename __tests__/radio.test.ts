@@ -1,6 +1,7 @@
 import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
+  findStation,
   isExcludedColonialStation,
   isPlayableRadioBrowserStation,
   liveTrack,
@@ -260,6 +261,48 @@ describe("discovered radio stations", () => {
       expect(meta[station.id].art).toBe(station.artwork);
       expect(meta[station.id].app).toBe(`/station/${station.id}`);
     }
+  });
+
+  test("resolves Worldwide FM canonically with quality artwork and deduplicates Radio-Browser copy", () => {
+    const wwfm = findStation("worldwide-fm");
+    const wwfmByRbUuid = findStation("rb-1651c32f55d84429995d872ea0dcf520");
+    expect(wwfm).toBeDefined();
+    expect(wwfm?.name).toBe("Worldwide FM");
+    expect(wwfm?.artwork).toBe("https://grendel116.github.io/nimueblue/worldwide-fm.png");
+    expect(wwfmByRbUuid).toBe(wwfm);
+
+    // Radio-Browser entry with expired/ephemeral fbcdn link is rejected by isPlayableRadioBrowserStation
+    expect(
+      isPlayableRadioBrowserStation({
+        stationuuid: "1651c32f-55d8-4429-995d-872ea0dcf520",
+        name: "Worldwide FM",
+        url: "https://worldwide-fm.radiocult.fm/stream",
+        url_resolved: "https://worldwide-fm.radiocult.fm/stream",
+        homepage: "https://www.worldwidefm.net/",
+        favicon:
+          "https://scontent-fra5-2.xx.fbcdn.net/v/t39.30808-1/450237294_942043604601681_3306132891557988504_n.jpg?stp=dst-jpg_s200x200_tt6&oe=696ED4DC",
+      }),
+    ).toBe(false);
+
+    // Even if an entry with identical homepage/stream appears, deduplicateRadioStations preserves canonical Worldwide FM
+    const deduped = deduplicateRadioStations([
+      wwfm!,
+      {
+        id: "rb-1651c32f55d84429995d872ea0dcf520",
+        name: "Worldwide FM",
+        liveName: "Worldwide FM",
+        location: "London, England",
+        artwork: "https://example.com/art.jpg",
+        about: "",
+        streamUrl: "https://worldwide-fm.radiocult.fm/stream",
+        playlistPage: "https://www.worldwidefm.net/",
+        donatePage: "https://www.worldwidefm.net/",
+        fetchPlays: async () => [],
+      },
+    ]);
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0].id).toBe("worldwide-fm");
+    expect(deduped[0].artwork).toBe("https://grendel116.github.io/nimueblue/worldwide-fm.png");
   });
 
   test("excludes capitalist-colonial countries from discovered and searched stations", async () => {

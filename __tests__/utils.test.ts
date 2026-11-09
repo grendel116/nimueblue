@@ -55,6 +55,24 @@ describe("isQualityArtwork", () => {
     expect(isQualityArtwork("http://radio.org/assets/logo.ico")).toBe(false);
   });
 
+  test("rejects ephemeral social media CDNs and placeholder artwork", () => {
+    expect(
+      isQualityArtwork(
+        "https://scontent-fra5-2.xx.fbcdn.net/v/t39.30808-1/450237294_n.jpg?stp=dst-jpg_s200x200_tt6&oe=696ED4DC",
+      ),
+    ).toBe(false);
+    expect(
+      isQualityArtwork(
+        "https://pbs.twimg.com/profile_images/1566500393047162886/kbnlJsYS_400x400.jpg",
+      ),
+    ).toBe(false);
+    expect(
+      isQualityArtwork("https://cdn.discordapp.com/avatars/12345/avatar.png"),
+    ).toBe(false);
+    expect(isQualityArtwork("https://example.com/images/placeholder.png")).toBe(false);
+    expect(isQualityArtwork("https://example.com/default_cover.jpg")).toBe(false);
+  });
+
   test("rejects tiny thumbnails (16px and 32px indicators)", () => {
     expect(isQualityArtwork("https://example.com/thumb_16x16.png")).toBe(false);
     expect(isQualityArtwork("https://example.com/icon_32x32.jpg")).toBe(false);
