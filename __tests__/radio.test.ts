@@ -305,6 +305,67 @@ describe("discovered radio stations", () => {
     expect(deduped[0].artwork).toBe("https://grendel116.github.io/nimueblue/worldwide-fm.png");
   });
 
+  test("includes Rhythm & Soul Patrol with Zeno stream, square artwork, search tags, and now-playing parser", async () => {
+    const rsp = findStation("rhythm-and-soul-patrol");
+    expect(rsp).toBeDefined();
+    expect(rsp?.name).toBe("Rhythm & Soul Patrol");
+    expect(rsp?.liveName).toBe("Rhythm & Soul Patrol (WRSP-LR)");
+    expect(rsp?.artwork).toBe(
+      "https://grendel116.github.io/nimueblue/rhythm-and-soul-patrol.png",
+    );
+    expect(deduplicateRadioStations([rsp!])).toEqual([rsp]);
+
+    const track = liveTrack(rsp!);
+    expect(track.url).toBe("https://stream.zeno.fm/o8xbrffwhwjtv");
+    expect(track.type).toBe("default");
+    expect(track.headers).toEqual({});
+
+    const fetchSpy = jest
+      .spyOn(global, "fetch")
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (
+          url.includes(
+            "zenoplay.zenomedia.com/api/zenofm/nowplaying/o8xbrffwhwjtv",
+          )
+        ) {
+          return {
+            ok: true,
+            json: async () => ({
+              title: "Let&#39;s Stay Together - Al Green &amp; Friends",
+              artist: "",
+              thumb: "",
+            }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          json: async () => [],
+        } as Response;
+      });
+
+    try {
+      const soulResults = await searchRadioStations("soul");
+      expect(soulResults.some((s) => s.id === "rhythm-and-soul-patrol")).toBe(
+        true,
+      );
+
+      const detroitResults = await searchRadioStations("detroit");
+      expect(
+        detroitResults.some((s) => s.id === "rhythm-and-soul-patrol"),
+      ).toBe(true);
+
+      const controller = new AbortController();
+      const plays = await rsp!.fetchPlays(controller.signal);
+      expect(plays).toHaveLength(1);
+      expect(plays[0].song).toBe("Let's Stay Together");
+      expect(plays[0].artist).toBe("Al Green & Friends");
+      expect(plays[0].artwork).toBe(rsp!.artwork);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   test("excludes capitalist-colonial countries from discovered and searched stations", async () => {
     expect(
       isExcludedColonialStation({

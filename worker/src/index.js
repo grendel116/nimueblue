@@ -1,6 +1,7 @@
 import { CORS_HEADERS, MIRLO_PROXY_CORS } from "./data/metadata.js";
 import { GUANGDONG_LOGO_B64 } from "./data/guangdongLogo.js";
 import { WORLDWIDE_LOGO_B64 } from "./data/worldwideLogo.js";
+import { RHYTHM_AND_SOUL_PATROL_LOGO_B64 } from "./data/rhythmAndSoulPatrolLogo.js";
 import { handleProxy } from "./routes/proxy.js";
 import { handleFairplayer } from "./routes/fairplayer.js";
 import { handleShare } from "./routes/share.js";
@@ -30,6 +31,20 @@ export default {
 
     if (url.pathname === "/worldwide-fm.png") {
       const binary = Uint8Array.from(atob(WORLDWIDE_LOGO_B64), (c) => c.charCodeAt(0));
+      return new Response(binary, {
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=86400, s-maxage=604800",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
+    if (url.pathname === "/rhythm-and-soul-patrol.png") {
+      const binary = Uint8Array.from(
+        atob(RHYTHM_AND_SOUL_PATROL_LOGO_B64),
+        (c) => c.charCodeAt(0),
+      );
       return new Response(binary, {
         headers: {
           "Content-Type": "image/png",

@@ -113,6 +113,14 @@ export const RADIO_STATION_META = {
     web: "https://www.worldwidefm.net/",
     app: "/station/worldwide-fm",
   },
+  "rhythm-and-soul-patrol": {
+    name: "Rhythm & Soul Patrol (WRSP-LR)",
+    artist: "Live from Detroit",
+    art: "https://grendel116.github.io/nimueblue/rhythm-and-soul-patrol.png",
+    audio: "https://stream.zeno.fm/o8xbrffwhwjtv",
+    web: "https://rhythmandsoulpatrol.com/",
+    app: "/station/rhythm-and-soul-patrol",
+  },
 };
 
 // Canonical movement podcasts from queries/podcast.ts

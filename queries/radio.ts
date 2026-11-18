@@ -393,6 +393,67 @@ const WORLDWIDE_FM: RadioStation = {
   fetchPlays: async () => [],
 };
 
+// Rhythm & Soul Patrol (WRSP-LR): independent Detroit soul, R&B, and oldies broadcast hosted by Lindsey Renee
+type ZenoNowPlaying = {
+  title?: string | null;
+  artist?: string | null;
+  thumb?: string | null;
+};
+
+const RHYTHM_AND_SOUL_PATROL_LOGO =
+  "https://grendel116.github.io/nimueblue/rhythm-and-soul-patrol.png";
+
+const RHYTHM_AND_SOUL_PATROL: RadioStation = {
+  id: "rhythm-and-soul-patrol",
+  name: "Rhythm & Soul Patrol",
+  liveName: "Rhythm & Soul Patrol (WRSP-LR)",
+  location: "Detroit",
+  artwork: RHYTHM_AND_SOUL_PATROL_LOGO,
+  about:
+    "Independent Detroit radio broadcast hosted and curated by Lindsey Renee, celebrating classic soul, R&B, Motown, deep cuts, and the stories behind the records.",
+  streamUrl: "https://stream.zeno.fm/o8xbrffwhwjtv",
+  playlistPage: "https://rhythmandsoulpatrol.com/",
+  donatePage: "https://rhythmandsoulpatrol.com/",
+  tags: [
+    "soul",
+    "r&b",
+    "rnb",
+    "motown",
+    "funk",
+    "oldies",
+    "detroit",
+    "wrsp",
+    "lindsey renee",
+  ],
+  fetchPlays: async (signal) => {
+    const data = await getJson<ZenoNowPlaying>(
+      "https://zenoplay.zenomedia.com/api/zenofm/nowplaying/o8xbrffwhwjtv",
+      signal,
+    );
+    const rawTitle = decodeHtmlEntities(data.title ?? "").trim();
+    if (!rawTitle) return [];
+    const rawArtist = decodeHtmlEntities(data.artist ?? "").trim();
+    const separator = rawArtist ? -1 : rawTitle.lastIndexOf(" - ");
+    const song = separator > 0 ? rawTitle.slice(0, separator).trim() : rawTitle;
+    const artist =
+      rawArtist ||
+      (separator > 0
+        ? rawTitle.slice(separator + 3).trim()
+        : "Rhythm & Soul Patrol");
+    return [
+      {
+        key: `${song}-${artist}`,
+        song,
+        artist,
+        airdate: new Date().toISOString(),
+        artwork: isQualityArtwork(data.thumb ?? undefined)
+          ? data.thumb!.trim()
+          : RHYTHM_AND_SOUL_PATROL_LOGO,
+      },
+    ];
+  },
+};
+
 export const RADIO_STATIONS: RadioStation[] = [
   KEXP,
   CARBON_SOUND,
@@ -404,6 +465,7 @@ export const RADIO_STATIONS: RadioStation[] = [
   BANGKOK_COMMUNITY_RADIO,
   GUANGDONG_MUSIC,
   WORLDWIDE_FM,
+  RHYTHM_AND_SOUL_PATROL,
 ];
 
 // Stream quality labels that tell copies of one station apart, such as "320k AAC", "FLAC+meta",

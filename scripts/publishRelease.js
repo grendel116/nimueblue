@@ -30,10 +30,9 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Fascist Movement Filter**: Replaced the blanket "America" block with a filter that names Nazi, white-nationalist, Christian-nationalist and American far-right movements and outlets. Americana, Latin America and anti-fascist shows stay in.
-* **Worldwide FM Added**: Worldwide FM joins the lineup with its own artwork. Stations whose images are missing, expired or hosted on social media CDNs are left out everywhere.
-* **Cleaner Radio Page**: The "by Live from ..." line is gone from the live radio player.
-* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app and Cloudflare Worker for v${version}.
+* **Rhythm & Soul Patrol Added**: Added Detroit's Rhythm & Soul Patrol (WRSP-LR) to the curated radio stations with its live Zeno stream, real-time now-playing track feed, and custom square station artwork.
+* **Radio Search Fix**: Fixed a missing artwork validation import in Search so radio station search results resolve reliably.
+* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

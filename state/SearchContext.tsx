@@ -20,6 +20,7 @@ import {
   savedAlbumSlug,
   SAVED_SOURCE,
 } from "@/scripts/downloadManager";
+import { isQualityArtwork } from "@/scripts/utils";
 
 const ALBUMS_PER_TAG = 14;
 const MAX_TAG_FANOUT = 8;
