@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  getCurationConfig,
+  onCurationChange,
+  setCurationConfig,
+} from "@/queries/excludedContent";
 import { readTags } from "./readTags";
 import {
   CreatedAlbum,
@@ -44,8 +49,15 @@ let folder: FileSystemDirectoryHandle | null = null;
 // In the Android app the phone holds the folder and sends its name
 let shellFolderName = "";
 let status: MusicFolderStatus = SUPPORTED ? "none" : "unsupported";
+let isApplyingManifestCuration = false;
 const listeners = new Set<() => void>();
 const links: FolderLinks = { audio: new Map(), covers: new Map() };
+
+onCurationChange(() => {
+  if (!isApplyingManifestCuration) {
+    void syncMusicFolderManifest();
+  }
+});
 
 function setStatus(next: MusicFolderStatus) {
   status = next;
@@ -274,7 +286,7 @@ export async function syncMusicFolderManifest(): Promise<void> {
       getDownloadedTracks(),
       getCreatedAlbums(),
     ]);
-    await writeManifestToWebRoot(buildMusicFolderManifest(tracks, albums));
+    await writeManifestToWebRoot(buildMusicFolderManifest(tracks, albums, getCurationConfig()));
   } catch (err) {
     console.warn("Failed to sync nimue-library.json in web music folder:", err);
   }
@@ -290,6 +302,14 @@ export async function rescanMusicFolder(): Promise<void> {
     getDownloadedTracks(),
     getCreatedAlbums(),
   ]);
+  if (manifest?.curation) {
+    isApplyingManifestCuration = true;
+    try {
+      setCurationConfig(manifest.curation);
+    } finally {
+      isApplyingManifestCuration = false;
+    }
+  }
   const audio = files.filter((f) => AUDIO_FILE.test(f.path));
   const images = files.filter((f) => IMAGE_FILE.test(f.path)).map((f) => f.path);
 

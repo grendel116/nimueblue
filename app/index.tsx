@@ -31,18 +31,20 @@ import { CAROUSEL_LIMIT, blendCarouselReleases } from "@/scripts/carousel";
 import QueueScreen from "@/app/feed";
 import LibraryScreen from "@/app/library";
 import {
-  RADIO_STATIONS,
   RadioStation,
   deduplicateRadioStations,
   queryRadioPlays,
   queryDiscoveredRadioStations,
+  useCustomRadioStations,
 } from "@/queries/radio";
 import {
-  PODCAST_SHOWS,
   PodcastShow,
   sortDiscussionsByLastUpdate,
   queryDiscoveredPodcasts,
+  useCustomPodcastShows,
 } from "@/queries/podcast";
+import { isExcludedContent, useCurationConfig } from "@/queries/excludedContent";
+import CurationModal, { CurationTab } from "@/components/CurationModal";
 import OfflineNotice from "@/components/OfflineNotice";
 import PullToRefreshView from "@/components/PullToRefreshView";
 import BrandMark from "@/components/BrandMark";
@@ -100,6 +102,10 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [curationTab, setCurationTab] = useState<CurationTab | null>(null);
+  const curation = useCurationConfig();
+  const customStations = useCustomRadioStations();
+  const customPodcasts = useCustomPodcastShows();
 
   const openAlbum = (album: AlbumLink) => {
     const href = albumHref(album);
@@ -146,21 +152,21 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     retry: false,
   });
 
-  // Query discovered autonomous community and pirate radio stations
+  // Query open or tag-filtered radio stations from Radio-Browser
   const {
     data: discoveredRadio = [],
     refetch: refetchDiscoveredRadio,
   } = useQuery({
-    ...queryDiscoveredRadioStations(8),
+    ...queryDiscoveredRadioStations(CAROUSEL_LIMIT),
     ...HOME_QUERY,
   });
 
-  // Discover podcast feeds through the open Castopod Index catalog
+  // Discover open podcast feeds through the Castopod Index catalog
   const {
     data: discoveredPodcasts = [],
     refetch: refetchDiscoveredPodcasts,
   } = useQuery({
-    ...queryDiscoveredPodcasts(6),
+    ...queryDiscoveredPodcasts(CAROUSEL_LIMIT),
     ...HOME_QUERY,
   });
 
@@ -209,21 +215,31 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
 
   const [failedStationIds, setFailedStationIds] = useState<Set<string>>(new Set());
 
-  // Shuffled curated and discovered radio stations
+  // Custom client-side stations plus open Radio-Browser stations
   const radioStations = useMemo(() => {
-    const combined = [...RADIO_STATIONS, ...discoveredRadio].filter(
-      (station) => isQualityArtwork(station.artwork) && !failedStationIds.has(station.id),
+    const combined = [...customStations, ...discoveredRadio].filter(
+      (station) =>
+        !failedStationIds.has(station.id) &&
+        (station.isCustom || isQualityArtwork(station.artwork)),
     );
-    return shuffle(deduplicateRadioStations(combined)).slice(0, CAROUSEL_LIMIT);
-  }, [discoveredRadio, shuffleSeed, failedStationIds]);
+    const deduped = deduplicateRadioStations(combined, curation.filters);
+    const customList = shuffle(deduped.filter((s) => s.isCustom));
+    const openList = shuffle(deduped.filter((s) => !s.isCustom));
+    return [...customList, ...openList].slice(0, Math.max(CAROUSEL_LIMIT, customList.length));
+  }, [customStations, discoveredRadio, curation.filters, shuffleSeed, failedStationIds]);
 
-  // Curated and Castopod-indexed discussion shows, ordered by latest episode
+  // Custom client-side podcasts plus open Castopod-indexed shows, ordered by latest episode
   const podcastShows = useMemo(() => {
-    const combined = [...PODCAST_SHOWS, ...discoveredPodcasts].filter((show) =>
-      isQualityArtwork(show.artwork),
+    const combined = [...customPodcasts, ...discoveredPodcasts].filter(
+      (show) =>
+        (show.isCustom || isQualityArtwork(show.artwork)) &&
+        !isExcludedContent([show.name, show.author], [], curation.filters),
     );
-    return sortDiscussionsByLastUpdate(combined).slice(0, CAROUSEL_LIMIT);
-  }, [discoveredPodcasts]);
+    const sorted = sortDiscussionsByLastUpdate(combined);
+    const customList = sorted.filter((s) => s.isCustom);
+    const openList = sorted.filter((s) => !s.isCustom);
+    return [...customList, ...openList].slice(0, Math.max(CAROUSEL_LIMIT, customList.length));
+  }, [customPodcasts, discoveredPodcasts, curation.filters]);
 
   // The splash screen stays up until Home has its first content (or an error to show)
   const { setIsDataLoaded } = useAppIsReadyContext();
@@ -409,6 +425,25 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionHeader}>Radio</Text>
+                <View style={styles.sectionActions}>
+                  <Pressable
+                    onPress={() => setCurationTab("stations")}
+                    style={styles.sectionActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add or manage radio stations"
+                  >
+                    <Ionicons name="add" size={14} color={theme.colors.primary} />
+                    <Text style={styles.sectionActionText}>Station</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCurationTab("filters")}
+                    style={styles.sectionActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Configure feed filters"
+                  >
+                    <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
+                  </Pressable>
+                </View>
               </View>
               <FlatList
                 ref={dragScroll}
@@ -437,6 +472,25 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionHeader}>Discussion</Text>
+                <View style={styles.sectionActions}>
+                  <Pressable
+                    onPress={() => setCurationTab("podcasts")}
+                    style={styles.sectionActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add or manage podcast feeds"
+                  >
+                    <Ionicons name="add" size={14} color={theme.colors.primary} />
+                    <Text style={styles.sectionActionText}>Podcast</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setCurationTab("filters")}
+                    style={styles.sectionActionBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Configure feed filters"
+                  >
+                    <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
+                  </Pressable>
+                </View>
               </View>
               <FlatList
                 ref={dragScroll}
@@ -454,6 +508,12 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
           </>
         )}
       </PullToRefreshView>
+
+      <CurationModal
+        visible={curationTab !== null}
+        initialTab={curationTab ?? "stations"}
+        onClose={() => setCurationTab(null)}
+      />
     </SafeAreaView>
   );
 });
@@ -473,6 +533,7 @@ function StationCard({
   onFailedArtwork: (stationId: string) => void;
 }) {
   const router = useRouter();
+  const [failedArtwork, setFailedArtwork] = useState<string>();
   const { data: plays } = useQuery({
     ...queryRadioPlays(station),
     refetchInterval: active ? 60_000 : false,
@@ -481,7 +542,8 @@ function StationCard({
   const onAir = plays?.[0];
   const onAirArtwork = onAir?.artwork;
   const rawImage = isQualityArtwork(onAirArtwork) ? onAirArtwork : station.artwork;
-  if (!isQualityArtwork(rawImage)) return null;
+  const hasValidArtwork = isQualityArtwork(rawImage) && failedArtwork !== rawImage;
+  if (!hasValidArtwork && !station.isCustom) return null;
 
   return (
     <Pressable
@@ -491,12 +553,21 @@ function StationCard({
       style={({ pressed }) => [styles.albumCard, { width: cardWidth }, pressed && styles.cardPressed]}
     >
       <View style={styles.cardImageContainer}>
-        <Image
-          source={{ uri: resolveArtworkUrl(rawImage) }}
-          style={styles.cardCoverImage}
-          resizeMode="cover"
-          onError={() => onFailedArtwork(station.id)}
-        />
+        {hasValidArtwork ? (
+          <Image
+            source={{ uri: resolveArtworkUrl(rawImage) }}
+            style={styles.cardCoverImage}
+            resizeMode="cover"
+            onError={() => {
+              if (station.isCustom) setFailedArtwork(rawImage);
+              else onFailedArtwork(station.id);
+            }}
+          />
+        ) : (
+          <View style={[styles.cardCoverImage, styles.placeholderCover]}>
+            <Ionicons name="radio" size={32} color={theme.colors.textMuted} />
+          </View>
+        )}
         <View style={styles.glassSheen} />
         <Text style={styles.airtimeBadge}>LIVE</Text>
       </View>
@@ -624,6 +695,27 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     ...theme.typography.sectionHeader,
+  },
+  sectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  sectionActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceGlassBorder,
+  },
+  sectionActionText: {
+    color: theme.colors.primary,
+    fontSize: 11,
+    fontWeight: "700",
   },
   historyGrid: {
     flexDirection: "row",

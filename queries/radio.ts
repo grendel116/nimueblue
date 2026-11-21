@@ -1,13 +1,27 @@
+import { useMemo } from "react";
 import { queryOptions } from "@tanstack/react-query";
 import { audioTrackType, decodeHtmlEntities, isQualityArtwork } from "@/scripts/utils";
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
-import { isExcludedContent } from "@/queries/excludedContent";
+import {
+  ContentFilters,
+  CustomStationSpec,
+  MIGRATED_EXCLUDED_COUNTRIES,
+  MIGRATED_EXCLUDED_COUNTRY_CODES,
+  MIGRATED_RADICAL_RADIO_TAGS,
+  MIGRATED_STATION_SPECS,
+  getContentFilters,
+  getCurationConfig,
+  isExcludedContent,
+  isExcludedCountry,
+  useCurationConfig,
+} from "@/queries/excludedContent";
 // A station plays as a 10-minute set in the queue, then playback moves on to what's next
 import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 
-// Independent radio stations shown on Home. Each station has a live stream and a
-// public feed of what's on air. All feeds except WFMU's are CORS-open, so web reads them directly.
+// Radio stations shown on Home and in Search. The base app uses open Radio-Browser discovery
+// and user-added custom stations stored client-side; migrated curated stations live in
+// MIGRATED_STATION_SPECS and RADIO_STATIONS for preset import and deep-link resolution.
 
 export type RadioPlay = {
   key: string;
@@ -28,7 +42,9 @@ export type RadioStation = {
   streamUrl: string;
   playlistPage: string;
   donatePage: string;
+  nowPlayingUrl?: string;
   tags?: string[];
+  isCustom?: boolean;
   headers?: Record<string, string>;
   fetchPlays: (signal: AbortSignal) => Promise<RadioPlay[]>;
 };
@@ -47,7 +63,6 @@ function toArtworkUrl(raw: unknown): string {
   return "";
 }
 
-// KEXP: "trackplay" entries are songs, other play types are air breaks
 type KexpPlay = {
   id: number;
   airdate: string;
@@ -58,38 +73,6 @@ type KexpPlay = {
   image_uri: string;
 };
 
-const KEXP: RadioStation = {
-  id: "kexp",
-  name: "KEXP",
-  liveName: "KEXP 90.3 FM",
-  location: "Seattle",
-  artwork:
-    "https://www.kexp.org/media/filer_public/4f/52/4f52b5aa-bd93-4fe7-ab94-2d3258a3804c/kexp_primarylogo_black.png",
-  about:
-    "Listener-powered, non-profit radio from Seattle, championing new and independent music since 1972.",
-  streamUrl: "https://kexp.streamguys1.com/kexp160.aac",
-  playlistPage: "https://www.kexp.org/playlist/",
-  donatePage: "https://www.kexp.org/donate/",
-  fetchPlays: async (signal) => {
-    const data = await getJson<{ results: KexpPlay[] }>(
-      "https://api.kexp.org/v2/plays/?format=json&limit=5",
-      signal,
-    );
-    const track = data.results.find((p) => p.play_type === "trackplay");
-    if (!track) return [];
-    return [
-      {
-        key: String(track.id),
-        song: track.song,
-        artist: track.artist,
-        airdate: track.airdate,
-        artwork: toArtworkUrl(track.image_uri) || toArtworkUrl(track.thumbnail_uri),
-      },
-    ];
-  },
-};
-
-// Carbon Sound (MPR): the same now-playing service behind carbonsound.fm/playlist
 type PublicRadioSong = {
   song_id: number;
   title: string;
@@ -98,39 +81,6 @@ type PublicRadioSong = {
   art_url: string | null;
 };
 
-const CARBON_SOUND: RadioStation = {
-  id: "carbon-sound",
-  name: "Carbon Sound",
-  liveName: "Carbon Sound",
-  location: "Minneapolis",
-  artwork:
-    "https://img.apmcdn.org/cb53893e052517a661546c52c2e5401774619f99/uncropped/d82f35-20220711-carbon-sound-png-1826.png",
-  about:
-    "Minnesota Public Radio's stream for Black music past and present: hip-hop, soul, R&B and more.",
-  streamUrl: "https://carbonsound.stream.publicradio.org/carbonsound.aac",
-  playlistPage: "https://www.carbonsound.fm/playlist",
-  donatePage: "https://support.mpr.org/carbon-sound-web",
-  fetchPlays: async (signal) => {
-    const data = await getJson<{ data: { songs: PublicRadioSong[] } }>(
-      "https://nowplaying.publicradio.org/carbon-sound/playlist",
-      signal,
-    );
-    const song = data.data?.songs?.[0];
-    if (!song) return [];
-    return [
-      {
-        key: `${song.song_id}-${song.played_at}`,
-        song: song.title,
-        artist: song.artist,
-        airdate: song.played_at,
-        artwork: toArtworkUrl(song.art_url),
-      },
-    ];
-  },
-};
-
-// WFMU: the feed holds only what's on now. When the DJ logs songs live, that's the
-// current song; otherwise it's the show. Text fields arrive HTML-escaped
 type WfmuNow = {
   program: { id: string; title_html: string | null };
   episode: { id: number };
@@ -143,26 +93,59 @@ type WfmuNow = {
   };
 };
 
+type RadioCoStatus = {
+  current_track: { title: string; start_time: string; artwork_url: string };
+};
 
-const WFMU_LOGO =
-  "https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/12/46/a8/1246a8d2-9aac-c896-868b-c9f78c278c6e/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.jpeg/512x512bb.jpg";
+type ZenoNowPlaying = {
+  title?: string | null;
+  artist?: string | null;
+  thumb?: string | null;
+};
 
-const WFMU: RadioStation = {
-  id: "wfmu",
-  name: "WFMU",
-  liveName: "WFMU 91.1 FM",
-  location: "Jersey City",
-  artwork: WFMU_LOGO,
-  about:
-    "Listener-supported freeform radio since 1958, with no playlists, no formats and DJs who play whatever they love.",
-  streamUrl: "https://stream0.wfmu.org/freeform-128k.mp3",
-  playlistPage: "https://wfmu.org/playlists/",
-  donatePage: "https://pledge.wfmu.org/",
-  fetchPlays: async (signal) => {
-    const { program, episode, segment } = await getJson<WfmuNow>(
-      "https://wfmu.org/currentliveshows.php?json=1&c=1",
-      signal,
-    );
+export async function fetchPlaysFromNowPlayingUrl(
+  url: string,
+  fallbackArtist: string,
+  fallbackArtwork: string,
+  signal: AbortSignal,
+): Promise<RadioPlay[]> {
+  if (!url) return [];
+  const data = await getJson<any>(url, signal);
+  if (!data || typeof data !== "object") return [];
+
+  // KEXP v2 API: { results: KexpPlay[] }
+  if (Array.isArray(data.results)) {
+    const track = (data.results as KexpPlay[]).find((p) => p.play_type === "trackplay");
+    if (!track) return [];
+    return [
+      {
+        key: String(track.id),
+        song: track.song,
+        artist: track.artist,
+        airdate: track.airdate,
+        artwork: toArtworkUrl(track.image_uri) || toArtworkUrl(track.thumbnail_uri) || fallbackArtwork,
+      },
+    ];
+  }
+
+  // Public Radio (MPR / Carbon Sound) API: { data: { songs: PublicRadioSong[] } }
+  if (Array.isArray(data.data?.songs)) {
+    const song = data.data.songs[0] as PublicRadioSong | undefined;
+    if (!song) return [];
+    return [
+      {
+        key: `${song.song_id}-${song.played_at}`,
+        song: song.title,
+        artist: song.artist,
+        airdate: song.played_at,
+        artwork: toArtworkUrl(song.art_url) || fallbackArtwork,
+      },
+    ];
+  }
+
+  // WFMU live show API: { program, episode, segment }
+  if (data.program && data.segment) {
+    const { program, episode, segment } = data as WfmuNow;
     const now = new Date().toISOString();
     if (segment.id && !segment.set_break_flag && segment.title_html) {
       return [
@@ -171,7 +154,7 @@ const WFMU: RadioStation = {
           song: decodeHtmlEntities(segment.title_html),
           artist: decodeHtmlEntities(segment.artist_html ?? ""),
           airdate: now,
-          artwork: toArtworkUrl(segment.image) || WFMU_LOGO,
+          artwork: toArtworkUrl(segment.image) || fallbackArtwork,
         },
       ];
     }
@@ -180,293 +163,101 @@ const WFMU: RadioStation = {
       {
         key: `show-${program.id}-${episode.id}`,
         song: decodeHtmlEntities(program.title_html),
-        artist: "WFMU",
+        artist: fallbackArtist,
         airdate: now,
-        artwork: WFMU_LOGO,
+        artwork: fallbackArtwork,
       },
     ];
-  },
-};
+  }
 
-// Radio alHara: communal cultural space and solidarity broadcast from Bethlehem, Palestine
-const RADIO_ALHARA: RadioStation = {
-  id: "radio-alhara",
-  name: "Radio alHara",
-  liveName: "Radio alHara",
-  location: "Bethlehem, Palestine",
-  artwork: "https://radioalhara.net/img/radio-alhara-logo-512.png",
-  about:
-    "Communal, independent Palestinian radio station and cultural space broadcast from Bethlehem, dedicated to solidarity and artistic resistance across the Global South.",
-  streamUrl: "https://stream.radioalhara.net/ra",
-  playlistPage: "https://radioalhara.net/",
-  donatePage: "https://radioalhara.net/",
-  fetchPlays: async () => [
-    {
-      key: "alhara-live",
-      song: "Radio alHara",
-      artist: "Live from Bethlehem",
-      airdate: new Date().toISOString(),
-      artwork: "https://radioalhara.net/img/radio-alhara-logo-512.png",
-    },
-  ],
-};
-
-// Dublin Digital Radio: wholly funded by listeners and members, anti-capitalist, community-operated
-const DDR: RadioStation = {
-  id: "dublin-digital-radio",
-  name: "ddr.",
-  liveName: "Dublin Digital Radio (ddr.)",
-  location: "Dublin, Ireland",
-  artwork:
-    "https://play-lh.googleusercontent.com/mVz6RPCPV4vBX875xKk8tiBJ-z-A2hqbf3QO2SSSYxe_RtyPUumEXlxmETuYbsXHsUw",
-  about:
-    "Wholly member-funded and democratically operated alternative community radio station representing experimental music, art, and radical politics across Ireland.",
-  streamUrl: "https://dublin-digital-radio.radiocult.fm/stream",
-  playlistPage: "https://listen.dublindigitalradio.com",
-  donatePage: "https://listen.dublindigitalradio.com/support",
-  fetchPlays: async () => [
-    {
-      key: "ddr-live",
-      song: "Dublin Digital Radio",
-      artist: "Community Broadcast",
-      airdate: new Date().toISOString(),
-      artwork: "https://play-lh.googleusercontent.com/mVz6RPCPV4vBX875xKk8tiBJ-z-A2hqbf3QO2SSSYxe_RtyPUumEXlxmETuYbsXHsUw",
-    },
-  ],
-};
-
-const RESONANCE_LOGO =
-  "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/2d/ee/1c/2dee1cc1-fec2-52ab-df7a-b5d66f8163d8/AppIcon-1x_U007emarketing-0-11-0-85-220-0.png/512x512bb.jpg";
-
-// Resonance FM: the UK's radio arts station operated by the London Musicians' Collective
-const RESONANCE_FM: RadioStation = {
-  id: "resonance-fm",
-  name: "Resonance FM",
-  liveName: "Resonance 104.4 FM",
-  location: "London, UK",
-  artwork: RESONANCE_LOGO,
-  about:
-    "The world's first radio art station, operated by the London Musicians' Collective. Freeform, non-commercial, and volunteer-powered.",
-  streamUrl: "https://stream.resonance.fm/resonance",
-  playlistPage: "https://www.resonancefm.com",
-  donatePage: "https://www.resonancefm.com/donate",
-  fetchPlays: async () => [
-    {
-      key: "resonance-live",
-      song: "Resonance 104.4 FM",
-      artist: "Radio Arts & Freeform",
-      airdate: new Date().toISOString(),
-      artwork: RESONANCE_LOGO,
-    },
-  ],
-};
-
-// Refuge Worldwide: titles read "Show - Hosts"; only the current show carries a start time
-type RadioCoStatus = {
-  current_track: { title: string; start_time: string; artwork_url: string };
-};
-
-const REFUGE: RadioStation = {
-  id: "refuge",
-  name: "Refuge Worldwide",
-  liveName: "Refuge Worldwide",
-  location: "Berlin",
-  artwork: "https://images.radio.co/station_logos/s3699c5e49.20201221111634.png",
-  about:
-    "Community radio and fundraising platform from Berlin-Neukölln, giving airtime to grassroots causes and the artists around them.",
-  streamUrl: "https://streaming.radio.co/s3699c5e49/listen",
-  playlistPage: "https://refugeworldwide.com/radio",
-  donatePage: "https://refugeworldwide.com/support",
-  fetchPlays: async (signal) => {
-    const { current_track: show } = await getJson<RadioCoStatus>(
-      "https://public.radio.co/stations/s3699c5e49/status",
-      signal,
-    );
+  // Radio.co status API: { current_track: { title, start_time, artwork_url } }
+  if (data.current_track && typeof data.current_track.title === "string") {
+    const show = (data as RadioCoStatus).current_track;
     const [title, ...hosts] = show.title.split(" - ");
     return [
       {
         key: `${show.start_time}-${show.title}`,
         song: title,
-        artist: hosts.join(" - ") || "Refuge Worldwide",
+        artist: hosts.join(" - ") || fallbackArtist,
         airdate: show.start_time,
-        artwork: toArtworkUrl(show.artwork_url) || "https://images.radio.co/station_logos/s3699c5e49.20201221111634.png",
+        artwork: toArtworkUrl(show.artwork_url) || fallbackArtwork,
       },
     ];
-  },
-};
+  }
 
-// Bangkok Community Radio: independent Thai and Southeast Asian music and sound culture
-const BANGKOK_COMMUNITY_RADIO_LOGO =
-  "https://unify-fm-bucket.s3.us-west-2.amazonaws.com/bangkok_community_radio_logo.jpg";
-
-const BANGKOK_COMMUNITY_RADIO: RadioStation = {
-  id: "bangkok-community-radio",
-  name: "Bangkok Community Radio",
-  liveName: "Bangkok Community Radio",
-  location: "Bangkok, Thailand",
-  artwork: BANGKOK_COMMUNITY_RADIO_LOGO,
-  about:
-    "Independent community radio from Bangkok showcasing underground Thai and Southeast Asian music, DJs, and sound culture.",
-  streamUrl: "https://bcr.radiocult.fm/stream",
-  playlistPage: "https://bangkokcommunityradio.com",
-  donatePage: "https://bangkokcommunityradio.com",
-  tags: ["thai", "thailand", "bangkok", "southeast asia", "community radio", "ไทย"],
-  fetchPlays: async () => [
+  // Zeno.fm / generic flat JSON status: { title / song, artist, thumb / artwork }
+  const rawRawTitle = typeof data.song === "string" ? data.song : (data as ZenoNowPlaying).title;
+  const rawTitle = decodeHtmlEntities(rawRawTitle ?? "").trim();
+  if (!rawTitle) return [];
+  const rawArtist = decodeHtmlEntities(
+    typeof data.artist === "string" ? data.artist : "",
+  ).trim();
+  const separator = rawArtist ? -1 : rawTitle.lastIndexOf(" - ");
+  const song = separator > 0 ? rawTitle.slice(0, separator).trim() : rawTitle;
+  const artist =
+    rawArtist ||
+    (separator > 0 ? rawTitle.slice(separator + 3).trim() : fallbackArtist);
+  const rawThumb =
+    toArtworkUrl(data.thumb) || toArtworkUrl(data.artwork) || toArtworkUrl(data.image);
+  return [
     {
-      key: "bcr-live",
-      song: "Bangkok Community Radio",
-      artist: "Live from Bangkok",
-      airdate: new Date().toISOString(),
-      artwork: BANGKOK_COMMUNITY_RADIO_LOGO,
+      key: `${song}-${artist}`,
+      song,
+      artist,
+      airdate: typeof data.airdate === "string" && data.airdate ? data.airdate : new Date().toISOString(),
+      artwork: isQualityArtwork(rawThumb) ? rawThumb.trim() : fallbackArtwork,
     },
-  ],
-};
+  ];
+}
 
-// 广东音乐之声 (Guangdong Music FM): China's pioneering music radio broadcast from Guangzhou (FM 99.3)
-const GUANGDONG_MUSIC_LOGO =
-  "https://grendel116.github.io/nimueblue/guangdong-music-fm.png";
+export function specToRadioStation(spec: CustomStationSpec): RadioStation {
+  const artwork = spec.artwork?.trim() || "";
+  const location = spec.location?.trim() || "Autonomous / Global";
+  const liveName = spec.liveName?.trim() || spec.name;
+  const nowPlayingUrl = spec.nowPlayingUrl?.trim() || undefined;
+  return {
+    id: spec.id,
+    name: spec.name,
+    liveName,
+    location,
+    artwork,
+    about: spec.about?.trim() || `${spec.name} — Radio broadcast from ${location}.`,
+    streamUrl: spec.streamUrl,
+    playlistPage: spec.playlistPage?.trim() || "",
+    donatePage: spec.donatePage?.trim() || spec.playlistPage?.trim() || "",
+    ...(nowPlayingUrl ? { nowPlayingUrl } : {}),
+    ...(spec.tags && spec.tags.length > 0 ? { tags: spec.tags } : {}),
+    ...(spec.isCustom ? { isCustom: true } : {}),
+    fetchPlays: nowPlayingUrl
+      ? (signal) => fetchPlaysFromNowPlayingUrl(nowPlayingUrl, spec.name, artwork, signal)
+      : async () => [],
+  };
+}
 
-const GUANGDONG_MUSIC: RadioStation = {
-  id: "guangdong-music-fm",
-  name: "广东音乐之声",
-  liveName: "广东音乐之声 (FM 99.3)",
-  location: "Guangzhou, China",
-  artwork: GUANGDONG_MUSIC_LOGO,
-  about:
-    "Pioneering music radio broadcast from Guangzhou (FM 99.3), showcasing Cantonese and Mandarin pop, classic golden hits, and regional Chinese sound culture.",
-  streamUrl: "https://lhttp.qtfm.cn/live/1260/64k.mp3",
-  playlistPage: "https://www.gdtv.cn/",
-  donatePage: "https://www.gdtv.cn/",
-  tags: [
-    "chinese",
-    "china",
-    "guangzhou",
-    "guangdong",
-    "cantonese",
-    "mandarin",
-    "c-pop",
-    "cantopop",
-    "indie",
-    "folk",
-    "中文",
-    "华语",
-    "粵語",
-    "广东",
-    "广州",
-    "音乐",
-  ],
-  fetchPlays: async () => [
-    {
-      key: "guangdong-music-live",
-      song: "广东音乐之声 FM 99.3",
-      artist: "Live from Guangzhou",
-      airdate: new Date().toISOString(),
-      artwork: GUANGDONG_MUSIC_LOGO,
-    },
-  ],
-};
+// Migrated reference catalog of curated independent stations
+export const RADIO_STATIONS: RadioStation[] = MIGRATED_STATION_SPECS.map(specToRadioStation);
+const WORLDWIDE_FM = RADIO_STATIONS.find((s) => s.id === "worldwide-fm")!;
 
-// Worldwide FM: award-winning independent radio and cultural platform founded by Gilles Peterson
-const WORLDWIDE_FM_LOGO = "https://grendel116.github.io/nimueblue/worldwide-fm.png";
+let cachedSpecRef: CustomStationSpec[] | null = null;
+let cachedCustomStations: RadioStation[] = [];
 
-const WORLDWIDE_FM: RadioStation = {
-  id: "worldwide-fm",
-  name: "Worldwide FM",
-  liveName: "Worldwide FM",
-  location: "London, UK",
-  artwork: WORLDWIDE_FM_LOGO,
-  about:
-    "Award-winning independent radio and cultural platform founded by Gilles Peterson, broadcasting jazz, underground sounds, and global music culture from London.",
-  streamUrl: "https://worldwide-fm.radiocult.fm/stream",
-  playlistPage: "https://www.worldwidefm.net/",
-  donatePage: "https://www.worldwidefm.net/support",
-  tags: [
-    "jazz",
-    "world music",
-    "electronica",
-    "underground",
-    "london",
-    "uk",
-    "community radio",
-    "progressive",
-  ],
-  fetchPlays: async () => [],
-};
+export function getCustomRadioStations(): RadioStation[] {
+  const specs = getCurationConfig().stations;
+  if (cachedSpecRef === specs) return cachedCustomStations;
+  cachedSpecRef = specs;
+  cachedCustomStations = specs.map((spec) =>
+    specToRadioStation({ ...spec, isCustom: true }),
+  );
+  return cachedCustomStations;
+}
 
-// Rhythm & Soul Patrol (WRSP-LR): independent Detroit soul, R&B, and oldies broadcast hosted by Lindsey Renee
-type ZenoNowPlaying = {
-  title?: string | null;
-  artist?: string | null;
-  thumb?: string | null;
-};
-
-const RHYTHM_AND_SOUL_PATROL_LOGO =
-  "https://grendel116.github.io/nimueblue/rhythm-and-soul-patrol.png";
-
-const RHYTHM_AND_SOUL_PATROL: RadioStation = {
-  id: "rhythm-and-soul-patrol",
-  name: "Rhythm & Soul Patrol",
-  liveName: "Rhythm & Soul Patrol (WRSP-LR)",
-  location: "Detroit",
-  artwork: RHYTHM_AND_SOUL_PATROL_LOGO,
-  about:
-    "Independent Detroit radio broadcast hosted and curated by Lindsey Renee, celebrating classic soul, R&B, Motown, deep cuts, and the stories behind the records.",
-  streamUrl: "https://stream.zeno.fm/o8xbrffwhwjtv",
-  playlistPage: "https://rhythmandsoulpatrol.com/",
-  donatePage: "https://rhythmandsoulpatrol.com/",
-  tags: [
-    "soul",
-    "r&b",
-    "rnb",
-    "motown",
-    "funk",
-    "oldies",
-    "detroit",
-    "wrsp",
-    "lindsey renee",
-  ],
-  fetchPlays: async (signal) => {
-    const data = await getJson<ZenoNowPlaying>(
-      "https://zenoplay.zenomedia.com/api/zenofm/nowplaying/o8xbrffwhwjtv",
-      signal,
-    );
-    const rawTitle = decodeHtmlEntities(data.title ?? "").trim();
-    if (!rawTitle) return [];
-    const rawArtist = decodeHtmlEntities(data.artist ?? "").trim();
-    const separator = rawArtist ? -1 : rawTitle.lastIndexOf(" - ");
-    const song = separator > 0 ? rawTitle.slice(0, separator).trim() : rawTitle;
-    const artist =
-      rawArtist ||
-      (separator > 0
-        ? rawTitle.slice(separator + 3).trim()
-        : "Rhythm & Soul Patrol");
-    return [
-      {
-        key: `${song}-${artist}`,
-        song,
-        artist,
-        airdate: new Date().toISOString(),
-        artwork: isQualityArtwork(data.thumb ?? undefined)
-          ? data.thumb!.trim()
-          : RHYTHM_AND_SOUL_PATROL_LOGO,
-      },
-    ];
-  },
-};
-
-export const RADIO_STATIONS: RadioStation[] = [
-  KEXP,
-  CARBON_SOUND,
-  WFMU,
-  RADIO_ALHARA,
-  DDR,
-  RESONANCE_FM,
-  REFUGE,
-  BANGKOK_COMMUNITY_RADIO,
-  GUANGDONG_MUSIC,
-  WORLDWIDE_FM,
-  RHYTHM_AND_SOUL_PATROL,
-];
+export function useCustomRadioStations(): RadioStation[] {
+  const { stations } = useCurationConfig();
+  return useMemo(
+    () => stations.map((spec) => specToRadioStation({ ...spec, isCustom: true })),
+    [stations],
+  );
+}
 
 // Stream quality labels that tell copies of one station apart, such as "320k AAC", "FLAC+meta",
 // and "192 MP3" in "Radio Paradise Main Mix 320k AAC"
@@ -498,12 +289,13 @@ function normalizeStationUrl(rawUrl: string, includeQuery: boolean): string {
 
 export function deduplicateRadioStations(
   stations: RadioStation[],
+  filtersOverride?: ContentFilters,
 ): RadioStation[] {
   const seenIdentities = new Set<string>();
   return stations.filter((station) => {
     if (
-      !isQualityArtwork(station.artwork) ||
-      isExcludedContent([station.name, station.liveName], station.tags ?? [])
+      (!station.isCustom && !isQualityArtwork(station.artwork)) ||
+      isExcludedContent([station.name, station.liveName], station.tags ?? [], filtersOverride)
     ) {
       return false;
     }
@@ -543,69 +335,25 @@ export type RadioBrowserStation = {
   ssl_error?: number;
 };
 
-export const EXCLUDED_COLONIAL_COUNTRIES = new Set([
-  "morocco",
-  "maroc",
-  "kingdom of morocco",
-  "israel",
-  "state of israel",
-  "united arab emirates",
-  "the united arab emirates",
-  "uae",
-  "saudi arabia",
-  "kingdom of saudi arabia",
-  "turkey",
-  "türkiye",
-  "turkiye",
-  "republic of turkey",
-  "republic of türkiye",
-  "russia",
-  "russian federation",
-  "the russian federation",
-  "azerbaijan",
-  "republic of azerbaijan",
-  "rwanda",
-  "republic of rwanda",
-  "qatar",
-  "state of qatar",
-  "bahrain",
-  "kingdom of bahrain",
-  "kuwait",
-  "state of kuwait",
-]);
+export const EXCLUDED_COLONIAL_COUNTRIES = new Set(MIGRATED_EXCLUDED_COUNTRIES);
+export const EXCLUDED_COLONIAL_COUNTRY_CODES = new Set(MIGRATED_EXCLUDED_COUNTRY_CODES);
+export const RADICAL_RADIO_TAGS = MIGRATED_RADICAL_RADIO_TAGS;
 
-export const EXCLUDED_COLONIAL_COUNTRY_CODES = new Set([
-  "ma",
-  "il",
-  "ae",
-  "sa",
-  "tr",
-  "ru",
-  "az",
-  "rw",
-  "qa",
-  "bh",
-  "kw",
-]);
-
-export function isExcludedColonialStation(rb: RadioBrowserStation): boolean {
-  const country = (rb.country || "").trim().toLowerCase();
-  if (country && EXCLUDED_COLONIAL_COUNTRIES.has(country)) return true;
-
-  const code = (rb.countrycode || "").trim().toLowerCase();
-  if (code && EXCLUDED_COLONIAL_COUNTRY_CODES.has(code)) return true;
-
-  const state = (rb.state || "").trim().toLowerCase();
-  if (state && EXCLUDED_COLONIAL_COUNTRIES.has(state)) return true;
-
-  return false;
+export function isExcludedColonialStation(
+  rb: RadioBrowserStation,
+  filtersOverride?: ContentFilters,
+): boolean {
+  return isExcludedCountry(rb.country, rb.countrycode, rb.state, filtersOverride);
 }
 
-export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean {
-  if (isExcludedColonialStation(rb)) return false;
+export function isPlayableRadioBrowserStation(
+  rb: RadioBrowserStation,
+  filtersOverride?: ContentFilters,
+): boolean {
+  if (isExcludedColonialStation(rb, filtersOverride)) return false;
   const name = rb.name || "";
   if (!name.trim()) return false;
-  if (isExcludedContent([name], (rb.tags || "").split(","))) return false;
+  if (isExcludedContent([name], (rb.tags || "").split(","), filtersOverride)) return false;
   const stream = (rb.url_resolved || rb.url || "").trim();
   if (!stream) return false;
   // Must be a secure HTTPS stream to play reliably across Android, iOS, and Web
@@ -618,19 +366,6 @@ export function isPlayableRadioBrowserStation(rb: RadioBrowserStation): boolean 
   // High-resolution artwork is required
   return isQualityArtwork(rb.favicon);
 }
-
-export const RADICAL_RADIO_TAGS = [
-  "pirate radio",
-  "community radio",
-  "free radio",
-  "freies radio",
-  "radio libre",
-  "diy",
-  "underground",
-  "thai",
-  "chinese",
-  "world music",
-];
 
 // Radio Browser asks every client to identify itself
 const RADIO_BROWSER_HEADERS = { "User-Agent": "NimueBlue" };
@@ -674,34 +409,53 @@ export function radioBrowserToRadioStation(rb: RadioBrowserStation): RadioStatio
 }
 
 export async function fetchDiscoveredRadioStations(
-  limit: number = 8,
+  limit: number = 12,
   signal?: AbortSignal,
 ): Promise<RadioStation[]> {
-  const results = await Promise.allSettled(
-    RADICAL_RADIO_TAGS.map(async (tag) => {
-      const endpoint = `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?order=clicktimestamp&reverse=true&hidebroken=true&limit=${limit * 3}`;
-      const res = await fetch(endpoint, {
-        headers: RADIO_BROWSER_HEADERS,
-        signal,
-      });
-      if (!res.ok) throw new Error(`Radio-Browser tag search failed (${tag}): ${res.status}`);
-      const data: RadioBrowserStation[] = await res.json();
-      if (!Array.isArray(data)) {
-        throw new Error(`Radio-Browser returned an invalid station list for tag: ${tag}`);
-      }
-      return data;
-    }),
-  );
+  const filters = getContentFilters();
+  const discoveryTags = filters.radioDiscoveryTags;
 
-  if (signal?.aborted) throw signal.reason;
+  let stationLists: RadioBrowserStation[][];
 
-  const stationLists = results.flatMap((result, index) => {
-    if (result.status === "fulfilled") return [result.value];
-    console.warn(`Radio-Browser tag search failed (${RADICAL_RADIO_TAGS[index]}):`, result.reason);
-    return [];
-  });
-  if (stationLists.length === 0) {
-    throw new Error("All Radio-Browser tag searches failed.");
+  if (discoveryTags.length === 0) {
+    const endpoint = `https://de1.api.radio-browser.info/json/stations?order=clicktimestamp&reverse=true&hidebroken=true&limit=${limit * 4}`;
+    const res = await fetch(endpoint, {
+      headers: RADIO_BROWSER_HEADERS,
+      signal,
+    });
+    if (!res.ok) throw new Error(`Radio-Browser discovery failed: ${res.status}`);
+    const data: RadioBrowserStation[] = await res.json();
+    if (!Array.isArray(data)) {
+      throw new Error("Radio-Browser returned an invalid station list.");
+    }
+    stationLists = [data];
+  } else {
+    const results = await Promise.allSettled(
+      discoveryTags.map(async (tag) => {
+        const endpoint = `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(tag)}?order=clicktimestamp&reverse=true&hidebroken=true&limit=${limit * 3}`;
+        const res = await fetch(endpoint, {
+          headers: RADIO_BROWSER_HEADERS,
+          signal,
+        });
+        if (!res.ok) throw new Error(`Radio-Browser tag search failed (${tag}): ${res.status}`);
+        const data: RadioBrowserStation[] = await res.json();
+        if (!Array.isArray(data)) {
+          throw new Error(`Radio-Browser returned an invalid station list for tag: ${tag}`);
+        }
+        return data;
+      }),
+    );
+
+    if (signal?.aborted) throw signal.reason;
+
+    stationLists = results.flatMap((result, index) => {
+      if (result.status === "fulfilled") return [result.value];
+      console.warn(`Radio-Browser tag search failed (${discoveryTags[index]}):`, result.reason);
+      return [];
+    });
+    if (stationLists.length === 0) {
+      throw new Error("All Radio-Browser tag searches failed.");
+    }
   }
 
   const stationsById = new Map<string, RadioBrowserStation>();
@@ -719,14 +473,23 @@ export async function fetchDiscoveredRadioStations(
     });
 
   return [...stationsById.values()]
-    .filter(isPlayableRadioBrowserStation)
+    .filter((rb) => isPlayableRadioBrowserStation(rb, filters))
     .slice(0, limit)
     .map(radioBrowserToRadioStation);
 }
 
-export function queryDiscoveredRadioStations(limit: number = 8) {
+export function queryDiscoveredRadioStations(limit: number = 12) {
+  const filters = getContentFilters();
   return queryOptions({
-    queryKey: ["discoveredRadioStations", limit],
+    queryKey: [
+      "discoveredRadioStations",
+      limit,
+      filters.radioDiscoveryTags.join(","),
+      filters.excludedCountries.join(","),
+      filters.excludedTerms.join(","),
+      filters.excludedPatterns.join(","),
+      filters.excludeCommercialFormatNames,
+    ],
     queryFn: ({ signal }) => fetchDiscoveredRadioStations(limit, signal),
     staleTime: 10 * 60 * 1000,
     retry: false,
@@ -735,10 +498,15 @@ export function queryDiscoveredRadioStations(limit: number = 8) {
 
 export function findStation(id: string | undefined): RadioStation | undefined {
   if (!id) return undefined;
+  const custom = getCustomRadioStations();
   if (id === "worldwide-fm" || id === "rb-1651c32f55d84429995d872ea0dcf520") {
-    return WORLDWIDE_FM;
+    return custom.find((s) => s.id === "worldwide-fm") || WORLDWIDE_FM;
   }
-  return RADIO_STATIONS.find((s) => s.id === id) || DISCOVERED_STATIONS.get(id);
+  return (
+    custom.find((s) => s.id === id) ||
+    DISCOVERED_STATIONS.get(id) ||
+    RADIO_STATIONS.find((s) => s.id === id)
+  );
 }
 
 export async function fetchRadioStationById(
@@ -799,12 +567,14 @@ export function queryRadioPlays(station: RadioStation | undefined) {
 // station's servers unless authorized external federated streaming is required.
 export function liveTrack(station: RadioStation): RNTrack {
   const isExternalStream = station.streamUrl.includes("/stream/external/");
-  const headers = station.headers ?? (isExternalStream
-    ? {
-        "mirlo-api-key": API_KEY,
-        "social-music-userid": getListenerUserIdSync(),
-      }
-    : {});
+  const headers =
+    station.headers ??
+    (isExternalStream
+      ? {
+          "mirlo-api-key": API_KEY,
+          "social-music-userid": getListenerUserIdSync(),
+        }
+      : {});
 
   return {
     title: station.liveName,
@@ -834,11 +604,23 @@ const REGION_SEARCH_EXPANSIONS: Record<
   china: { languages: ["chinese"], countries: ["China"], tags: ["chinese"] },
   taiwan: { languages: ["chinese"], countries: ["Taiwan"], tags: ["chinese", "taiwanese pop"] },
   taiwanese: { languages: ["chinese"], countries: ["Taiwan"], tags: ["taiwanese pop"] },
-  "hong kong": { languages: ["cantonese"], countries: ["Hong Kong"], tags: ["cantonese", "hong kong music"] },
+  "hong kong": {
+    languages: ["cantonese"],
+    countries: ["Hong Kong"],
+    tags: ["cantonese", "hong kong music"],
+  },
   cantonese: { languages: ["cantonese"], countries: ["Hong Kong", "China"], tags: ["cantonese"] },
   mandarin: { languages: ["mandarin", "chinese"], countries: ["China", "Taiwan"], tags: ["chinese"] },
-  "中文": { languages: ["chinese", "cantonese"], countries: ["China", "Taiwan", "Hong Kong"], tags: ["chinese"] },
-  "华语": { languages: ["chinese", "cantonese"], countries: ["China", "Taiwan", "Hong Kong"], tags: ["chinese"] },
+  "中文": {
+    languages: ["chinese", "cantonese"],
+    countries: ["China", "Taiwan", "Hong Kong"],
+    tags: ["chinese"],
+  },
+  "华语": {
+    languages: ["chinese", "cantonese"],
+    countries: ["China", "Taiwan", "Hong Kong"],
+    tags: ["chinese"],
+  },
   "粵語": { languages: ["cantonese"], countries: ["Hong Kong"], tags: ["cantonese"] },
   japanese: { languages: ["japanese"], countries: ["Japan"], tags: ["japanese", "j-pop"] },
   japan: { languages: ["japanese"], countries: ["Japan"], tags: ["japanese"] },
@@ -869,7 +651,8 @@ export async function searchRadioStations(
   const query = term.trim().toLowerCase();
   if (!query) return [];
 
-  const curatedMatches = RADIO_STATIONS.filter((s) => matchesStationQuery(s, query));
+  const filters = getContentFilters();
+  const customMatches = getCustomRadioStations().filter((s) => matchesStationQuery(s, query));
   const cachedMatches = [...DISCOVERED_STATIONS.values()].filter((s) =>
     matchesStationQuery(s, query),
   );
@@ -915,11 +698,11 @@ export async function searchRadioStations(
 
     const combined = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
     remoteStations = combined
-      .filter(isPlayableRadioBrowserStation)
+      .filter((rb) => isPlayableRadioBrowserStation(rb, filters))
       .map(radioBrowserToRadioStation);
   } catch {
-    // Return curated and cached matches if remote search fails
+    // Return custom and cached matches if remote search fails
   }
 
-  return deduplicateRadioStations([...curatedMatches, ...cachedMatches, ...remoteStations]);
+  return deduplicateRadioStations([...customMatches, ...cachedMatches, ...remoteStations], filters);
 }

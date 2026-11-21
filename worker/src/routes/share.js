@@ -1,6 +1,7 @@
 import { RADIO_STATION_META, PODCAST_SHOW_META } from "../data/metadata.js";
 import { isQualityArtwork, renderHtml } from "../lib/html.js";
 import { resolveFaircampSongShare } from "./fairplayer.js";
+import { fetchCastopodCatalog } from "./proxy.js";
 
 async function resolveChorusTrackGroup(idOrSlug) {
   if (!idOrSlug) return null;
@@ -210,18 +211,66 @@ async function resolveRadioStation(slug) {
 }
 
 async function resolvePodcastShow(slug, includeAudio = true) {
-  const knownShow = PODCAST_SHOW_META[slug];
-  if (knownShow) {
-    if (!includeAudio || !knownShow.feed) return knownShow;
+  let showMeta = PODCAST_SHOW_META[slug] || null;
+
+  if (!showMeta && slug.startsWith("pod-")) {
+    const rawId = slug.slice(4);
     try {
-      const audio = await fetchLatestPodcastAudio(knownShow.feed);
-      return { ...knownShow, audio };
+      const records = await fetchCastopodCatalog();
+      const matched = records.find(
+        (record) =>
+          record &&
+          ((record.podcastGuid && String(record.podcastGuid).toLowerCase() === rawId) ||
+            String(record.id) === rawId),
+      );
+      if (matched?.title) {
+        showMeta = {
+          name: matched.title,
+          artist: matched.itunesAuthor || matched.itunesOwnerName || matched.title,
+          art: matched.imageUrl || "",
+          feed: matched.url || "",
+          web: matched.link || matched.url || "",
+          app: `/podcast/${slug}`,
+        };
+      }
     } catch (err) {
-      console.error(`Podcast episode lookup failed for ${slug}:`, err);
-      return knownShow;
+      console.error(`Castopod lookup failed for ${slug}:`, err);
+    }
+
+    if (!showMeta && /^\d+$/.test(rawId)) {
+      try {
+        const res = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(rawId)}`, {
+          headers: { "User-Agent": "NimueBlueSocialBot/1.0", Accept: "application/json" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const item = Array.isArray(data?.results) ? data.results[0] : null;
+          if (item?.collectionName) {
+            showMeta = {
+              name: item.collectionName,
+              artist: item.artistName || item.collectionName,
+              art: item.artworkUrl600 || item.artworkUrl100 || "",
+              feed: item.feedUrl || "",
+              web: item.collectionViewUrl || item.feedUrl || "",
+              app: `/podcast/${slug}`,
+            };
+          }
+        }
+      } catch (err) {
+        console.error(`iTunes podcast lookup failed for ${slug}:`, err);
+      }
     }
   }
-  return null;
+
+  if (!showMeta) return null;
+  if (!includeAudio || !showMeta.feed) return showMeta;
+  try {
+    const audio = await fetchLatestPodcastAudio(showMeta.feed);
+    return { ...showMeta, audio };
+  } catch (err) {
+    console.error(`Podcast episode lookup failed for ${slug}:`, err);
+    return showMeta;
+  }
 }
 
 export async function handleShare(request, url) {
@@ -243,10 +292,12 @@ export async function handleShare(request, url) {
   const radioMatch = normalizedPath.match(/^\/r\/([a-z0-9-]+)$/i);
   const podcastMatch = normalizedPath.match(/^\/p\/([a-z0-9-]+)$/i);
   const artistMatch = normalizedPath.match(/^\/art\/([^/]+)$/i);
+  let isCustomShare = false;
 
   if (radioMatch) {
     type = "radio";
     const slug = radioMatch[1].toLowerCase();
+    isCustomShare = slug.startsWith("custom-");
     let meta = RADIO_STATION_META[slug];
     if (!meta) {
       try {
@@ -274,6 +325,7 @@ export async function handleShare(request, url) {
   } else if (podcastMatch) {
     type = "podcast";
     const slug = podcastMatch[1].toLowerCase();
+    isCustomShare = slug.startsWith("custom-pod-");
     let meta;
     try {
       meta = await resolvePodcastShow(slug, !audioUrl);
@@ -393,19 +445,20 @@ export async function handleShare(request, url) {
 
   if (!title) title = "Featured Music";
 
-  if ((type === "radio" || type === "podcast") && !isQualityArtwork(artwork)) {
+  if ((type === "radio" || type === "podcast") && !isCustomShare && !isQualityArtwork(artwork)) {
     return new Response("This station or discussion has no quality artwork.", { status: 404 });
   }
 
-  const proxiedArtwork = artwork
-    ? `${url.origin}/image?url=${encodeURIComponent(artwork)}&v=640`
+  const safeArtwork = isQualityArtwork(artwork) ? artwork : "";
+  const proxiedArtwork = safeArtwork
+    ? `${url.origin}/image?url=${encodeURIComponent(safeArtwork)}&v=640`
     : "https://grendel116.github.io/nimueblue/preview-v8.png";
 
   const html = renderHtml({
     title,
     artist,
     album,
-    artwork,
+    artwork: safeArtwork,
     proxiedArtwork,
     audioUrl,
     webUrl,

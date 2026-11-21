@@ -9,13 +9,14 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, type ComponentProps } from "react";
+import { useMemo, useState, type ComponentProps } from "react";
 import { usePlayer } from "@/state/PlayerContext";
 import { isSameTrack } from "@/state/player/trackUtils";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
 import AddToQueueButton from "@/components/AddToQueueButton";
+import CurationModal, { CurationTab } from "@/components/CurationModal";
 import DownloadsTab from "@/components/DownloadsTab";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
 import { groupTracksIntoAlbums, useDownloads } from "@/scripts/downloadManager";
@@ -41,6 +42,7 @@ export default function LibraryScreen() {
   const router = useRouter();
   const { playTrack, activeTrack } = usePlayer("playTrack", "activeTrack");
   const activeTab = useLibraryTab();
+  const [curationTab, setCurationTab] = useState<CurationTab | null>(null);
   const downloadedTracks = useDownloads();
   const stationLikes = useStationLikes();
   const podcastShows = usePodcastShowBookmarks();
@@ -179,17 +181,46 @@ export default function LibraryScreen() {
   };
 
   const renderBookmarks = () => {
+    const bookmarkBar = (
+      <View style={styles.bookmarkActionsBar}>
+        <TouchableOpacity
+          onPress={() => setCurationTab("stations")}
+          style={styles.bookmarkActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Add custom station or podcast"
+        >
+          <Ionicons name="add" size={15} color={theme.colors.primary} />
+          <Text style={styles.bookmarkActionText}>Add Station / Podcast</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setCurationTab("filters")}
+          style={styles.bookmarkActionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Configure filters"
+        >
+          <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
+          <Text style={styles.bookmarkActionText}>Filters</Text>
+        </TouchableOpacity>
+      </View>
+    );
+
     if (bookmarks.length === 0) {
-      return renderEmpty(
-        "bookmark-outline",
-        "No bookmarks yet",
-        "Bookmark a radio station or podcast to keep it here.",
+      return (
+        <View style={styles.contentArea}>
+          {bookmarkBar}
+          {renderEmpty(
+            "bookmark-outline",
+            "No bookmarks yet",
+            "Bookmark a radio station or podcast to keep it here, or add a custom feed above.",
+          )}
+        </View>
       );
     }
     const stationTracks = bookmarks.flatMap((b) => (b.kind === "station" ? [b.track] : []));
     return (
       <FlatList
         data={bookmarks}
+        ListHeaderComponent={bookmarkBar}
         keyExtractor={(item) =>
           item.kind === "station" ? `station-${item.track.liveStation}` : `show-${item.show.showId}`
         }
@@ -282,6 +313,15 @@ export default function LibraryScreen() {
           </View>
           <View style={styles.headerActions}>
             <Pressable
+              onPress={() => setCurationTab("filters")}
+              style={({ pressed }) => [styles.infoButton, pressed && { opacity: 0.6 }]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Stations, Feeds & Filters"
+            >
+              <Ionicons name="options-outline" size={22} color={theme.colors.primary} />
+            </Pressable>
+            <Pressable
               onPress={() => router.push("/aboutModal")}
               style={({ pressed }) => [styles.infoButton, pressed && { opacity: 0.6 }]}
               hitSlop={8}
@@ -319,6 +359,12 @@ export default function LibraryScreen() {
         {activeTab === "artists" && renderArtists()}
         {activeTab === "bookmarks" && renderBookmarks()}
       </View>
+
+      <CurationModal
+        visible={curationTab !== null}
+        initialTab={curationTab ?? "filters"}
+        onClose={() => setCurationTab(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -501,5 +547,30 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 13,
     textAlign: "center",
+  },
+  bookmarkActionsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  bookmarkActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  bookmarkActionText: {
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { Directory, File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  getCurationConfig,
+  onCurationChange,
+  setCurationConfig,
+} from "@/queries/excludedContent";
 import { readTags } from "./readTags";
 import {
   CreatedAlbum,
@@ -37,7 +42,14 @@ const FOLDER_URI_KEY = "mirlo_blue_music_folder_uri";
 
 let folderUri: string | null = null;
 let status: MusicFolderStatus = "none";
+let isApplyingManifestCuration = false;
 const listeners = new Set<() => void>();
+
+onCurationChange(() => {
+  if (!isApplyingManifestCuration) {
+    void syncMusicFolderManifest();
+  }
+});
 
 function setStatus(next: MusicFolderStatus) {
   status = next;
@@ -167,6 +179,14 @@ export async function rescanMusicFolder(): Promise<void> {
     getDownloadedTracks(),
     getCreatedAlbums(),
   ]);
+  if (manifest?.curation) {
+    isApplyingManifestCuration = true;
+    try {
+      setCurationConfig(manifest.curation);
+    } finally {
+      isApplyingManifestCuration = false;
+    }
+  }
   const { audio, images } = scanTree(root, "");
 
   const now = Date.now();
@@ -431,7 +451,7 @@ export async function syncMusicFolderManifest(): Promise<void> {
       getDownloadedTracks(),
       getCreatedAlbums(),
     ]);
-    const manifest = buildMusicFolderManifest(tracks, albums);
+    const manifest = buildMusicFolderManifest(tracks, albums, getCurationConfig());
     await writeManifestToRoot(root, manifest);
   } catch (err) {
     console.warn("Failed to sync nimue-library.json in music folder:", err);

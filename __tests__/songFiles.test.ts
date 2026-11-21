@@ -19,6 +19,10 @@ import {
   mergeAlbumWithDownloads,
   storedTrack,
 } from "@/scripts/downloadManager";
+import {
+  DEFAULT_CURATION_CONFIG,
+  MIGRATED_CURATION_PRESET,
+} from "@/queries/excludedContent";
 
 const tracks = [
   { id: 11, title: "Opening", order: 1 },
@@ -297,6 +301,17 @@ describe("saved song records", () => {
 
     const parsed = parseMusicFolderManifest(JSON.stringify(manifest));
     expect(parsed).toEqual(manifest);
+  });
+
+  it("serializes and parses client curation config in nimue-library.json when non-empty", () => {
+    const emptyManifest = buildMusicFolderManifest([], [], DEFAULT_CURATION_CONFIG);
+    expect(emptyManifest.curation).toBeUndefined();
+
+    const populated = buildMusicFolderManifest([], [], MIGRATED_CURATION_PRESET);
+    expect(populated.curation).toEqual(MIGRATED_CURATION_PRESET);
+
+    const parsed = parseMusicFolderManifest(JSON.stringify(populated));
+    expect(parsed?.curation).toEqual(MIGRATED_CURATION_PRESET);
   });
 
   it("merges online album tracks with downloaded tracks and appends extra or duplicate downloads", () => {

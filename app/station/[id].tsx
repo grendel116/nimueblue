@@ -56,7 +56,7 @@ export default function StationScreen() {
     );
   }
 
-  if (!station || !isQualityArtwork(station.artwork) || imgError) {
+  if (!station || (!station.isCustom && (!isQualityArtwork(station.artwork) || imgError))) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.topNav}>
@@ -98,13 +98,17 @@ export default function StationScreen() {
       >
         <View style={styles.headerSection}>
           <View style={styles.coverWrapper}>
-            {!imgError && isQualityArtwork(rawArt) && (
+            {!imgError && isQualityArtwork(rawArt) ? (
               <Image
                 source={{ uri: resolveArtworkUrl(rawArt) }}
                 style={styles.coverImage}
                 resizeMode="cover"
                 onError={() => setImgError(true)}
               />
+            ) : (
+              <View style={[styles.coverImage, styles.coverPlaceholder]}>
+                <Ionicons name="radio" size={64} color={theme.colors.textMuted} />
+              </View>
             )}
           </View>
           <View style={styles.metaRow}>
@@ -133,23 +137,27 @@ export default function StationScreen() {
         <View style={styles.footerSection}>
           <Text style={styles.aboutHeader}>About</Text>
           <Text style={styles.aboutText}>{station.about}</Text>
-          <Pressable
-            onPress={() => openInBrowser(station.playlistPage)}
-            accessibilityRole="link"
-            style={styles.footerLink}
-          >
-            <Text style={styles.linkText}>Full Playlist</Text>
-            <Ionicons name="open-outline" size={14} color={theme.colors.textCyan} />
-          </Pressable>
-          <Pressable
-            onPress={() => openInBrowser(station.donatePage)}
-            style={styles.donateButton}
-            accessibilityRole="button"
-            accessibilityLabel={`Donate to ${station.name}`}
-          >
-            <Ionicons name="heart" size={16} color={theme.colors.playButtonIcon} />
-            <Text style={styles.donateText}>Donate</Text>
-          </Pressable>
+          {station.playlistPage ? (
+            <Pressable
+              onPress={() => openInBrowser(station.playlistPage)}
+              accessibilityRole="link"
+              style={styles.footerLink}
+            >
+              <Text style={styles.linkText}>Full Playlist</Text>
+              <Ionicons name="open-outline" size={14} color={theme.colors.textCyan} />
+            </Pressable>
+          ) : null}
+          {station.donatePage ? (
+            <Pressable
+              onPress={() => openInBrowser(station.donatePage)}
+              style={styles.donateButton}
+              accessibilityRole="button"
+              accessibilityLabel={`Donate to ${station.name}`}
+            >
+              <Ionicons name="heart" size={16} color={theme.colors.playButtonIcon} />
+              <Text style={styles.donateText}>Donate</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -2,38 +2,6 @@ import { MIRLO_API_ORIGIN, MIRLO_PROXY_CORS } from "../data/metadata.js";
 import { isQualityArtwork } from "../lib/html.js";
 
 const CASTOPOD_INDEX_URL = "https://index.castopod.org/podcastindex.json";
-const PODCAST_DISCOVERY_TERMS = [
-  "anarch",
-  "communis",
-  "liberation theology",
-  "liberationtheology",
-  "anti-capital",
-  "anticapital",
-  "worker cooperat",
-  "solidarity economics",
-  "pirate radio",
-  "environmentalism",
-  "solarpunk",
-  "climate justice",
-  "degrowth",
-  "permaculture",
-  "food sovereignty",
-  "labor history",
-  "working class history",
-  "working-class history",
-  "labor movement",
-  "union history",
-  "general strike",
-  "radical history",
-  "peoples history",
-  "people's history",
-  "anti-colonial",
-  "anticolonial",
-  "anti-imperial",
-  "antiimperial",
-  "decolonial",
-  "social ecology",
-];
 
 function readCookieValue(setCookie, name) {
   const pair = setCookie.split(";")[0];
@@ -126,7 +94,7 @@ export async function proxyPodcastFeed(url, corsHeaders) {
   }
 }
 
-async function fetchCastopodCatalog() {
+export async function fetchCastopodCatalog() {
   const cache = globalThis.caches?.default;
   const cacheKey = new Request("https://nimueblue-share.workers.dev/internal/castopod-index");
   const cached = cache ? await cache.match(cacheKey) : null;
@@ -162,7 +130,7 @@ async function fetchCastopodCatalog() {
   return records;
 }
 
-function isDiscoverableCastopodPodcast(record) {
+function isDiscoverableCastopodPodcast(record, discoveryTerms = []) {
   const feedUrlIsHttp =
     typeof record?.url === "string" && /^https?:\/\//i.test(record.url);
   if (
@@ -176,6 +144,10 @@ function isDiscoverableCastopodPodcast(record) {
     return false;
   }
 
+  if (!Array.isArray(discoveryTerms) || discoveryTerms.length === 0) {
+    return true;
+  }
+
   const searchable = [
     record.title,
     record.description,
@@ -186,7 +158,7 @@ function isDiscoverableCastopodPodcast(record) {
     .join(" ")
     .replace(/<[^>]*>/g, " ")
     .toLowerCase();
-  return PODCAST_DISCOVERY_TERMS.some((term) => searchable.includes(term));
+  return discoveryTerms.some((term) => searchable.includes(term));
 }
 
 function castopodPodcastResponse(record) {
@@ -208,15 +180,53 @@ function castopodPodcastResponse(record) {
 }
 
 export async function handlePodcastsApi(url, corsHeaders) {
-  const limit = Number(url.searchParams.get("limit") || "6");
-  if (!Number.isInteger(limit) || limit < 1 || limit > 20) {
+  const lookupId = (url.searchParams.get("id") || "").trim().toLowerCase();
+  if (lookupId) {
+    try {
+      const records = await fetchCastopodCatalog();
+      const matched = records.find(
+        (record) =>
+          record &&
+          ((record.podcastGuid && String(record.podcastGuid).toLowerCase() === lookupId) ||
+            String(record.id) === lookupId),
+      );
+      return new Response(
+        JSON.stringify({ podcasts: matched ? [castopodPodcastResponse(matched)] : [] }),
+        {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "public, max-age=1800",
+          },
+        },
+      );
+    } catch (err) {
+      console.error("Castopod Index lookup failed:", err);
+      return new Response(JSON.stringify({ podcasts: [] }), {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+    }
+  }
+
+  const limit = Number(url.searchParams.get("limit") || "12");
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     return new Response("Invalid podcast limit.", { status: 400, headers: corsHeaders });
   }
+  const termsParam = url.searchParams.get("terms") || "";
+  const discoveryTerms = termsParam
+    .split(",")
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
 
   try {
     const records = await fetchCastopodCatalog();
     const podcasts = records
-      .filter(isDiscoverableCastopodPodcast)
+      .filter((record) => isDiscoverableCastopodPodcast(record, discoveryTerms))
       .sort((a, b) => Number(b.lastUpdate || 0) - Number(a.lastUpdate || 0))
       .slice(0, limit)
       .map(castopodPodcastResponse);

@@ -70,10 +70,42 @@ export function buildShareUrl(
   const origin = hubUrl.origin;
 
   if (track.liveStation) {
+    if (track.liveStation.startsWith("custom-")) {
+      const url = new URL(`${origin}/r/${track.liveStation}`);
+      const station = findStation(track.liveStation);
+      const title = (overrideTitle || station?.liveName || track.title || "").trim();
+      const artist = (overrideArtist || track.artist || "").trim();
+      const artwork = (overrideArtwork || station?.artwork || track.artwork || "").trim();
+      const audio = station?.streamUrl || track.audio?.url || track.url || "";
+      const web = station?.playlistPage || "";
+      if (title) url.searchParams.set("title", title);
+      if (artist) url.searchParams.set("artist", artist);
+      if (artwork && !artwork.startsWith("file://")) url.searchParams.set("art", artwork);
+      if (audio.startsWith("http")) url.searchParams.set("audio", audio);
+      if (web.startsWith("http")) url.searchParams.set("web", web);
+      url.searchParams.set("app", `/station/${track.liveStation}`);
+      return url.toString();
+    }
     return `${origin}/r/${track.liveStation}`;
   }
 
   if (track.podcastId) {
+    if (track.podcastId.startsWith("custom-pod-")) {
+      const url = new URL(`${origin}/p/${track.podcastId}`);
+      const show = findPodcastShow(track.podcastId);
+      const title = (overrideTitle || show?.name || track.title || "").trim();
+      const artist = (overrideArtist || show?.author || track.artist || "").trim();
+      const artwork = (overrideArtwork || show?.artwork || track.artwork || "").trim();
+      const audio = track.audio?.url || track.url || "";
+      const web = show?.webUrl || show?.feedUrl || "";
+      if (title) url.searchParams.set("title", title);
+      if (artist) url.searchParams.set("artist", artist);
+      if (artwork && !artwork.startsWith("file://")) url.searchParams.set("art", artwork);
+      if (audio.startsWith("http")) url.searchParams.set("audio", audio);
+      if (web.startsWith("http")) url.searchParams.set("web", web);
+      url.searchParams.set("app", `/podcast/${track.podcastId}`);
+      return url.toString();
+    }
     return `${origin}/p/${track.podcastId}`;
   }
 

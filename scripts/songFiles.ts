@@ -1,4 +1,9 @@
 import type { ByteReader, Tags } from "./readTags";
+import {
+  type CurationConfig,
+  isNonEmptyCurationConfig,
+  normalizeCurationConfig,
+} from "@/queries/excludedContent";
 
 // Naming, matching and describing saved song files; shared by the phone and web builds
 
@@ -30,6 +35,7 @@ export type MusicFolderManifest = {
   updatedAt: number;
   albums: Record<string, ManifestAlbumRecord>;
   tracks: Record<string, ManifestTrackRecord>;
+  curation?: CurationConfig;
 };
 
 export function parseMusicFolderManifest(raw: string): MusicFolderManifest | null {
@@ -43,11 +49,16 @@ export function parseMusicFolderManifest(raw: string): MusicFolderManifest | nul
     ) {
       return null;
     }
+    const curation =
+      parsed.curation && typeof parsed.curation === "object"
+        ? normalizeCurationConfig(parsed.curation)
+        : undefined;
     return {
       version: 1,
       updatedAt: Number(parsed.updatedAt) || Date.now(),
       albums: parsed.albums ?? {},
       tracks: parsed.tracks ?? {},
+      ...(curation ? { curation } : {}),
     };
   } catch {
     return null;
@@ -72,6 +83,7 @@ export function buildMusicFolderManifest(
     artwork?: string;
     createdAt: number;
   }[],
+  curation?: CurationConfig,
 ): MusicFolderManifest {
   const albums: Record<string, ManifestAlbumRecord> = {};
   const trackRecords: Record<string, ManifestTrackRecord> = {};
@@ -106,11 +118,15 @@ export function buildMusicFolderManifest(
     };
   }
 
+  const normalizedCuration = curation ? normalizeCurationConfig(curation) : undefined;
   return {
     version: 1,
     updatedAt: Date.now(),
     albums,
     tracks: trackRecords,
+    ...(normalizedCuration && isNonEmptyCurationConfig(normalizedCuration)
+      ? { curation: normalizedCuration }
+      : {}),
   };
 }
 

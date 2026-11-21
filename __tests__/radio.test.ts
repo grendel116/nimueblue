@@ -2,6 +2,7 @@ import {
   deduplicateRadioStations,
   fetchDiscoveredRadioStations,
   findStation,
+  getCustomRadioStations,
   isExcludedColonialStation,
   isPlayableRadioBrowserStation,
   liveTrack,
@@ -11,10 +12,25 @@ import {
   radioBrowserToRadioStation,
   searchRadioStations,
 } from "@/queries/radio";
-import { isExcludedContent } from "@/queries/excludedContent";
+import {
+  isExcludedContent,
+  loadMigratedCurationPreset,
+  resetCurationConfig,
+  setContentFilters,
+  upsertCustomStation,
+  removeCustomStation,
+} from "@/queries/excludedContent";
 import { RADIO_STATION_META } from "../worker/src/data/metadata.js";
 
 describe("discovered radio stations", () => {
+  beforeEach(() => {
+    resetCurationConfig();
+  });
+
+  afterEach(() => {
+    resetCurationConfig();
+  });
+
   test("removes duplicate stations by name, homepage, or stream while keeping the first entry", () => {
     const makeStation = (
       overrides: Partial<RadioStation>,
@@ -118,7 +134,7 @@ describe("discovered radio stations", () => {
     expect(deduped.map((s) => s.id)).toEqual(["cn-1", "cn-2", "th-1", "th-2"]);
   });
 
-  test("removes stations with '100' in the title to drop commercial chart stations like #100 BEST IBIZA DEEP HOUSE", () => {
+  test("allows all stations in unrestricted mode and applies commercial/term filters client-side when enabled", () => {
     const makeStation = (overrides: Partial<RadioStation>): RadioStation => ({
       id: "s1",
       name: "Nice Community Radio",
@@ -133,9 +149,34 @@ describe("discovered radio stations", () => {
       ...overrides,
     });
 
-    const goodStation = makeStation({ id: "good", name: "Community Sound", liveName: "Community Sound" });
-    const ibiza100 = makeStation({ id: "ibiza", name: "#100 BEST IBIZA DEEP HOUSE", liveName: "#100 BEST IBIZA DEEP HOUSE" });
-    const top100 = makeStation({ id: "top100", name: "Top 100 Hits Radio", liveName: "Top 100 Hits Radio" });
+    const goodStation = makeStation({
+      id: "good",
+      name: "Community Sound",
+      liveName: "Community Sound",
+      streamUrl: "https://stream.example.com/community.mp3",
+    });
+    const ibiza100 = makeStation({
+      id: "ibiza",
+      name: "#100 BEST IBIZA DEEP HOUSE",
+      liveName: "#100 BEST IBIZA DEEP HOUSE",
+      streamUrl: "https://stream.example.com/ibiza.mp3",
+    });
+    const top100 = makeStation({
+      id: "top100",
+      name: "Top 100 Hits Radio",
+      liveName: "Top 100 Hits Radio",
+      streamUrl: "https://stream.example.com/top100.mp3",
+    });
+
+    // Base app is unrestricted
+    expect(deduplicateRadioStations([goodStation, ibiza100, top100])).toEqual([
+      goodStation,
+      ibiza100,
+      top100,
+    ]);
+
+    // Migrated filters restore client-side filtering
+    loadMigratedCurationPreset();
 
     const deduped = deduplicateRadioStations([goodStation, ibiza100, top100]);
     expect(deduped).toEqual([goodStation]);
@@ -163,7 +204,8 @@ describe("discovered radio stations", () => {
     ).toBe(true);
   });
 
-  test("removes '- 0 N -' network and K-Pop stations by name or tag", () => {
+  test("removes '- 0 N -' network and K-Pop stations by name or tag when filters are loaded", () => {
+    loadMigratedCurationPreset();
     const station = (name: string, tags = "") => ({
       stationuuid: name,
       name,
@@ -181,7 +223,8 @@ describe("discovered radio stations", () => {
     expect(isPlayableRadioBrowserStation(station("Eclectic Community Radio", "pop,indie"))).toBe(true);
   });
 
-  test("removes dashed networks, chart formats, and advertising copy", () => {
+  test("removes dashed networks, chart formats, and advertising copy when filters are loaded", () => {
+    loadMigratedCurationPreset();
     const station = (name: string, tags = "") => ({
       stationuuid: name,
       name,
@@ -237,7 +280,7 @@ describe("discovered radio stations", () => {
     expect(station.id).toBe("rb-11111111111111111111111111111111");
   });
 
-  test("assigns default track type for mp3 radio streams and includes Thai and open curated Chinese station", () => {
+  test("assigns default track type for mp3 radio streams and includes Thai and open curated Chinese station in migrated catalog", () => {
     const bcr = RADIO_STATIONS.find((s) => s.id === "bangkok-community-radio");
     const guangdong = RADIO_STATIONS.find((s) => s.id === "guangdong-music-fm");
     const imx = RADIO_STATIONS.find((s) => s.id === "imx-fm");
@@ -251,7 +294,7 @@ describe("discovered radio stations", () => {
     expect(liveTrack(guangdong!).type).toBe("default");
   });
 
-  test("worker metadata includes artwork for all curated radio stations", () => {
+  test("worker metadata includes artwork for all migrated radio stations", () => {
     const meta = RADIO_STATION_META as Record<
       string,
       { name: string; art: string; audio: string; web: string; app: string }
@@ -305,7 +348,8 @@ describe("discovered radio stations", () => {
     expect(deduped[0].artwork).toBe("https://grendel116.github.io/nimueblue/worldwide-fm.png");
   });
 
-  test("includes Rhythm & Soul Patrol with Zeno stream, square artwork, search tags, and now-playing parser", async () => {
+  test("includes Rhythm & Soul Patrol in migrated preset with Zeno stream, square artwork, search tags, and now-playing parser", async () => {
+    loadMigratedCurationPreset();
     const rsp = findStation("rhythm-and-soul-patrol");
     expect(rsp).toBeDefined();
     expect(rsp?.name).toBe("Rhythm & Soul Patrol");
@@ -366,7 +410,7 @@ describe("discovered radio stations", () => {
     }
   });
 
-  test("excludes capitalist-colonial countries from discovered and searched stations", async () => {
+  test("does not exclude countries by default, and enforces country exclusions when configured client-side", async () => {
     expect(
       isExcludedColonialStation({
         stationuuid: "m1",
@@ -374,7 +418,7 @@ describe("discovered radio stations", () => {
         url: "https://example.com/azawan",
         country: "Morocco",
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isExcludedColonialStation({
         stationuuid: "i1",
@@ -382,7 +426,7 @@ describe("discovered radio stations", () => {
         url: "https://example.com/stream",
         countrycode: "IL",
       }),
-    ).toBe(true);
+    ).toBe(false);
 
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
@@ -424,6 +468,23 @@ describe("discovered radio stations", () => {
     } as Response);
 
     try {
+      // Unrestricted discovery includes all countries
+      const openDiscovered = await fetchDiscoveredRadioStations();
+      expect(openDiscovered.some((s) => s.name === "COOL Fahrenheit 93 FM")).toBe(true);
+      expect(openDiscovered.some((s) => s.name === "Radio Azawan")).toBe(true);
+      expect(openDiscovered.some((s) => s.name === "Tel Aviv Stream")).toBe(true);
+
+      // Migrated preset applies country filters and includes migrated custom stations
+      loadMigratedCurationPreset();
+      expect(
+        isExcludedColonialStation({
+          stationuuid: "m1",
+          name: "Radio Azawan",
+          url: "https://example.com/azawan",
+          country: "Morocco",
+        }),
+      ).toBe(true);
+
       const discovered = await fetchDiscoveredRadioStations();
       expect(discovered.some((s) => s.name === "COOL Fahrenheit 93 FM")).toBe(true);
       expect(discovered.some((s) => s.name === "Radio Azawan")).toBe(false);
@@ -443,7 +504,7 @@ describe("discovered radio stations", () => {
     }
   });
 
-  test("searches all discovery tags, prioritizes recent clicks, and requires quality artwork", async () => {
+  test("uses open global discovery by default and tag discovery when tags are configured", async () => {
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => [
@@ -477,6 +538,22 @@ describe("discovered radio stations", () => {
     } as Response);
 
     try {
+      // Unrestricted mode: single open query to /json/stations
+      const openStations = await fetchDiscoveredRadioStations();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const openUrl = new URL(String(fetchSpy.mock.calls[0][0]));
+      expect(openUrl.pathname).toBe("/json/stations");
+      expect(openUrl.searchParams.get("order")).toBe("clicktimestamp");
+      expect(openUrl.searchParams.get("reverse")).toBe("true");
+      expect(openUrl.searchParams.get("hidebroken")).toBe("true");
+      expect(openStations.map((station) => station.name)).toEqual([
+        "Recently Clicked",
+        "Older Station",
+      ]);
+
+      // Tag-configured mode: queries every configured discovery tag
+      fetchSpy.mockClear();
+      setContentFilters({ radioDiscoveryTags: RADICAL_RADIO_TAGS });
       const stations = await fetchDiscoveredRadioStations();
       expect(fetchSpy).toHaveBeenCalledTimes(RADICAL_RADIO_TAGS.length);
       for (const [endpoint] of fetchSpy.mock.calls) {
@@ -494,10 +571,31 @@ describe("discovered radio stations", () => {
       fetchSpy.mockRestore();
     }
   });
+
+  test("adds and removes custom client-side stations even without artwork", () => {
+    const added = upsertCustomStation({
+      name: "Neighborhood Stream",
+      streamUrl: "https://stream.neighborhood.example/live.mp3",
+      location: "Chicago",
+    });
+
+    const customs = getCustomRadioStations();
+    expect(customs.some((s) => s.id === added.id)).toBe(true);
+    expect(findStation(added.id)?.name).toBe("Neighborhood Stream");
+    expect(deduplicateRadioStations(customs).map((s) => s.id)).toEqual([added.id]);
+
+    removeCustomStation(added.id);
+    expect(getCustomRadioStations()).toEqual([]);
+  });
 });
 
 describe("excluded station filters", () => {
-  test("excludes Forbes, commercial chart formats, and networks", () => {
+  afterEach(() => {
+    resetCurationConfig();
+  });
+
+  test("excludes Forbes, commercial chart formats, and networks when migrated filters are loaded", () => {
+    loadMigratedCurationPreset();
     expect(isExcludedContent(["Forbes Radio"])).toBe(true);
     expect(isExcludedContent(["Business News"], ["forbes"])).toBe(true);
     expect(isExcludedContent(["Top 40 Dance"])).toBe(true);

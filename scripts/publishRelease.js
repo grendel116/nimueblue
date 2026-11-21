@@ -30,9 +30,10 @@ async function main() {
   const apkFileName = `NimueBlue.${version}.apk`;
   const releaseBody = `### What's Changed in NimueBlue ${version}
 
-* **Rhythm & Soul Patrol Added**: Added Detroit's Rhythm & Soul Patrol (WRSP-LR) to the curated radio stations with its live Zeno stream, real-time now-playing track feed, and custom square station artwork.
-* **Radio Search Fix**: Fixed a missing artwork validation import in Search so radio station search results resolve reliably.
-* **Web App & Native Shell Updated**: Rebuilt the Android native web shell bundle, GitHub Pages web app, and Cloudflare Worker for v${version}.
+* **Unrestricted Open Discovery Feeds**: Base Radio-Browser and Castopod Index discovery now loads open, unrestricted feeds by default with no hardcoded country, topic, or content exclusions.
+* **Client-Side Custom Stations, Podcasts & Filters**: Added a client-side Stations, Feeds & Filters manager to add custom radio stations, subscribe to custom podcast RSS feeds, and configure custom word/regex/country/discovery filters.
+* **Migrated Preset & Library Manifest Sync**: Preserved all previous curated stations, podcasts, and filters in an importable preset (\`nimue-curation-preset.json\`) and synced client-side curation with \`nimue-library.json\`.
+* **Web App & Worker Updated**: Rebuilt the GitHub Pages web app, Android web shell bundle, and Cloudflare Worker for v${version}.
 
 **Download:** [${apkFileName}](https://github.com/grendel116/nimueblue/releases/download/${tagName}/${apkFileName})`;
 

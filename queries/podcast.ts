@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Platform } from "react-native";
 import { queryOptions } from "@tanstack/react-query";
 import type { TrackType } from "react-native-track-player";
@@ -5,10 +6,19 @@ import { coverSizes, decodeHtmlEntities, isQualityArtwork } from "@/scripts/util
 import { API_KEY } from "@/constants/api-key";
 import { getListenerUserIdSync } from "@/scripts/listenerIdentity";
 import { SHARE_HUB_URL } from "@/queries/shareHub";
-import { isExcludedContent } from "@/queries/excludedContent";
+import {
+  CustomPodcastSpec,
+  MIGRATED_PODCAST_SPECS,
+  getContentFilters,
+  getCurationConfig,
+  isExcludedContent,
+  useCurationConfig,
+} from "@/queries/excludedContent";
 
-// Podcast and talk shows shown under Discussion on Home. Episodes are parsed from
-// standard open podcast RSS feeds with direct audio enclosures.
+// Podcast and talk shows shown under Discussion on Home and in Search. Episodes are parsed from
+// standard open podcast RSS feeds with direct audio enclosures. The base app uses open Castopod
+// discovery and user-added RSS feeds; migrated shows remain in PODCAST_SHOWS for preset import
+// and deep-link resolution.
 
 export type PodcastEpisode = {
   id: string;
@@ -30,6 +40,7 @@ export type PodcastShow = {
   webUrl: string;
   supportUrl?: string;
   lastUpdated?: string;
+  isCustom?: boolean;
   fetchEpisodes: (signal?: AbortSignal) => Promise<PodcastEpisode[]>;
 };
 
@@ -103,6 +114,84 @@ export function parsePodcastRss(xml: string, limit: number = 30): PodcastEpisode
   return episodes;
 }
 
+export type PodcastChannelMeta = {
+  name: string;
+  author: string;
+  description: string;
+  artwork: string;
+  webUrl: string;
+  lastUpdated?: string;
+};
+
+export function parsePodcastChannelMeta(xml: string, feedUrl: string): PodcastChannelMeta {
+  const firstItemIdx = xml.search(/<item[\s>]/i);
+  const channelHeader = firstItemIdx >= 0 ? xml.slice(0, firstItemIdx) : xml;
+
+  const titleMatch = channelHeader.match(/<title>([\s\S]*?)<\/title>/i);
+  const authorMatch =
+    channelHeader.match(/<itunes:author>([\s\S]*?)<\/itunes:author>/i) ||
+    channelHeader.match(/<author>([\s\S]*?)<\/author>/i) ||
+    channelHeader.match(/<itunes:name>([\s\S]*?)<\/itunes:name>/i);
+  const descMatch =
+    channelHeader.match(/<description>([\s\S]*?)<\/description>/i) ||
+    channelHeader.match(/<itunes:summary>([\s\S]*?)<\/itunes:summary>/i);
+  const itunesImgMatch =
+    channelHeader.match(/<itunes:image[^>]+href=["']([^"']+)["']/i) ||
+    channelHeader.match(/<image>[\s\S]*?<url>([\s\S]*?)<\/url>[\s\S]*?<\/image>/i);
+  const linkMatch = channelHeader.match(/<link>([\s\S]*?)<\/link>/i);
+  const firstPubDateMatch = xml.match(/<item[\s>][\s\S]*?<pubDate>([\s\S]*?)<\/pubDate>/i);
+
+  const name = titleMatch ? decodeXml(titleMatch[1]) : "";
+  const author = authorMatch ? decodeXml(authorMatch[1]) : "";
+  const description = descMatch
+    ? decodeXml(descMatch[1]).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+    : "";
+  const artwork = itunesImgMatch ? decodeXml(itunesImgMatch[1]) : "";
+  const webUrl = linkMatch ? decodeXml(linkMatch[1]) : feedUrl;
+  const lastUpdated = firstPubDateMatch ? decodeXml(firstPubDateMatch[1]) : undefined;
+
+  return {
+    name: name || feedUrl,
+    author: author || name || "Podcast",
+    description,
+    artwork,
+    webUrl: /^https?:\/\//i.test(webUrl) ? webUrl : feedUrl,
+    ...(lastUpdated ? { lastUpdated } : {}),
+  };
+}
+
+export async function fetchPodcastShowFromRss(
+  feedUrl: string,
+  overrides: Partial<CustomPodcastSpec> = {},
+  signal?: AbortSignal,
+): Promise<CustomPodcastSpec> {
+  const cleanFeed = feedUrl.trim();
+  const url = resolveFeedUrl(cleanFeed);
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`Podcast feed failed: ${res.status}`);
+  const xml = await res.text();
+  const meta = parsePodcastChannelMeta(xml, cleanFeed);
+  const name = overrides.name?.trim() || meta.name;
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || "show";
+  return {
+    id: overrides.id?.trim() || `custom-pod-${slug}-${hashString(cleanFeed).toString(36)}`,
+    name,
+    author: overrides.author?.trim() || meta.author,
+    description: overrides.description?.trim() || meta.description,
+    artwork: overrides.artwork?.trim() || meta.artwork,
+    feedUrl: cleanFeed,
+    webUrl: overrides.webUrl?.trim() || meta.webUrl,
+    ...(overrides.supportUrl?.trim() ? { supportUrl: overrides.supportUrl.trim() } : {}),
+    ...(meta.lastUpdated ? { lastUpdated: meta.lastUpdated } : {}),
+    isCustom: true,
+  };
+}
+
 export function resolveFeedUrl(url: string): string {
   if (Platform.OS === "web") {
     return `${new URL("/feed-proxy", SHARE_HUB_URL).href}?url=${encodeURIComponent(url)}`;
@@ -136,142 +225,55 @@ function createPodcastShow(data: Omit<PodcastShow, "fetchEpisodes">): PodcastSho
   return show;
 }
 
-export const COLONIAL_OUTCASTS: PodcastShow = createPodcastShow({
-  id: "colonial-outcasts",
-  name: "Colonial Outcasts",
-  author: "Greg Stoker & Mark Wayne",
-  description:
-    "Anti-imperialist, anti-war, and anti-establishment podcast digging into history, anthropology, geopolitics, and military science.",
-  artwork:
-    "https://substackcdn.com/image/fetch/w_600,c_limit,f_auto,q_auto:good/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fce66ed85-78f8-46e1-bfc9-e0c267d7e708_3000x3000.png",
-  feedUrl: "https://www.rfemedia.com/feed?section=colonial-outcasts",
-  webUrl: "https://www.rfemedia.com/s/colonial-outcasts",
-  supportUrl: "https://www.rfemedia.com/subscribe",
-  lastUpdated: "2026-10-12T19:33:30Z",
-});
+export function specToPodcastShow(spec: CustomPodcastSpec): PodcastShow {
+  return createPodcastShow({
+    id: spec.id,
+    name: spec.name,
+    author: spec.author?.trim() || spec.name,
+    description: spec.description?.trim() || "",
+    artwork: spec.artwork?.trim() || "",
+    feedUrl: spec.feedUrl,
+    webUrl: spec.webUrl?.trim() || spec.feedUrl,
+    ...(spec.supportUrl?.trim() ? { supportUrl: spec.supportUrl.trim() } : {}),
+    ...(spec.lastUpdated ? { lastUpdated: spec.lastUpdated } : {}),
+    ...(spec.isCustom ? { isCustom: true } : {}),
+  });
+}
 
-export const BLACK_AUTONOMY: PodcastShow = createPodcastShow({
-  id: "black-autonomy",
-  name: "Black Autonomy Podcast",
-  author: "Lorenzo Kom'boa Ervin & JoNina Abron-Ervin",
-  description:
-    "Discussions on anarchism and the revolutionary ideals of Black autonomy and liberation, hosted by veteran organizers and former Black Panther Party members Lorenzo Kom'boa Ervin and JoNina Abron-Ervin.",
-  artwork:
-    "https://static.libsyn.com/p/assets/8/4/7/9/847958a34c0d9a21/Black-Autonomy-Profile_100.png",
-  feedUrl: "https://blackautonomy.libsyn.com/rss",
-  webUrl: "https://blackautonomy.libsyn.com",
-  supportUrl: "https://www.patreon.com/blackautonomy",
-  lastUpdated: "2026-06-07T23:52:00Z",
-});
+// Migrated reference catalog of curated independent podcast shows
+export const PODCAST_SHOWS: PodcastShow[] = MIGRATED_PODCAST_SPECS.map(specToPodcastShow);
+const byId = (id: string) => PODCAST_SHOWS.find((s) => s.id === id)!;
 
-export const EVERYTHING_COOP: PodcastShow = createPodcastShow({
-  id: "everything-coop",
-  name: "Everything Co-op",
-  author: "Vernon Oakes",
-  description:
-    "Weekly conversations exploring the cooperative movement, worker-owned businesses, and community wealth building through an economic democracy lens.",
-  artwork: "https://i1.sndcdn.com/avatars-MBD0zlDPR5XKKza6-lLoRig-original.jpg",
-  feedUrl: "https://feeds.soundcloud.com/users/soundcloud:users:381264350/sounds.rss",
-  webUrl: "https://everything.coop",
-  supportUrl: "https://everything.coop",
-  lastUpdated: "2026-10-08T06:17:21Z",
-});
+export const COLONIAL_OUTCASTS: PodcastShow = byId("colonial-outcasts");
+export const BLACK_AUTONOMY: PodcastShow = byId("black-autonomy");
+export const EVERYTHING_COOP: PodcastShow = byId("everything-coop");
+export const UPSTREAM: PodcastShow = byId("upstream");
+export const MAKC: PodcastShow = byId("millennials-killing-capitalism");
+export const SRSLY_WRONG: PodcastShow = byId("srsly-wrong");
+export const WORKING_CLASS_HISTORY: PodcastShow = byId("working-class-history");
+export const LABOR_HISTORY_TODAY: PodcastShow = byId("labor-history-today");
+export const NATIVE_ROOTS_RADIO: PodcastShow = byId("native-roots-radio");
 
-export const UPSTREAM: PodcastShow = createPodcastShow({
-  id: "upstream",
-  name: "Upstream Podcast",
-  author: "Della Z. Duncan & Robert R. Raymond",
-  description:
-    "Challenging traditional economic assumptions through documentary and conversation, exploring worker cooperatives, degrowth, solidarity economics, and democratic alternatives.",
-  artwork:
-    "https://static.libsyn.com/p/assets/c/7/e/1/c7e178673bac87a2d959afa2a1bf1c87/avatars-000421042564-bh1xd1-original.jpg",
-  feedUrl: "https://rss.libsyn.com/shows/435210/destinations/3632352.xml",
-  webUrl: "https://www.upstreampodcast.org",
-  supportUrl: "https://www.patreon.com/upstreampodcast",
-  lastUpdated: "2026-10-12T15:00:00Z",
-});
+let cachedPodcastSpecRef: CustomPodcastSpec[] | null = null;
+let cachedCustomPodcasts: PodcastShow[] = [];
 
-export const MAKC: PodcastShow = createPodcastShow({
-  id: "millennials-killing-capitalism",
-  name: "Millennials Are Killing Capitalism",
-  author: "MAKC Collective",
-  description:
-    "Conversations on radical movement building, abolition, anti-colonialism, revolutionary theory, and working-class liberation.",
-  artwork:
-    "https://static.libsyn.com/p/assets/3/7/e/4/37e4287a44a8f68116c3140a3186d450/MAKC-New-3.png",
-  feedUrl: "https://millennialsarekillingcapitalism.libsyn.com/rss",
-  webUrl: "https://millennialsarekillingcapitalism.com",
-  supportUrl: "https://www.patreon.com/millennialsarekillingcapitalism",
-  lastUpdated: "2026-10-13T14:03:00Z",
-});
+export function getCustomPodcastShows(): PodcastShow[] {
+  const specs = getCurationConfig().podcasts;
+  if (cachedPodcastSpecRef === specs) return cachedCustomPodcasts;
+  cachedPodcastSpecRef = specs;
+  cachedCustomPodcasts = specs.map((spec) =>
+    specToPodcastShow({ ...spec, isCustom: true }),
+  );
+  return cachedCustomPodcasts;
+}
 
-export const SRSLY_WRONG: PodcastShow = createPodcastShow({
-  id: "srsly-wrong",
-  name: "Srsly Wrong",
-  author: "Shawn Vulliez & Aaron Moritz",
-  description:
-    "Utopian comedy and educational podcast exploring Library Socialism, social ecology, anti-capitalism, and building a post-scarcity, free society.",
-  artwork:
-    "https://srslywrong.com/wp-content/uploads/2026/08/369-groceries-scaled.png",
-  feedUrl: "https://srslywrong.com/feed/",
-  webUrl: "https://srslywrong.com",
-  supportUrl: "https://www.patreon.com/srslywrong",
-  lastUpdated: "2026-08-22T19:09:14Z",
-});
-
-export const WORKING_CLASS_HISTORY: PodcastShow = createPodcastShow({
-  id: "working-class-history",
-  name: "Working Class History",
-  author: "Working Class History",
-  description:
-    "Audio documentaries hearing from ordinary people who have helped make history, uncovering grassroots labor struggles, strikes, uprisings, and social movements worldwide.",
-  artwork:
-    "https://d3wo5wojvuv7l.cloudfront.net/t_rss_itunes_square_1400/images.spreaker.com/original/c25d55a3135a63530c92fbf1236277b0.jpg",
-  feedUrl: "https://www.spreaker.com/show/5711490/episodes/feed",
-  webUrl: "https://workingclasshistory.com",
-  supportUrl: "https://patreon.com/workingclasshistory",
-  lastUpdated: "2026-09-30T15:54:14Z",
-});
-
-export const LABOR_HISTORY_TODAY: PodcastShow = createPodcastShow({
-  id: "labor-history-today",
-  name: "Labor History Today",
-  author: "Labor History Today",
-  description:
-    "Gripping stories of historic battles for worker rights, union campaigns, and the lessons they offer for today's labor struggles.",
-  artwork:
-    "https://pbcdn1.podbean.com/imglogo/image-logo/8144168/Labor_History_Today_podcast_cover-new_771ff.png",
-  feedUrl: "https://feed.podbean.com/laborhistorytoday/feed.xml",
-  webUrl: "https://www.laborhistorytoday.info",
-  supportUrl: "https://www.patreon.com/LaborHistoryToday",
-  lastUpdated: "2026-10-10T12:00:00Z",
-});
-
-export const NATIVE_ROOTS_RADIO: PodcastShow = createPodcastShow({
-  id: "native-roots-radio",
-  name: "Native Roots Radio",
-  author: "Robert Pilot",
-  description:
-    "Native American talk radio and discussions hosted by Robert Pilot, presenting national and local Indigenous news, treaty rights, environmental justice, and tribal affairs.",
-  artwork:
-    "https://is1-ssl.mzstatic.com/image/thumb/Podcasts125/v4/24/cd/27/24cd27ee-ee40-70a4-f20a-6260831fcb2c/mza_15228667069575138186.jpg/600x600bb.jpg",
-  feedUrl: "https://www.am950radio.com/category/podcasts/im-awake/feed/",
-  webUrl: "https://nativerootsradio.com",
-  supportUrl: "https://nativerootsradio.com",
-  lastUpdated: "2026-10-15T22:56:00Z",
-});
-
-export const PODCAST_SHOWS: PodcastShow[] = [
-  UPSTREAM,
-  WORKING_CLASS_HISTORY,
-  EVERYTHING_COOP,
-  NATIVE_ROOTS_RADIO,
-  LABOR_HISTORY_TODAY,
-  MAKC,
-  SRSLY_WRONG,
-  COLONIAL_OUTCASTS,
-  BLACK_AUTONOMY,
-];
+export function useCustomPodcastShows(): PodcastShow[] {
+  const { podcasts } = useCurationConfig();
+  return useMemo(
+    () => podcasts.map((spec) => specToPodcastShow({ ...spec, isCustom: true })),
+    [podcasts],
+  );
+}
 
 type CastopodPodcast = {
   id: string | number;
@@ -304,11 +306,15 @@ export function castopodPodcastToShow(item: CastopodPodcast): PodcastShow {
 }
 
 export async function fetchDiscoveredPodcasts(
-  limit: number = 6,
+  limit: number = 12,
   signal?: AbortSignal,
 ): Promise<PodcastShow[]> {
+  const filters = getContentFilters();
   const endpoint = new URL("/api/podcasts", SHARE_HUB_URL);
   endpoint.searchParams.set("limit", String(limit));
+  if (filters.podcastDiscoveryTerms.length > 0) {
+    endpoint.searchParams.set("terms", filters.podcastDiscoveryTerms.join(","));
+  }
   const response = await fetch(endpoint.toString(), { signal });
   if (!response.ok) {
     throw new Error(`Castopod Index discovery failed: ${response.status}`);
@@ -320,22 +326,41 @@ export async function fetchDiscoveredPodcasts(
   }
 
   return payload.podcasts
-    .filter(
-      (item: CastopodPodcast) =>
-        item &&
-        typeof item.title === "string" &&
-        Boolean(item.podcastGuid || item.id) &&
-        typeof item.feedUrl === "string" &&
-        /^https?:\/\//i.test(item.feedUrl) &&
-        isQualityArtwork(item.artwork) &&
-        !isExcludedContent([item.title, item.author]),
-    )
+    .filter((item: CastopodPodcast) => {
+      if (
+        !item ||
+        typeof item.title !== "string" ||
+        !Boolean(item.podcastGuid || item.id) ||
+        typeof item.feedUrl !== "string" ||
+        !/^https?:\/\//i.test(item.feedUrl) ||
+        !isQualityArtwork(item.artwork) ||
+        isExcludedContent([item.title, item.author], [], filters)
+      ) {
+        return false;
+      }
+      if (filters.podcastDiscoveryTerms.length > 0) {
+        const searchable = [item.title, item.author, item.description]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return filters.podcastDiscoveryTerms.some((term) => searchable.includes(term));
+      }
+      return true;
+    })
     .map(castopodPodcastToShow);
 }
 
-export function queryDiscoveredPodcasts(limit: number = 6) {
+export function queryDiscoveredPodcasts(limit: number = 12) {
+  const filters = getContentFilters();
   return queryOptions({
-    queryKey: ["castopodPodcasts", limit],
+    queryKey: [
+      "castopodPodcasts",
+      limit,
+      filters.podcastDiscoveryTerms.join(","),
+      filters.excludedTerms.join(","),
+      filters.excludedPatterns.join(","),
+      filters.excludeCommercialFormatNames,
+    ],
     queryFn: ({ signal }) => fetchDiscoveredPodcasts(limit, signal),
     staleTime: 60 * 60 * 1000,
     retry: false,
@@ -344,7 +369,89 @@ export function queryDiscoveredPodcasts(limit: number = 6) {
 
 export function findPodcastShow(id: string | undefined): PodcastShow | undefined {
   if (!id) return undefined;
-  return PODCAST_SHOWS.find((show) => show.id === id) || DISCOVERED_PODCASTS.get(id);
+  return (
+    getCustomPodcastShows().find((show) => show.id === id) ||
+    DISCOVERED_PODCASTS.get(id) ||
+    PODCAST_SHOWS.find((show) => show.id === id)
+  );
+}
+
+export async function fetchPodcastShowById(
+  id: string,
+  signal?: AbortSignal,
+): Promise<PodcastShow | undefined> {
+  const existing = findPodcastShow(id);
+  if (existing) return existing;
+
+  if (id.startsWith("pod-")) {
+    const rawId = id.slice(4);
+    try {
+      const endpoint = new URL("/api/podcasts", SHARE_HUB_URL);
+      endpoint.searchParams.set("id", rawId);
+      const res = await fetch(endpoint.toString(), { signal });
+      if (res.ok) {
+        const payload = await res.json();
+        const item = Array.isArray(payload?.podcasts) ? payload.podcasts[0] : null;
+        if (
+          item &&
+          typeof item.title === "string" &&
+          typeof item.feedUrl === "string" &&
+          /^https?:\/\//i.test(item.feedUrl) &&
+          isQualityArtwork(item.artwork)
+        ) {
+          return castopodPodcastToShow(item);
+        }
+      }
+    } catch {
+      // Fall through to iTunes lookup
+    }
+
+    if (/^\d+$/.test(rawId)) {
+      try {
+        const res = await fetch(
+          `https://itunes.apple.com/lookup?id=${encodeURIComponent(rawId)}`,
+          { signal },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const item = Array.isArray(data?.results) ? data.results[0] : null;
+          if (
+            item &&
+            typeof item.collectionName === "string" &&
+            typeof item.feedUrl === "string" &&
+            /^https?:\/\//i.test(item.feedUrl) &&
+            isQualityArtwork(item.artworkUrl600 || item.artworkUrl100)
+          ) {
+            const show = createPodcastShow({
+              id,
+              name: item.collectionName,
+              author: item.artistName || item.collectionName,
+              description: item.genres?.join(", ") || "",
+              artwork: item.artworkUrl600 || item.artworkUrl100,
+              feedUrl: item.feedUrl,
+              webUrl: item.collectionViewUrl || item.feedUrl,
+            });
+            DISCOVERED_PODCASTS.set(id, show);
+            return show;
+          }
+        }
+      } catch {
+        // Return undefined if network lookup fails
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function queryPodcastShow(id: string | undefined) {
+  return queryOptions({
+    queryKey: ["podcastShow", id],
+    queryFn: ({ signal }) => (id ? fetchPodcastShowById(id, signal) : Promise.resolve(undefined)),
+    enabled: Boolean(id),
+    staleTime: 60 * 60 * 1000,
+    initialData: () => findPodcastShow(id),
+  });
 }
 
 /**
@@ -468,7 +575,8 @@ export async function searchPodcastShows(
   const query = term.trim().toLowerCase();
   if (!query) return [];
 
-  const curatedMatches = PODCAST_SHOWS.filter(
+  const filters = getContentFilters();
+  const customMatches = getCustomPodcastShows().filter(
     (s) =>
       s.name.toLowerCase().includes(query) ||
       s.author.toLowerCase().includes(query) ||
@@ -497,7 +605,7 @@ export async function searchPodcastShows(
               typeof item.feedUrl === "string" &&
               /^https?:\/\//i.test(item.feedUrl) &&
               isQualityArtwork(item.artworkUrl600 || item.artworkUrl100) &&
-              !isExcludedContent([item.collectionName, item.artistName]),
+              !isExcludedContent([item.collectionName, item.artistName], [], filters),
           )
           .map((item: any) => {
             const id = `pod-${item.collectionId}`;
@@ -516,12 +624,12 @@ export async function searchPodcastShows(
       }
     }
   } catch {
-    // Return curated and cached matches if remote search fails
+    // Return custom and cached matches if remote search fails
   }
 
   const seen = new Set<string>();
-  return [...curatedMatches, ...cachedMatches, ...remoteShows].filter((show) => {
-    if (isExcludedContent([show.name, show.author])) return false;
+  return [...customMatches, ...cachedMatches, ...remoteShows].filter((show) => {
+    if (isExcludedContent([show.name, show.author], [], filters)) return false;
     const key = show.id.toLowerCase();
     const feedKey = (show.feedUrl || "").toLowerCase();
     if (seen.has(key) || (feedKey && seen.has(feedKey))) return false;
@@ -530,4 +638,3 @@ export async function searchPodcastShows(
     return true;
   });
 }
-

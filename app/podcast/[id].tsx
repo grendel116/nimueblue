@@ -15,8 +15,8 @@ import { useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { usePlayer } from "@/state/PlayerContext";
 import {
-  findPodcastShow,
   queryPodcastEpisodes,
+  queryPodcastShow,
   episodeTrack,
   PodcastEpisode,
 } from "@/queries/podcast";
@@ -59,13 +59,33 @@ function formatEpisodeDuration(seconds: number | undefined): string {
 // Dedicated screen for a Discussion/Podcast show, styled identically to Album and Radio screens.
 export default function PodcastScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const show = findPodcastShow(id);
+  const { data: show, isLoading: isShowLoading } = useQuery(queryPodcastShow(id));
   const router = useRouter();
   const { data: episodes = [], isPending, isError, refetch } = useQuery(queryPodcastEpisodes(show));
   const { activeTrack, isPlaying, playTrack, togglePlayPause } = usePlayer("activeTrack", "isPlaying", "playTrack", "togglePlayPause");
   const [imgError, setImgError] = useState(false);
 
-  if (!show || !isQualityArtwork(show.artwork)) {
+  if (isShowLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={styles.topNav}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+          </Pressable>
+        </View>
+        <View style={styles.centerContainer}>
+          <DropletSpinner size={38} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!show || (!show.isCustom && !isQualityArtwork(show.artwork))) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.topNav}>
@@ -138,13 +158,17 @@ export default function PodcastScreen() {
         ListHeaderComponent={
           <View style={styles.headerSection}>
             <View style={styles.coverWrapper}>
-              {!imgError && isQualityArtwork(show.artwork) && (
+              {!imgError && isQualityArtwork(show.artwork) ? (
                 <Image
                   source={{ uri: resolveArtworkUrl(show.artwork) }}
                   style={styles.coverImage}
                   resizeMode="cover"
                   onError={() => setImgError(true)}
                 />
+              ) : (
+                <View style={[styles.coverImage, styles.coverPlaceholder]}>
+                  <Ionicons name="mic" size={64} color={theme.colors.textMuted} />
+                </View>
               )}
             </View>
 

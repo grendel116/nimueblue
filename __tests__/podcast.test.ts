@@ -1,8 +1,11 @@
 import {
   decodeXml,
   parseDuration,
+  parsePodcastChannelMeta,
   parsePodcastRss,
   findPodcastShow,
+  fetchPodcastShowById,
+  getCustomPodcastShows,
   episodeTrack,
   COLONIAL_OUTCASTS,
   PODCAST_SHOWS,
@@ -11,7 +14,14 @@ import {
   fetchDiscoveredPodcasts,
   searchPodcastShows,
 } from "@/queries/podcast";
-import { isExcludedContent } from "@/queries/excludedContent";
+import {
+  isExcludedContent,
+  loadMigratedCurationPreset,
+  removeCustomPodcast,
+  resetCurationConfig,
+  setContentFilters,
+  upsertCustomPodcast,
+} from "@/queries/excludedContent";
 
 describe("decodeXml", () => {
   test("strips CDATA blocks", () => {
@@ -54,6 +64,10 @@ describe("parsePodcastRss", () => {
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
   <channel>
     <title>Sample Podcast</title>
+    <itunes:author>Host Name</itunes:author>
+    <description>Independent audio stories</description>
+    <link>https://example.com/show</link>
+    <itunes:image href="https://example.com/cover.jpg" />
     <item>
       <title><![CDATA[Episode 2: Audio &amp; Story]]></title>
       <pubDate>Tue, 06 Oct 2026 18:00:00 GMT</pubDate>
@@ -100,10 +114,30 @@ describe("parsePodcastRss", () => {
     expect(episodes.length).toBe(1);
     expect(episodes[0].id).toBe("ep-2");
   });
+
+  test("extracts channel metadata from RSS header", () => {
+    const meta = parsePodcastChannelMeta(sampleXml, "https://example.com/feed.xml");
+    expect(meta).toEqual({
+      name: "Sample Podcast",
+      author: "Host Name",
+      description: "Independent audio stories",
+      artwork: "https://example.com/cover.jpg",
+      webUrl: "https://example.com/show",
+      lastUpdated: "Tue, 06 Oct 2026 18:00:00 GMT",
+    });
+  });
 });
 
 describe("findPodcastShow", () => {
-  test("finds shows by ID and verifies list contains ongoing curated shows", () => {
+  beforeEach(() => {
+    resetCurationConfig();
+  });
+
+  afterEach(() => {
+    resetCurationConfig();
+  });
+
+  test("finds shows by ID and verifies migrated catalog contains ongoing shows", () => {
     expect(PODCAST_SHOWS.map((s) => s.id)).toEqual([
       "upstream",
       "working-class-history",
@@ -144,6 +178,20 @@ describe("findPodcastShow", () => {
     expect(everythingCoop?.supportUrl).toBe("https://everything.coop");
   });
 
+  test("adds and removes custom client-side podcast feeds", () => {
+    const added = upsertCustomPodcast({
+      name: "Custom Talk",
+      feedUrl: "https://example.com/custom.xml",
+      author: "Custom Host",
+    });
+
+    expect(getCustomPodcastShows().map((s) => s.id)).toEqual([added.id]);
+    expect(findPodcastShow(added.id)?.name).toBe("Custom Talk");
+
+    removeCustomPodcast(added.id);
+    expect(getCustomPodcastShows()).toEqual([]);
+  });
+
   test("returns undefined for unknown ID", () => {
     expect(findPodcastShow("unknown-show")).toBeUndefined();
     expect(findPodcastShow("pod-987654")).toBeUndefined();
@@ -152,6 +200,14 @@ describe("findPodcastShow", () => {
 });
 
 describe("Castopod Index discovery", () => {
+  beforeEach(() => {
+    resetCurationConfig();
+  });
+
+  afterEach(() => {
+    resetCurationConfig();
+  });
+
   test("maps publisher feed metadata to a stable show ID", () => {
     const show = castopodPodcastToShow({
       id: 123,
@@ -170,7 +226,7 @@ describe("Castopod Index discovery", () => {
     expect(findPodcastShow(show.id)?.name).toBe("The AssCast");
   });
 
-  test("fetches filtered podcast metadata from the share Worker", async () => {
+  test("fetches open Castopod catalog by default and forwards client discovery terms when set", async () => {
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -180,7 +236,7 @@ describe("Castopod Index discovery", () => {
             podcastGuid: "castopod-test-guid",
             title: "Independent Podcast",
             author: "Independent Publisher",
-            description: "A test podcast",
+            description: "A test anarchism podcast",
             artwork: "https://example.com/podcast.png",
             feedUrl: "https://example.com/feed.xml",
             webUrl: "https://example.com/",
@@ -191,10 +247,72 @@ describe("Castopod Index discovery", () => {
     } as Response);
 
     try {
-      const shows = await fetchDiscoveredPodcasts(6);
-      expect(fetchSpy.mock.calls[0][0]).toContain("/api/podcasts?limit=6");
-      expect(shows.map((show) => show.id)).toEqual(["pod-castopod-test-guid"]);
-      expect(shows[0].feedUrl).toBe("https://example.com/feed.xml");
+      const openShows = await fetchDiscoveredPodcasts(6);
+      const openUrl = new URL(String(fetchSpy.mock.calls[0][0]));
+      expect(openUrl.pathname).toBe("/api/podcasts");
+      expect(openUrl.searchParams.get("limit")).toBe("6");
+      expect(openUrl.searchParams.get("terms")).toBeNull();
+      expect(openShows.map((show) => show.id)).toEqual(["pod-castopod-test-guid"]);
+
+      fetchSpy.mockClear();
+      setContentFilters({ podcastDiscoveryTerms: ["anarch"] });
+      const filteredShows = await fetchDiscoveredPodcasts(6);
+      const filteredUrl = new URL(String(fetchSpy.mock.calls[0][0]));
+      expect(filteredUrl.searchParams.get("terms")).toBe("anarch");
+      expect(filteredShows.map((show) => show.id)).toEqual(["pod-castopod-test-guid"]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  test("fetchPodcastShowById resolves Castopod and iTunes pod-* shows on cold start", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/api/podcasts?id=cold-start-guid")) {
+        return {
+          ok: true,
+          json: async () => ({
+            podcasts: [
+              {
+                id: 456,
+                podcastGuid: "cold-start-guid",
+                title: "Cold Start Castopod",
+                author: "Independent Host",
+                description: "Desc",
+                artwork: "https://example.com/castopod.png",
+                feedUrl: "https://example.com/castopod.xml",
+              },
+            ],
+          }),
+        } as Response;
+      }
+      if (url.includes("itunes.apple.com/lookup?id=777888")) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                collectionId: 777888,
+                collectionName: "Cold Start iTunes",
+                artistName: "iTunes Host",
+                feedUrl: "https://example.com/itunes.xml",
+                artworkUrl600: "https://example.com/itunes.jpg",
+              },
+            ],
+          }),
+        } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    });
+
+    try {
+      const castopodShow = await fetchPodcastShowById("pod-cold-start-guid");
+      expect(castopodShow?.name).toBe("Cold Start Castopod");
+      expect(findPodcastShow("pod-cold-start-guid")).toBe(castopodShow);
+
+      const itunesShow = await fetchPodcastShowById("pod-777888");
+      expect(itunesShow?.name).toBe("Cold Start iTunes");
+      expect(findPodcastShow("pod-777888")).toBe(itunesShow);
     } finally {
       fetchSpy.mockRestore();
     }
@@ -283,7 +401,18 @@ describe("queryDiscussionLatestDates", () => {
 });
 
 describe("podcast exclusion filters", () => {
-  test("excludes Forbes, charts, top 40, and commercial network names", () => {
+  beforeEach(() => {
+    resetCurationConfig();
+  });
+
+  afterEach(() => {
+    resetCurationConfig();
+  });
+
+  test("allows all podcasts by default and excludes Forbes, charts, top 40, and commercial network names when migrated filters are active", () => {
+    expect(isExcludedContent(["Forbes Daily", "Forbes"])).toBe(false);
+
+    loadMigratedCurationPreset();
     expect(isExcludedContent(["Forbes Daily", "Forbes"])).toBe(true);
     expect(isExcludedContent(["What's Ahead", "Steve Forbes"])).toBe(true);
     expect(isExcludedContent(["Top 40 Weekly Hits"])).toBe(true);
@@ -296,7 +425,7 @@ describe("podcast exclusion filters", () => {
     expect(isExcludedContent(["Srsly Wrong", "Shawn Vulliez"])).toBe(false);
   });
 
-  test("searchPodcastShows excludes shows matching excluded terms from search results", async () => {
+  test("searchPodcastShows returns open results by default and applies client-side excluded terms when configured", async () => {
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -330,10 +459,15 @@ describe("podcast exclusion filters", () => {
     } as Response);
 
     try {
-      const results = await searchPodcastShows("economics");
-      expect(results.some((s) => s.name.toLowerCase().includes("forbes"))).toBe(false);
-      expect(results.some((s) => s.name.toLowerCase().includes("top 100"))).toBe(false);
-      expect(results.some((s) => s.name === "Radical Economics")).toBe(true);
+      const openResults = await searchPodcastShows("economics");
+      expect(openResults.some((s) => s.name.toLowerCase().includes("forbes"))).toBe(true);
+      expect(openResults.some((s) => s.name === "Radical Economics")).toBe(true);
+
+      loadMigratedCurationPreset();
+      const filteredResults = await searchPodcastShows("economics");
+      expect(filteredResults.some((s) => s.name.toLowerCase().includes("forbes"))).toBe(false);
+      expect(filteredResults.some((s) => s.name.toLowerCase().includes("top 100"))).toBe(false);
+      expect(filteredResults.some((s) => s.name === "Radical Economics")).toBe(true);
     } finally {
       fetchSpy.mockRestore();
     }

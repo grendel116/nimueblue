@@ -21,6 +21,7 @@ import {
   SAVED_SOURCE,
 } from "@/scripts/downloadManager";
 import { isQualityArtwork } from "@/scripts/utils";
+import { getContentFilters, isExcludedContent } from "@/queries/excludedContent";
 
 const ALBUMS_PER_TAG = 14;
 const MAX_TAG_FANOUT = 8;
@@ -792,8 +793,10 @@ export const SearchContextProvider: React.FC<{
       }
 
       // 10. Radio Stations & Podcasts
+      const filters = getContentFilters();
       for (const station of radioStations) {
-        if (!isQualityArtwork(station.artwork)) continue;
+        if (!station.isCustom && !isQualityArtwork(station.artwork)) continue;
+        if (isExcludedContent([station.name, station.liveName], station.tags ?? [], filters)) continue;
         results.push({
           id: station.id,
           name: station.name,
@@ -807,6 +810,7 @@ export const SearchContextProvider: React.FC<{
       }
 
       for (const podcast of podcastShows) {
+        if (isExcludedContent([podcast.name, podcast.author], [], filters)) continue;
         results.push({
           id: podcast.id,
           name: podcast.name,
