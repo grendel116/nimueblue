@@ -5,6 +5,10 @@ import {
   searchFairplayerCatalog,
   FairplayerCatalogSearchResult,
 } from "@/queries/fairplayer";
+import {
+  searchFunkwhaleCatalog,
+  FunkwhaleCatalogSearchResult,
+} from "@/queries/funkwhale";
 import { searchRadioStations, RadioStation } from "@/queries/radio";
 import { searchPodcastShows, PodcastShow } from "@/queries/podcast";
 import { fetchFederatedChorusAlbums, resolveFeedSourceName } from "@/queries/chorus";
@@ -456,6 +460,7 @@ export const SearchContextProvider: React.FC<{
         taggedSettled,
         chorusSettled,
         fairplayerSettled,
+        funkwhaleSettled,
         radioSettled,
         podcastSettled,
         downloadsSettled,
@@ -475,6 +480,7 @@ export const SearchContextProvider: React.FC<{
             tracks: [],
           } as FairplayerCatalogSearchResult;
         }),
+        searchFunkwhaleCatalog(term, signal),
         searchRadioStations(term, signal),
         searchPodcastShows(term, signal),
         getDownloadedTracks(),
@@ -497,6 +503,10 @@ export const SearchContextProvider: React.FC<{
       const fairplayerData: FairplayerCatalogSearchResult =
         fairplayerSettled.status === "fulfilled"
           ? fairplayerSettled.value
+          : { albums: [], artists: [], tracks: [] };
+      const funkwhaleData: FunkwhaleCatalogSearchResult =
+        funkwhaleSettled.status === "fulfilled"
+          ? funkwhaleSettled.value
           : { albums: [], artists: [], tracks: [] };
       const radioStations =
         radioSettled.status === "fulfilled" ? radioSettled.value || [] : [];
@@ -760,6 +770,68 @@ export const SearchContextProvider: React.FC<{
           isTrackGroup: true,
           matchedGenre: matchedGenres[0]?.name,
           source: "Faircamp",
+        });
+      }
+
+      // 8b. Funkwhale Catalog (Artists, Albums, Tags)
+      for (const funkArtist of funkwhaleData.artists) {
+        upsertArtist({
+          id: funkArtist.id,
+          artistId: funkArtist.urlSlug,
+          name: funkArtist.name,
+          category: "Artist",
+          isArtist: true,
+          imageUrl: funkArtist.avatarUrl,
+          source: "Funkwhale",
+        });
+      }
+
+      for (const funkAlbum of funkwhaleData.albums) {
+        const albumTags = funkAlbum.tags || [];
+        const matchedTag = albumTags.find(
+          (t) =>
+            getFieldMatchStrength(t, lowerTerm, queryTokens) > 0 ||
+            matchedGenres.some((g) => g.tags.includes(t.toLowerCase())),
+        );
+        const matchedGenreObj =
+          (matchedTag ? findGenreByTag(matchedTag) : undefined) ||
+          matchedGenres.find((g) => albumTags.some((t) => g.tags.includes(t.toLowerCase())));
+
+        for (const t of albumTags) {
+          const cleanT = t.toLowerCase().trim();
+          if (
+            cleanT &&
+            !tagSet.has(cleanT) &&
+            getFieldMatchStrength(cleanT, lowerTerm, queryTokens) > 0
+          ) {
+            tagSet.add(cleanT);
+            const g = findGenreByTag(cleanT);
+            results.push({
+              id: `tag-${cleanT}`,
+              name: `#${cleanT}`,
+              subtitle: g ? `${g.name} · Tag` : "Community Tag",
+              category: "Tag",
+              isTag: true,
+              tagSlug: cleanT,
+              matchedTag: cleanT,
+              matchedGenre: g?.name,
+            });
+          }
+        }
+
+        upsertAlbum({
+          id: funkAlbum.urlSlug,
+          trackGroupId: funkAlbum.urlSlug,
+          artistId: funkAlbum.artist?.urlSlug || "funkwhale",
+          artistName: funkAlbum.artist?.name || "",
+          trackGroupCover: funkAlbum.cover,
+          name: funkAlbum.title,
+          category: "Album",
+          isTrackGroup: true,
+          tags: albumTags,
+          matchedTag,
+          matchedGenre: matchedGenreObj?.name || matchedGenres[0]?.name,
+          source: "Funkwhale",
         });
       }
 

@@ -63,8 +63,158 @@ async function resolveChorusTrackGroup(idOrSlug) {
   return null;
 }
 
-// Share card details for a Mirlo or Faircamp artist, or null when not found
-async function resolveMirloArtist(slug) {
+function decodeFunkwhaleShareToken(token) {
+  try {
+    const raw = String(token || "").startsWith("fw") ? String(token).slice(2) : String(token || "");
+    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const decoded = new TextDecoder().decode(bytes);
+    const [releasePart, trackPart] = decoded.split("#");
+    const slashIdx = releasePart.indexOf("/");
+    if (slashIdx <= 0) return null;
+    const podHost = releasePart.slice(0, slashIdx).trim().toLowerCase().replace(/^www\./, "");
+    const albumId = Number(releasePart.slice(slashIdx + 1));
+    if (
+      !podHost ||
+      !podHost.includes(".") ||
+      !/^[a-z0-9.-]+$/.test(podHost) ||
+      podHost === "localhost" ||
+      /^\d{1,3}(\.\d{1,3}){3}$/.test(podHost) ||
+      !Number.isSafeInteger(albumId) ||
+      albumId <= 0
+    ) {
+      return null;
+    }
+    const trackOrder = trackPart && /^\d+$/.test(trackPart.trim()) ? Number(trackPart.trim()) : 1;
+    return { podHost, albumId, trackOrder };
+  } catch {
+    return null;
+  }
+}
+
+function decodeFunkwhaleArtistSlug(slug) {
+  const clean = String(slug || "").trim();
+  if (!clean.startsWith("funkwhale-artist-")) return null;
+  const rest = clean.slice("funkwhale-artist-".length);
+  const match = rest.match(/^([a-z0-9.-]+)-(\d+)$/i);
+  if (!match) return null;
+  const podHost = match[1].toLowerCase().replace(/^www\./, "");
+  const artistId = Number(match[2]);
+  if (
+    !podHost ||
+    !podHost.includes(".") ||
+    podHost === "localhost" ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(podHost) ||
+    !Number.isSafeInteger(artistId) ||
+    artistId <= 0
+  ) {
+    return null;
+  }
+  return { podHost, artistId };
+}
+
+function formatFunkwhaleArtistCredit(artistCredit, attributedTo) {
+  const strip = (s) => String(s || "").replace(/@[a-z0-9.-]+\.[a-z]{2,}$/i, "").trim();
+  if (Array.isArray(artistCredit) && artistCredit.length > 0) {
+    const names = artistCredit
+      .map((c) => strip(c?.credit))
+      .filter(Boolean);
+    if (names.length > 0) return names.join(", ");
+  }
+  return strip(attributedTo?.name || attributedTo?.preferred_username || "") || "Unknown Artist";
+}
+
+async function resolveFunkwhaleTrack(token, origin) {
+  const decoded = decodeFunkwhaleShareToken(token);
+  if (!decoded) return null;
+  const { podHost, albumId, trackOrder } = decoded;
+  const headers = { "User-Agent": "NimueBlueSocialBot/1.0", Accept: "application/json" };
+  const [albumRes, tracksRes] = await Promise.all([
+    fetch(`https://${podHost}/api/v2/albums/${albumId}`, { headers }),
+    fetch(`https://${podHost}/api/v2/tracks?album=${albumId}&playable=true&page_size=100`, {
+      headers,
+    }),
+  ]);
+  if (!albumRes.ok) return null;
+  const albumJson = await albumRes.json();
+  const tracksJson = tracksRes.ok ? await tracksRes.json() : { results: [] };
+  const tracks = Array.isArray(tracksJson?.results) ? tracksJson.results : [];
+  const matchedTrack =
+    tracks.find((t) => Number(t?.position) === trackOrder) ||
+    tracks[Math.max(0, trackOrder - 1)] ||
+    tracks[0];
+  const listenPath = matchedTrack?.listen_url || matchedTrack?.uploads?.[0]?.listen_url || "";
+  const audioUrl = listenPath ? new URL(listenPath, `https://${podHost}`).href : "";
+  const artist = matchedTrack?.artist_credit?.length
+    ? formatFunkwhaleArtistCredit(matchedTrack.artist_credit, matchedTrack.attributed_to)
+    : formatFunkwhaleArtistCredit(albumJson?.artist_credit, albumJson?.attributed_to);
+  const albumSlug = `funkwhale-${podHost}-${albumId}`;
+  const coverUrls = albumJson?.cover?.urls;
+  const directArtwork =
+    coverUrls?.large_square_crop ||
+    coverUrls?.original ||
+    coverUrls?.medium_square_crop ||
+    "";
+  return {
+    title: matchedTrack?.title || albumJson?.title || "Track",
+    artist,
+    album: albumJson?.title || "",
+    artwork: coverUrls
+      ? `${origin}/funkwhale/cover?pod=${encodeURIComponent(podHost)}&album=${albumId}`
+      : "",
+    directArtwork,
+    audioUrl,
+    webUrl: `https://${podHost}/library/albums/${albumId}`,
+    appRoute: `/artist/funkwhale/album/${albumSlug}/album-tracks?trackOrder=${trackOrder}`,
+  };
+}
+
+// Share card details for a Mirlo, Faircamp, or Funkwhale artist, or null when not found
+async function resolveMirloArtist(slug, origin) {
+  if (slug.startsWith("funkwhale-artist-")) {
+    const decoded = decodeFunkwhaleArtistSlug(slug);
+    if (!decoded) return null;
+    const { podHost, artistId } = decoded;
+    const headers = { "User-Agent": "NimueBlueSocialBot/1.0", Accept: "application/json" };
+    const [artistRes, albumsRes] = await Promise.all([
+      fetch(`https://${podHost}/api/v2/artists/${artistId}`, { headers }),
+      fetch(`https://${podHost}/api/v2/albums?artist=${artistId}&playable=true&page_size=10`, {
+        headers,
+      }),
+    ]);
+    if (artistRes.status === 404) return null;
+    if (!artistRes.ok) throw new Error(`Funkwhale artist lookup answered ${artistRes.status}`);
+    const artistJson = await artistRes.json();
+    const albumsJson = albumsRes.ok ? await albumsRes.json() : { results: [] };
+    const firstAlbum = Array.isArray(albumsJson?.results) ? albumsJson.results[0] : null;
+    const name = String(
+      artistJson?.name || artistJson?.attributed_to?.name || `Artist ${artistId}`,
+    )
+      .replace(/@[a-z0-9.-]+\.[a-z]{2,}$/i, "")
+      .trim();
+    const artwork = artistJson?.cover?.urls
+      ? `${origin}/funkwhale/cover?pod=${encodeURIComponent(podHost)}&artist=${artistId}`
+      : firstAlbum?.cover?.urls
+        ? `${origin}/funkwhale/cover?pod=${encodeURIComponent(podHost)}&album=${firstAlbum.id}`
+        : "";
+    const directCoverUrls = artistJson?.cover?.urls || firstAlbum?.cover?.urls;
+    const directArtwork =
+      directCoverUrls?.large_square_crop ||
+      directCoverUrls?.original ||
+      directCoverUrls?.medium_square_crop ||
+      "";
+    return {
+      name,
+      location: `Funkwhale · ${podHost}`,
+      artwork,
+      directArtwork,
+      webUrl: `https://${podHost}/library/artists/${artistId}`,
+      appRoute: `/artist/${encodeURIComponent(slug)}/artist-page`,
+    };
+  }
+
   if (slug.startsWith("fairplayer-artist-")) {
     const artistName = decodeURIComponent(slug.slice("fairplayer-artist-".length)).trim();
     if (!artistName) return null;
@@ -282,11 +432,13 @@ export async function handleShare(request, url) {
   let artist = url.searchParams.get("artist") || "";
   let album = url.searchParams.get("album") || "";
   let artwork = url.searchParams.get("art") || "";
+  let directArtwork = "";
   let audioUrl = url.searchParams.get("audio") || "";
   let webUrl = url.searchParams.get("web") || "";
   let appRoute = url.searchParams.get("app") || "/";
   let trackId = null;
 
+  const funkwhaleTrackMatch = normalizedPath.match(/^\/t\/(fw[A-Za-z0-9_-]+)$/i);
   const faircampTrackMatch = normalizedPath.match(/^\/t\/f([^/]+)$/i);
   const trackMatch = normalizedPath.match(/^\/t\/(\d+)$/i);
   const radioMatch = normalizedPath.match(/^\/r\/([a-z0-9-]+)$/i);
@@ -348,6 +500,26 @@ export async function handleShare(request, url) {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
     }
+  } else if (funkwhaleTrackMatch) {
+    let share;
+    try {
+      share = await resolveFunkwhaleTrack(funkwhaleTrackMatch[1], url.origin);
+    } catch (err) {
+      console.error("Funkwhale track metadata lookup failed:", err);
+      return new Response("Funkwhale track is temporarily unavailable.", { status: 502 });
+    }
+    if (!share) {
+      return new Response("Funkwhale track is not available for sharing.", { status: 404 });
+    }
+    type = "funkwhale";
+    title = share.title;
+    artist = share.artist;
+    album = share.album;
+    artwork = share.artwork;
+    directArtwork = share.directArtwork || "";
+    audioUrl = share.audioUrl;
+    webUrl = share.webUrl;
+    appRoute = share.appRoute;
   } else if (faircampTrackMatch) {
     let fairplayerTrackId;
     try {
@@ -382,7 +554,7 @@ export async function handleShare(request, url) {
     }
     let share;
     try {
-      share = await resolveMirloArtist(slug);
+      share = await resolveMirloArtist(slug, url.origin);
     } catch (err) {
       console.error("Mirlo artist lookup failed:", err);
       return new Response("Mirlo artist is temporarily unavailable.", { status: 502 });
@@ -395,6 +567,7 @@ export async function handleShare(request, url) {
     artist = share.location;
     album = "";
     artwork = share.artwork;
+    directArtwork = share.directArtwork || "";
     audioUrl = "";
     webUrl = share.webUrl;
     appRoute = share.appRoute;
@@ -450,8 +623,11 @@ export async function handleShare(request, url) {
   }
 
   const safeArtwork = isQualityArtwork(artwork) ? artwork : "";
-  const proxiedArtwork = safeArtwork
-    ? `${url.origin}/image?url=${encodeURIComponent(safeArtwork)}&v=640`
+  const imageSourceForProxy = (directArtwork && /^https?:\/\//i.test(directArtwork))
+    ? directArtwork
+    : safeArtwork;
+  const proxiedArtwork = imageSourceForProxy
+    ? `${url.origin}/image?url=${encodeURIComponent(imageSourceForProxy)}&v=640`
     : "https://grendel116.github.io/nimueblue/preview-v8.png";
 
   const html = renderHtml({

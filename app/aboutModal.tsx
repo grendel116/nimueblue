@@ -22,6 +22,13 @@ const LINKS: AboutLink[] = [
     brand: false,
   },
   {
+    label: "Funkwhale (Open.audio)",
+    subtitle: "Federated open-source music pod & catalog",
+    url: "https://open.audio/",
+    icon: "headphones",
+    brand: false,
+  },
+  {
     label: "Radio-Browser",
     subtitle: "Community directory of live internet radio",
     url: "https://www.radio-browser.info/",

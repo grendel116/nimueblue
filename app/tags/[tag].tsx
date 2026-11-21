@@ -23,6 +23,7 @@ import { isNetworkError } from "@/scripts/networkError";
 import { findGenreByTag, getGenreExpansionTags } from "@/constants/genres";
 import { fetchFederatedChorusAlbums } from "@/queries/chorus";
 import { searchFairplayerAlbums } from "@/queries/fairplayer";
+import { searchFunkwhaleAlbums } from "@/queries/funkwhale";
 import { usePlayer } from "@/state/PlayerContext";
 import { API_ROOT } from "@/constants/api-root";
 import { API_KEY } from "@/constants/api-key";
@@ -146,9 +147,10 @@ export default function TagsView() {
         selectedSubTag === "all"
           ? expansionTags.map((t) => t.toLowerCase())
           : [activeQueryTag.toLowerCase()];
-      const [chorusRes, fairRes] = await Promise.allSettled([
+      const [chorusRes, fairRes, funkRes] = await Promise.allSettled([
         fetchFederatedChorusAlbums({ take: 60 }, signal),
         searchFairplayerAlbums(activeQueryTag, signal),
+        searchFunkwhaleAlbums(activeQueryTag, signal),
       ]);
       const chorusMatches =
         chorusRes.status === "fulfilled"
@@ -160,7 +162,9 @@ export default function TagsView() {
           : [];
       const fairMatches =
         fairRes.status === "fulfilled" ? fairRes.value || [] : [];
-      return [...chorusMatches, ...fairMatches];
+      const funkMatches =
+        funkRes.status === "fulfilled" ? funkRes.value || [] : [];
+      return [...chorusMatches, ...fairMatches, ...funkMatches];
     },
     staleTime: 5 * 60 * 1000,
     retry: false,

@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryTrackGroups } from "@/queries/queries";
 import { queryFederatedChorusAlbums } from "@/queries/chorus";
 import { queryFairplayerAlbums } from "@/queries/fairplayer";
+import { queryFunkwhaleAlbums } from "@/queries/funkwhale";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "@/constants/theme";
@@ -152,6 +153,16 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     retry: false,
   });
 
+  const {
+    data: funkwhaleAlbums,
+    isFetching: isFunkwhaleFetching,
+    refetch: refetchFunkwhale,
+  } = useQuery({
+    ...queryFunkwhaleAlbums(40),
+    ...HOME_QUERY,
+    retry: false,
+  });
+
   // Query open or tag-filtered radio stations from Radio-Browser
   const {
     data: discoveredRadio = [],
@@ -186,6 +197,7 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     setShuffleSeed((s) => s + 1);
     refetchChorus();
     refetchFairplayer();
+    refetchFunkwhale();
     refetchDiscoveredRadio();
     refetchDiscoveredPodcasts();
     // The pull spinner waits for Mirlo's picks; the wider catalogs fill in as they arrive
@@ -196,11 +208,12 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
     retry().finally(() => setIsPullRefreshing(false));
   };
 
-  // Shuffled blend of Mirlo, Chorus, and Faircamp releases with fair artist representation.
-  // Each catalog answers on its own, so the blend is made once all three have answered (or
+  // Shuffled blend of Mirlo, Chorus, Faircamp, and Funkwhale releases with fair artist representation.
+  // Each catalog answers on its own, so the blend is made once all catalogs have answered (or
   // failed): the carousel fills in a single shuffle on load and on each pull to refresh
   const [recentReleases, setRecentReleases] = useState<AlbumProps[]>();
-  const releaseSourcesSettled = !isRecentFetching && !isChorusFetching && !isFairplayerFetching;
+  const releaseSourcesSettled =
+    !isRecentFetching && !isChorusFetching && !isFairplayerFetching && !isFunkwhaleFetching;
   useEffect(() => {
     if (!releaseSourcesSettled) return;
     setRecentReleases(
@@ -208,10 +221,11 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
         recentData?.results || [],
         chorusAlbums || [],
         fairplayerAlbums || [],
+        funkwhaleAlbums || [],
         CAROUSEL_LIMIT,
       ).slice(0, CAROUSEL_LIMIT),
     );
-  }, [releaseSourcesSettled, recentData?.results, chorusAlbums, fairplayerAlbums]);
+  }, [releaseSourcesSettled, recentData?.results, chorusAlbums, fairplayerAlbums, funkwhaleAlbums]);
 
   const [failedStationIds, setFailedStationIds] = useState<Set<string>>(new Set());
 

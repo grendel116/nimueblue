@@ -346,6 +346,112 @@ export async function handleStreamProxy(request, url) {
   }
 }
 
+export async function handleFunkwhaleCoverProxy(request, url, corsHeaders) {
+  const podHost = (url.searchParams.get("pod") || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .replace(/\.$/, "");
+  const albumId = (url.searchParams.get("album") || "").trim();
+  const artistId = (url.searchParams.get("artist") || "").trim();
+
+  const validPod =
+    podHost &&
+    podHost.includes(".") &&
+    !/^\d{1,3}(\.\d{1,3}){3}$/.test(podHost) &&
+    podHost !== "localhost" &&
+    /^[a-z0-9.-]+$/.test(podHost);
+  const targetPath = /^\d+$/.test(albumId)
+    ? `/api/v2/albums/${albumId}`
+    : /^\d+$/.test(artistId)
+      ? `/api/v2/artists/${artistId}`
+      : "";
+
+  if (!validPod || !targetPath) {
+    return new Response("Invalid Funkwhale cover parameters.", {
+      status: 400,
+      headers: corsHeaders,
+    });
+  }
+
+  const cache = globalThis.caches?.default;
+  const cacheKey = new Request(url.toString(), { method: "GET" });
+  if (cache) {
+    try {
+      const cached = await cache.match(cacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.warn("Funkwhale cover cache read failed:", err);
+    }
+  }
+
+  try {
+    const metaRes = await fetch(`https://${podHost}${targetPath}`, {
+      headers: {
+        "User-Agent": "NimueBlueSocialBot/1.0",
+        Accept: "application/json",
+      },
+    });
+    if (!metaRes.ok) {
+      return new Response("Funkwhale metadata unavailable.", {
+        status: metaRes.status,
+        headers: corsHeaders,
+      });
+    }
+    const meta = await metaRes.json();
+    const urls = meta?.cover?.urls;
+    const coverUrl =
+      urls?.large_square_crop ||
+      urls?.original ||
+      urls?.medium_square_crop ||
+      urls?.small_square_crop;
+    if (!coverUrl || !/^https?:\/\//i.test(coverUrl)) {
+      return new Response("Funkwhale cover not found.", {
+        status: 404,
+        headers: corsHeaders,
+      });
+    }
+
+    const imageRes = await fetch(coverUrl, {
+      headers: {
+        "User-Agent": "NimueBlueSocialBot/1.0",
+        Accept: "image/*",
+      },
+    });
+    if (!imageRes.ok || !imageRes.body) {
+      return new Response("Funkwhale cover image unavailable.", {
+        status: imageRes.status || 502,
+        headers: corsHeaders,
+      });
+    }
+
+    const headers = new Headers(corsHeaders);
+    headers.set("Content-Type", imageRes.headers.get("content-type") || "image/jpeg");
+    headers.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+    headers.set("Content-Disposition", "inline");
+
+    const response = new Response(
+      request.method === "HEAD" ? null : imageRes.body,
+      { status: 200, headers },
+    );
+
+    if (cache && request.method === "GET") {
+      try {
+        await cache.put(cacheKey, response.clone());
+      } catch (err) {
+        console.warn("Funkwhale cover cache write failed:", err);
+      }
+    }
+
+    return response;
+  } catch (err) {
+    return new Response(`Error fetching Funkwhale cover: ${err.message}`, {
+      status: 502,
+      headers: corsHeaders,
+    });
+  }
+}
+
 export async function handleProxy(request, url, env, corsHeaders) {
   if (url.pathname.startsWith("/mirlo/")) {
     return proxyMirloApi(request, url);
@@ -355,6 +461,9 @@ export async function handleProxy(request, url, env, corsHeaders) {
   }
   if (url.pathname === "/api/podcasts") {
     return handlePodcastsApi(url, corsHeaders);
+  }
+  if (url.pathname === "/funkwhale/cover") {
+    return handleFunkwhaleCoverProxy(request, url, corsHeaders);
   }
   if (url.pathname === "/image" || url.pathname.endsWith("/image")) {
     return handleImageProxy(url, env);

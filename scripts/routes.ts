@@ -1,4 +1,5 @@
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { funkwhaleReleaseSlug } from "@/queries/funkwhale";
 
 export type AlbumLink = {
   urlSlug?: string | number | null;
@@ -6,11 +7,12 @@ export type AlbumLink = {
   artist?: { urlSlug?: string; id?: number | string } | null;
 };
 
-// The artist part of a release's address. Faircamp releases carry their artist in the slug
+// The artist part of a release's address. Faircamp and Funkwhale releases carry their artist in the slug
 export function albumArtistRouteId(album: AlbumLink): string | undefined {
   const slug = String(album.urlSlug ?? "");
   const id =
     fairplayerReleaseSlug.artistRouteId(slug) ??
+    funkwhaleReleaseSlug.artistRouteId(slug) ??
     (album.artist?.urlSlug || album.artistId || album.artist?.id);
   return id ? String(id) : undefined;
 }

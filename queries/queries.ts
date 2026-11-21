@@ -11,6 +11,12 @@ import {
   fetchFairplayerArtist,
   isKnownFairplayerArtistId,
 } from "./fairplayer";
+import {
+  fetchFunkwhaleAlbum,
+  fetchFunkwhaleArtist,
+  funkwhaleReleaseSlug,
+  isKnownFunkwhaleArtistId,
+} from "./funkwhale";
 import { SAVED_PREFIX, findSavedAlbumPage, findSavedArtistPage } from "@/scripts/downloadManager";
 import { mirloSupportUrl } from "@/scripts/hostLinks";
 
@@ -124,6 +130,12 @@ const fetchAlbum: QueryFunction<
     }));
   }
 
+  if (safeId === "funkwhale" || funkwhaleReleaseSlug.decode(safeSlug)) {
+    return fetchFunkwhaleAlbum(safeSlug, signal).then((result) => ({
+      result,
+    }));
+  }
+
   const attachMirloSource = (res: { result: AlbumProps }) => {
     if (res?.result) {
       res.result.source = res.result.source || "Mirlo Space";
@@ -185,6 +197,10 @@ const fetchArtist: QueryFunction<
     const fairArtist = await fetchFairplayerArtist(artistSlug, signal);
     if (fairArtist) return fairArtist;
   }
+  if (funkwhaleReleaseSlug.decodeArtist(artistSlug)) {
+    const funkArtist = await fetchFunkwhaleArtist(artistSlug, signal);
+    if (funkArtist) return funkArtist;
+  }
 
   try {
     const response = await api.get<{ result: Artist }>(`/v1/artists/${artistSlug}`, {
@@ -200,6 +216,14 @@ const fetchArtist: QueryFunction<
         if (fairArtist) return fairArtist;
       } catch {
         // Ignore Fairplayer fallback error
+      }
+    }
+    if (numericId !== undefined && isKnownFunkwhaleArtistId(numericId)) {
+      try {
+        const funkArtist = await fetchFunkwhaleArtist(artistSlug, signal);
+        if (funkArtist) return funkArtist;
+      } catch {
+        // Ignore Funkwhale fallback error
       }
     }
     if (numericId !== undefined) {

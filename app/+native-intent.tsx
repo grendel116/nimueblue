@@ -7,6 +7,10 @@ import {
   fairplayerReleaseSlug,
   fetchFairplayerSongReleaseSlug,
 } from "@/queries/fairplayer";
+import {
+  decodeFunkwhaleShareToken,
+  funkwhaleReleaseSlug,
+} from "@/queries/funkwhale";
 
 // Artist pages share the site root with routes like /login, so a single
 // segment is an artist only if the API says so. Fetching through the query
@@ -101,6 +105,18 @@ export async function redirectSystemPath({
   // Handle explicit ?app= query param on share hubs
   const appParam = url.searchParams.get("app");
   if (appParam) return normalizeAppRoute(appParam);
+
+  const funkwhaleTrackMatch = cleanPath.match(/^\/(?:t|track)\/(fw[A-Za-z0-9_-]+)$/i);
+  if (funkwhaleTrackMatch) {
+    const decoded = decodeFunkwhaleShareToken(funkwhaleTrackMatch[1]);
+    if (decoded) {
+      const albumSlug = funkwhaleReleaseSlug.encode(decoded.podHost, decoded.albumId);
+      return decoded.trackOrder
+        ? `/artist/funkwhale/album/${albumSlug}/album-tracks?trackOrder=${encodeURIComponent(decoded.trackOrder)}`
+        : `/artist/funkwhale/album/${albumSlug}/album-tracks`;
+    }
+    return path;
+  }
 
   const faircampTrackMatch = cleanPath.match(/^\/(?:t|track)\/f([^/]+)$/i);
   if (faircampTrackMatch) {

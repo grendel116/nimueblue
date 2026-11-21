@@ -33,6 +33,7 @@ import { queryRadioPlays, findStation } from "@/queries/radio";
 import { RADIO_SET_SECONDS } from "@/scripts/radioTimer";
 import { findPodcastShow } from "@/queries/podcast";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { funkwhaleReleaseSlug } from "@/queries/funkwhale";
 import ShareTrackButton from "@/components/ShareTrackButton";
 import FavoriteTrackButton from "@/components/FavoriteTrackButton";
 import { releasePageUrl } from "@/scripts/hostLinks";
@@ -519,7 +520,11 @@ function SupportArtistButton({ track }: { track: RNTrack }) {
   const url = releasePageUrl({
     ...track.trackGroup,
     source: track.source || track.trackGroup?.source || (isFaircamp ? "Faircamp" : undefined),
-    sourceUrl: track.trackGroup?.sourceUrl || track.sourceUrl || fairplayerReleaseSlug.siteUrl(albumSlug),
+    sourceUrl:
+      track.trackGroup?.sourceUrl ||
+      track.sourceUrl ||
+      fairplayerReleaseSlug.siteUrl(albumSlug) ||
+      funkwhaleReleaseSlug.siteUrl(albumSlug),
   });
   const artistName = track.trackGroup?.artist?.name ?? track.artist;
 

@@ -228,10 +228,12 @@ export function renderHtml(meta) {
       ? "Episode Page"
       : type === "faircamp"
         ? "Visit Faircamp Catalog"
-        : isArtistCard
-          ? "Follow & Support on Mirlo"
-          : "Listen & Buy on Mirlo";
-  const ogType = type === "track" || type === "faircamp"
+        : type === "funkwhale"
+          ? "Listen on Funkwhale"
+          : isArtistCard
+            ? (webUrl?.includes("mirlo.space") ? "Follow & Support on Mirlo" : "Visit Artist Page")
+            : "Listen & Buy on Mirlo";
+  const ogType = type === "track" || type === "faircamp" || type === "funkwhale"
     ? "music.song"
     : type === "album"
       ? "music.album"

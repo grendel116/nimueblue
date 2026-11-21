@@ -7,8 +7,12 @@ export function blendCarouselReleases(
   direct: AlbumProps[] = [],
   chorus: AlbumProps[] = [],
   fairplayer: AlbumProps[] = [],
-  limit: number = CAROUSEL_LIMIT,
+  limitOrFunkwhale: number | AlbumProps[] = CAROUSEL_LIMIT,
+  maybeLimit: number = CAROUSEL_LIMIT,
 ): AlbumProps[] {
+  const funkwhale = Array.isArray(limitOrFunkwhale) ? limitOrFunkwhale : [];
+  const limit = typeof limitOrFunkwhale === "number" ? limitOrFunkwhale : maybeLimit;
+
   const seenIds = new Set<number>();
   const seenSlugs = new Set<string>();
   const artistCounts = new Map<string, number>();
@@ -16,11 +20,13 @@ export function blendCarouselReleases(
   const shuffledDirect = shuffle(direct);
   const shuffledChorus = distributeFairChorusAlbums(shuffle(chorus), 2);
   const shuffledFairplayer = distributeFairChorusAlbums(shuffle(fairplayer), 2);
+  const shuffledFunkwhale = distributeFairChorusAlbums(shuffle(funkwhale), 2);
 
   const combinedCandidates = shuffle([
     ...shuffledDirect,
     ...shuffledChorus,
     ...shuffledFairplayer,
+    ...shuffledFunkwhale,
   ]);
 
   const blended: AlbumProps[] = [];

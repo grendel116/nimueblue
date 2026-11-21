@@ -3,6 +3,7 @@ import { API_KEY } from "@/constants/api-key";
 import { shuffle, trackStreamPath } from "@/scripts/utils";
 import { isTrackDisabledSync } from "@/scripts/trackPlayUtils";
 import { fetchFairplayerDiscoveryTracks } from "@/queries/fairplayer";
+import { fetchFunkwhaleDiscoveryTracks } from "@/queries/funkwhale";
 import { kvStorage } from "@/scripts/storage/kvStorage";
 import { toNormalizedTrack } from "@/state/player/queueModel";
 
@@ -198,30 +199,37 @@ async function fetchMirloDiscoveryTracks(take: number): Promise<RNTrack[]> {
   });
 }
 
-// Fetches previews from a random set of Mirlo and verified Faircamp releases to continue
+// Fetches previews from a random set of Mirlo, verified Faircamp, and Funkwhale releases to continue
 // playback after the current playlist runs out.
 export async function fetchDiscoveryTracks(take: number): Promise<RNTrack[]> {
   if (take <= 0) return [];
-  const faircampTarget = Math.max(1, Math.floor(take / 2));
+  const externalTarget = Math.max(1, Math.floor(take / 3));
 
-  const [mirloResult, faircampResult] = await Promise.allSettled([
+  const [mirloResult, faircampResult, funkwhaleResult] = await Promise.allSettled([
     fetchMirloDiscoveryTracks(take),
-    fetchFairplayerDiscoveryTracks(faircampTarget),
+    fetchFairplayerDiscoveryTracks(externalTarget),
+    fetchFunkwhaleDiscoveryTracks(externalTarget),
   ]);
 
   const mirloTracks = mirloResult.status === "fulfilled" ? mirloResult.value : [];
   const faircampTracks =
     faircampResult.status === "fulfilled" ? faircampResult.value : [];
+  const funkwhaleTracks =
+    funkwhaleResult.status === "fulfilled" ? funkwhaleResult.value : [];
 
-  if (mirloTracks.length === 0 && faircampTracks.length === 0) {
+  if (mirloTracks.length === 0 && faircampTracks.length === 0 && funkwhaleTracks.length === 0) {
     if (mirloResult.status === "rejected") throw mirloResult.reason;
     return [];
   }
 
-  const selectedFaircamp = faircampTracks.slice(0, faircampTarget);
-  const remainingSlots = Math.max(0, take - selectedFaircamp.length);
+  const selectedFaircamp = faircampTracks.slice(0, externalTarget);
+  const selectedFunkwhale = funkwhaleTracks.slice(0, externalTarget);
+  const remainingSlots = Math.max(
+    0,
+    take - selectedFaircamp.length - selectedFunkwhale.length,
+  );
   const selectedMirlo = shuffle(mirloTracks).slice(0, remainingSlots);
 
-  return shuffle([...selectedMirlo, ...selectedFaircamp]);
+  return shuffle([...selectedMirlo, ...selectedFaircamp, ...selectedFunkwhale]);
 }
 

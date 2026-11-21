@@ -3,6 +3,7 @@ import * as api from "@/queries/fetch/fetchWrapper";
 import { queryClient } from "@/queries/QueryClientWrapper";
 import { queryAlbum, queryArtist } from "@/queries/queries";
 import { fairplayerReleaseSlug, searchFairplayerAlbums } from "@/queries/fairplayer";
+import { searchFunkwhaleAlbums } from "@/queries/funkwhale";
 import { albumHref } from "@/scripts/routes";
 import {
   DownloadedAlbum,
@@ -23,13 +24,15 @@ export async function findOnlineAlbum(wanted: {
   artist?: string;
 }): Promise<AlbumProps | null> {
   if (!wanted.title) return null;
-  const [mirlo, faircamp] = await Promise.allSettled([
+  const [mirlo, faircamp, funkwhale] = await Promise.allSettled([
     api.getMany<AlbumProps>("/v1/trackGroups", {}, { title: wanted.title }),
     searchFairplayerAlbums(wanted.title),
+    searchFunkwhaleAlbums(wanted.title),
   ]);
   const candidates = [
     ...(mirlo.status === "fulfilled" ? mirlo.value.results : []),
     ...(faircamp.status === "fulfilled" ? faircamp.value : []),
+    ...(funkwhale.status === "fulfilled" ? funkwhale.value : []),
   ];
   return (
     candidates.find((c) => sameAlbum(wanted, { title: c.title, artist: c.artist?.name })) ?? null

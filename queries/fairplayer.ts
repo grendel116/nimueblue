@@ -1523,6 +1523,15 @@ export const fairplayerReleaseSlug = {
     source?: string;
   }) => {
     if (!trackGroup) return "";
+    if (trackGroup.artist?.urlSlug?.startsWith("funkwhale-artist-")) {
+      return trackGroup.artist.urlSlug;
+    }
+    if (
+      trackGroup.source === "Funkwhale" ||
+      String(trackGroup.urlSlug || "").startsWith("funkwhale-")
+    ) {
+      return String(trackGroup.artist?.urlSlug || trackGroup.artistId || "");
+    }
     const isFaircamp =
       trackGroup.source === "Faircamp" ||
       Boolean(decodeReleaseSlug(String(trackGroup.urlSlug || "")));

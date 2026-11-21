@@ -6,6 +6,7 @@ import { NIMUE_BLUE_LISTEN_HUB, shareMessage } from "@/scripts/share";
 import { findStation } from "@/queries/radio";
 import { findPodcastShow } from "@/queries/podcast";
 import { fairplayerReleaseSlug } from "@/queries/fairplayer";
+import { encodeFunkwhaleShareToken, funkwhaleReleaseSlug } from "@/queries/funkwhale";
 import { findOnlineSong } from "@/scripts/albumLookup";
 
 /**
@@ -42,15 +43,27 @@ export function resolveTrackSourceUrl(track: RNTrack): string {
     return faircampSiteUrl;
   }
 
+  const funkwhaleSiteUrl = funkwhaleReleaseSlug.siteUrl(
+    track.trackGroup?.urlSlug,
+  );
+  if (funkwhaleSiteUrl) {
+    return funkwhaleSiteUrl;
+  }
+
   const songUrl = songPageUrl(track);
   if (songUrl) return songUrl;
 
   const artistSlug = track.trackGroup?.artist?.urlSlug;
   const albumSlug = track.trackGroup?.urlSlug;
-  if (artistSlug && artistSlug !== "fairplayer" && albumSlug) {
+  const isExternalSlug =
+    artistSlug === "fairplayer" ||
+    artistSlug === "funkwhale" ||
+    String(artistSlug || "").startsWith("funkwhale-artist-") ||
+    String(albumSlug || "").startsWith("funkwhale-");
+  if (artistSlug && !isExternalSlug && albumSlug) {
     return `https://mirlo.space/${artistSlug}/release/${albumSlug}`;
   }
-  if (artistSlug && artistSlug !== "fairplayer") {
+  if (artistSlug && !isExternalSlug) {
     return `https://mirlo.space/${artistSlug}`;
   }
 
@@ -121,6 +134,17 @@ export function buildShareUrl(
     if (fairplayerTrackId) {
       return `${origin}/t/f${encodeURIComponent(fairplayerTrackId)}`;
     }
+  }
+
+  const funkwhaleDecoded = funkwhaleReleaseSlug.decode(
+    track.trackGroup?.urlSlug || "",
+  );
+  if (funkwhaleDecoded) {
+    const token = encodeFunkwhaleShareToken(
+      funkwhaleDecoded.releaseId,
+      track.order || 1,
+    );
+    return `${origin}/t/${token}`;
   }
 
   const isExternalTrack = Boolean(
