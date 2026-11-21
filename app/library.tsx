@@ -181,46 +181,17 @@ export default function LibraryScreen() {
   };
 
   const renderBookmarks = () => {
-    const bookmarkBar = (
-      <View style={styles.bookmarkActionsBar}>
-        <TouchableOpacity
-          onPress={() => setCurationTab("stations")}
-          style={styles.bookmarkActionBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Add custom station or podcast"
-        >
-          <Ionicons name="add" size={15} color={theme.colors.primary} />
-          <Text style={styles.bookmarkActionText}>Add Station / Podcast</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setCurationTab("filters")}
-          style={styles.bookmarkActionBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Configure filters"
-        >
-          <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
-          <Text style={styles.bookmarkActionText}>Filters</Text>
-        </TouchableOpacity>
-      </View>
-    );
-
     if (bookmarks.length === 0) {
-      return (
-        <View style={styles.contentArea}>
-          {bookmarkBar}
-          {renderEmpty(
-            "bookmark-outline",
-            "No bookmarks yet",
-            "Bookmark a radio station or podcast to keep it here, or add a custom feed above.",
-          )}
-        </View>
+      return renderEmpty(
+        "bookmark-outline",
+        "No bookmarks yet",
+        "Bookmark a radio station or podcast to keep it here.",
       );
     }
     const stationTracks = bookmarks.flatMap((b) => (b.kind === "station" ? [b.track] : []));
     return (
       <FlatList
         data={bookmarks}
-        ListHeaderComponent={bookmarkBar}
         keyExtractor={(item) =>
           item.kind === "station" ? `station-${item.track.liveStation}` : `show-${item.show.showId}`
         }
@@ -547,30 +518,5 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: 13,
     textAlign: "center",
-  },
-  bookmarkActionsBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  bookmarkActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.primary,
-  },
-  bookmarkActionText: {
-    color: theme.colors.primary,
-    fontSize: 12,
-    fontWeight: "700",
   },
 });

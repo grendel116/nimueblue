@@ -425,25 +425,15 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionHeader}>Radio</Text>
-                <View style={styles.sectionActions}>
-                  <Pressable
-                    onPress={() => setCurationTab("stations")}
-                    style={styles.sectionActionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add or manage radio stations"
-                  >
-                    <Ionicons name="add" size={14} color={theme.colors.primary} />
-                    <Text style={styles.sectionActionText}>Station</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setCurationTab("filters")}
-                    style={styles.sectionActionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Configure feed filters"
-                  >
-                    <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={() => setCurationTab("stations")}
+                  style={styles.sectionActionBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add or manage radio stations"
+                >
+                  <Ionicons name="add" size={16} color={theme.colors.primary} />
+                </Pressable>
               </View>
               <FlatList
                 ref={dragScroll}
@@ -472,25 +462,15 @@ const HomePane = memo(function HomePane({ active }: { active: boolean }) {
             <View style={styles.section}>
               <View style={styles.sectionTitleRow}>
                 <Text style={styles.sectionHeader}>Discussion</Text>
-                <View style={styles.sectionActions}>
-                  <Pressable
-                    onPress={() => setCurationTab("podcasts")}
-                    style={styles.sectionActionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add or manage podcast feeds"
-                  >
-                    <Ionicons name="add" size={14} color={theme.colors.primary} />
-                    <Text style={styles.sectionActionText}>Podcast</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setCurationTab("filters")}
-                    style={styles.sectionActionBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Configure feed filters"
-                  >
-                    <Ionicons name="options-outline" size={14} color={theme.colors.primary} />
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={() => setCurationTab("podcasts")}
+                  style={styles.sectionActionBtn}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add or manage podcast feeds"
+                >
+                  <Ionicons name="add" size={16} color={theme.colors.primary} />
+                </Pressable>
               </View>
               <FlatList
                 ref={dragScroll}
@@ -696,26 +676,15 @@ const styles = StyleSheet.create({
   sectionHeader: {
     ...theme.typography.sectionHeader,
   },
-  sectionActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
   sectionActionBtn: {
-    flexDirection: "row",
+    width: 28,
+    height: 28,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
     borderRadius: theme.radius.full,
     backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
     borderColor: theme.colors.surfaceGlassBorder,
-  },
-  sectionActionText: {
-    color: theme.colors.primary,
-    fontSize: 11,
-    fontWeight: "700",
   },
   historyGrid: {
     flexDirection: "row",
